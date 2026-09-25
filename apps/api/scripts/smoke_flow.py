@@ -30,11 +30,12 @@ def main() -> None:
 
     # --- 会社と人員（受注側）を ENS 名つきで登録
     co_admin = Client(BASE); co_admin.login()
-    co = co_admin.post("/companies", {"name": "Field Co.", "ens_name": "field-co.eth", "description": "現地撮影・実物確認"}, expect=201)
+    co_ens = "smoke-" + co_admin.address[-6:].lower() + ".eth"
+    co = co_admin.post("/companies", {"name": "Smoke Co.", "ens_name": co_ens, "description": "現地撮影・実物確認"}, expect=201)
     worker2 = Client(BASE); worker2.login()
-    m1 = co_admin.post(f"/companies/{co['id']}/members", {"label": "dan", "name": "Dan", "wallet_address": worker.address, "role": "photographer", "skills": "写真撮影,現地確認,店舗", "location": "東京"}, expect=201)
+    m1 = co_admin.post(f"/companies/{co['id']}/members", {"label": "dan", "name": "Dan", "wallet_address": worker.address, "role": "photographer", "skills": "写真撮影,現地確認,店舗,外観,URL", "location": "東京"}, expect=201)
     m2 = co_admin.post(f"/companies/{co['id']}/members", {"label": "emi", "name": "Emi", "wallet_address": worker2.address, "role": "surveyor", "skills": "アンケート,現地確認", "location": "大阪"}, expect=201)
-    assert m1["ens_name"] == "dan.field-co.eth" and m2["ens_name"] == "emi.field-co.eth"
+    assert m1["ens_name"] == f"dan.{co_ens}" and m2["ens_name"] == f"emi.{co_ens}"
     client.post(f"/companies/{co['id']}/members", {"label": "x", "name": "X", "wallet_address": client.address}, expect=403)  # 管理者以外
     print("V15 company + members:", [m["ens_name"] for m in co_admin.get(f"/companies/{co['id']}")["members"]])
 
@@ -66,17 +67,35 @@ def main() -> None:
     ht = next(t for t in case["tasks"] if t["type"] == "human")["human_task"]
     assert ht["status"] == "assigned" and ht["assignee"], ht
     print("V16 assigned to", ht["assignee"]["ens_name"], "-", ht["assignment_reason"])
-    assert ht["assignee"]["ens_name"] == "dan.field-co.eth"  # スキル一致で Dan
+    assert ht["assignee"]["ens_name"] == f"dan.{co_ens}", ht["assignee"]  # スキル一致で Dan
     assert not any(t["id"] == ht["id"] for t in worker.get("/human-tasks"))  # 指名中は公開一覧に出ない
     assert any(t["id"] == ht["id"] for t in worker.get("/human-tasks/assigned"))
     client.post(f"/human-tasks/{ht['id']}/accept", {}, expect=403)  # 発注者は受注不可
     worker2.post(f"/human-tasks/{ht['id']}/accept", {}, expect=403)  # 指名されていない人員は受諾不可
     # 辞退 → 次の候補（Emi）に再指名 → Emi も辞退 → 公開募集
     ht = worker.post(f"/human-tasks/{ht['id']}/decline", {})
-    assert ht["status"] == "assigned" and ht["assignee"]["ens_name"] == "emi.field-co.eth", ht
-    ht = worker2.post(f"/human-tasks/{ht['id']}/decline", {})
+    assert ht["status"] == "assigned" and ht["assignee"]["ens_name"] != f"dan.{co_ens}", ht
+    # 残りの候補が辞退し続けると最終的に公開募集になる（seed 済みの他社人員がいる場合はそちらにも回る）
+    for _ in range(10):
+        if ht["status"] != "assigned":
+            break
+        addr = ht["assignee"]["wallet_address"]
+        c = next((x for x in (worker, worker2) if x.address.lower() == addr), None)
+        if c is None:
+            # seed のデモログイン人員に指名された場合は、そのロールでログインして辞退する
+            for u in worker.get("/auth/dev-users"):
+                dc = Client(BASE)
+                r = dc.http.post("/auth/dev-login", json={"role": u["role"]}).json()
+                if r["user"]["wallet_address"] == addr:
+                    dc.http.headers["Authorization"] = f"Bearer {r['token']}"
+                    c = dc
+                    break
+        if c is None:
+            print("   assigned to an unknown member; stopping decline loop at", ht["assignee"]["ens_name"])
+            break
+        ht = c.post(f"/human-tasks/{ht['id']}/decline", {})
+    print("V17 decline → reassign ok (final status:", ht["status"] + ")")
     assert ht["status"] == "open" and ht["assignee"] is None, ht
-    print("V17 decline → reassign → open ok")
     ht = worker.post(f"/human-tasks/{ht['id']}/accept", {"idkit_response": None})
     assert ht["status"] == "accepted"
     ht = worker.post(f"/human-tasks/{ht['id']}/submit", {"submission": "https://example.com/photo1.jpg 外観 3 枚"})

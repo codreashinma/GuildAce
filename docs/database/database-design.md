@@ -316,3 +316,16 @@ AI Agent Marketplace（AI Agent × World × ENS）MVP のオフチェーン DB�
 - `cases.escrow_case_id` は `keccak256(utf8(case.id))` の bytes32（`apps/api/app/services/chain.py: escrow_case_id`）。
 - 実装（`apps/api/app/models.py`）は本設計書のうち補助カラム（`users.human_verified` / `last_login_at`、`agents.avatar_url` / `published_at`、`human_tasks.accepted_at` / `submitted_at`、`disputes.closed_at`、`world_verifications.verified_at`）を持たず、代わりに `agents.ens_error`、`cases.error`、`disputes.required_votes` を持つ。MVP ではマイグレーションを使わず `create_all` で生成している。
 - 紛争は案件ごとに 1 件、`reviews.target_type='user'` は Human Task worker → 発注者 のレビューとして保存のみ（表示は案件詳細）。
+
+## 9. 追加テーブル（2026-09-25 アーキテクチャ整合後）
+
+| テーブル | 役割 | 主なカラム |
+|---|---|---|
+| `companies` | 受注側の会社（自社の `.eth` を所有） | admin_id, name, ens_name(UK), ens_verified |
+| `members` | 会社の人員。ENS 名 `<label>.<company>` の record キャッシュ | company_id, label, wallet_address, ens_name, role, skills, location, available, ens_status, rating_avg, completed_count。UK(company_id,label) |
+| `approvals` | 承認者の承認（World nullifier + EIP-712 署名）。オンチェーンへは worker が中継 | task_id, approver_id, deliverable_hash, signature, nullifier。UK(task_id, approver_id, deliverable_hash) |
+| `chain_jobs` | チェーン連携ワーカーのジョブ（ADR-006） | kind, idempotency_key(UK), payload(jsonb), status(queued/running/retry/done/failed), attempts, tx_hash, error |
+
+`tasks` に追加: `escrow_task_id`, `chain_status`（none/funded/submitted/paid/disputed/resolved = Escrow の投影）, `deliverable_hash`, `payee`, `approval_count`, `chain_tx_hash`。
+`cases` に追加: `approvers`(jsonb), `threshold`, `open_tx_hash`, `project_ens_name`, `project_ens_tx_hash`, `request_nullifier`。`deposit_tx_hash` / `release_tx_hash` は廃止。
+`human_tasks` に追加: `assignee_member_id`, `assignment_reason`, `declined_member_ids`(jsonb)。status に `assigned` を追加。

@@ -310,3 +310,9 @@ AI Agent Marketplace（AI Agent × World × ENS）MVP のオフチェーン DB�
 | 日付 | 内容 |
 |---|---|
 | 2026-09-25 | 初版作成（仕様書 `20260925-agent-marketplace-mvp.md` に基づく 9 テーブル） |
+
+## 8. 実装との対応メモ（2026-09-25 実装後）
+
+- `cases.escrow_case_id` は `keccak256(utf8(case.id))` の bytes32（`apps/api/app/services/chain.py: escrow_case_id`）。
+- 実装（`apps/api/app/models.py`）は本設計書のうち補助カラム（`users.human_verified` / `last_login_at`、`agents.avatar_url` / `published_at`、`human_tasks.accepted_at` / `submitted_at`、`disputes.closed_at`、`world_verifications.verified_at`）を持たず、代わりに `agents.ens_error`、`cases.error`、`disputes.required_votes` を持つ。MVP ではマイグレーションを使わず `create_all` で生成している。
+- 紛争は案件ごとに 1 件、`reviews.target_type='user'` は Human Task worker → 発注者 のレビューとして保存のみ（表示は案件詳細）。

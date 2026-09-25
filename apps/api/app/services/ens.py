@@ -69,6 +69,27 @@ def dns_encode(name: str) -> bytes:
     return out + b"\x00"
 
 
+def resolve_v2(w3: Web3, name: str) -> tuple[str | None, str | None, str | None]:
+    """ENSv2 のレジストリを .eth から順にたどり、(resolver, 親レジストリ, 最終ラベル) を返す。
+    Universal Resolver が v2 名を解決しない期間があるため、レジストリを直接歩く。"""
+    s = get_settings()
+    labels = name.split(".")
+    if labels[-1] != "eth" or len(labels) < 2:
+        return None, None, None
+    registry = Web3.to_checksum_address(s.ensv2_eth_registry)
+    for i in range(len(labels) - 2, -1, -1):
+        label = labels[i]
+        reg = w3.eth.contract(address=registry, abi=V2_REGISTRY_ABI)
+        if i == 0:
+            resolver = reg.functions.getResolver(label).call()
+            return (resolver if int(resolver, 16) else None), registry, label
+        sub = reg.functions.getSubregistry(label).call()
+        if int(sub, 16) == 0:
+            return None, None, None
+        registry = Web3.to_checksum_address(sub)
+    return None, None, None
+
+
 def agent_ens_name(label: str) -> str:
     return f"{label}.{get_settings().ens_parent_name}"
 
@@ -151,9 +172,8 @@ def read_texts(name: str, keys: list[str] | None = None) -> dict[str, str]:
         return {}
     try:
         w3 = _w3()
-        ur = w3.eth.contract(address=Web3.to_checksum_address(s.ens_universal_resolver), abi=UNIVERSAL_RESOLVER_ABI)
-        resolver_addr, _, _ = ur.functions.findResolver(dns_encode(name)).call()
-        if int(resolver_addr, 16) == 0:
+        resolver_addr, _, _ = resolve_v2(w3, name)
+        if resolver_addr is None:
             return {}
         r = w3.eth.contract(address=resolver_addr, abi=RESOLVER_ABI)
         node = namehash(name)
@@ -202,9 +222,8 @@ def member_calldata(*, company_name: str, label: str, owner: str, texts: dict[st
     sub = reg.functions.getSubregistry(parent_label).call()
     if int(sub, 16) == 0:
         raise RuntimeError(f"{company_name} にサブレジストリがありません。`ens subregistry deploy {company_name} --chain sepolia` で作成してください")
-    ur = w3.eth.contract(address=Web3.to_checksum_address(s.ens_universal_resolver), abi=UNIVERSAL_RESOLVER_ABI)
-    resolver_addr, _, _ = ur.functions.findResolver(dns_encode(company_name)).call()
-    if int(resolver_addr, 16) == 0:
+    resolver_addr, _, _ = resolve_v2(w3, company_name)
+    if resolver_addr is None:
         raise RuntimeError(f"{company_name} にリゾルバが設定されていません")
     subreg = w3.eth.contract(address=sub, abi=V2_REGISTRY_ABI)
     resolver = w3.eth.contract(address=resolver_addr, abi=RESOLVER_ABI)

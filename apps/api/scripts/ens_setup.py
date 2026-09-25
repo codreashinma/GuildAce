@@ -7,7 +7,8 @@
 最後に .env に書く ENS_OWNED_RESOLVER / ENS_PARENT_SUBREGISTRY を出力する。
 
 使い方: SEPOLIA_RPC_URL / SERVER_PRIVATE_KEY を .env に設定して
-  .venv/bin/python scripts/ens_setup.py
+  .venv/bin/python scripts/ens_setup.py            # 実行（Sepolia ETH が必要）
+  .venv/bin/python scripts/ens_setup.py --dry-run  # 送信せずに手順・料金・予定アドレスだけ表示
 契約アドレスは ensdomains/ens-cli（2026-07-30 のデプロイ）に合わせている。変わっていたら .env の ENSV2_* で上書きする。"""
 
 import os
@@ -55,6 +56,9 @@ ERC20_ABI = [
 DURATION = 365 * 24 * 3600
 
 
+DRY = "--dry-run" in sys.argv
+
+
 def main() -> None:
     s = get_settings()
     if not (s.sepolia_rpc_url and s.server_private_key):
@@ -62,9 +66,15 @@ def main() -> None:
     w3 = Web3(Web3.HTTPProvider(s.sepolia_rpc_url))
     acct = Account.from_key(s.server_private_key)
     me = acct.address
-    print("signer:", me, "balance:", w3.from_wei(w3.eth.get_balance(me), "ether"), "ETH")
+    bal = w3.eth.get_balance(me)
+    print("signer:", me, "balance:", w3.from_wei(bal, "ether"), "ETH", "(dry-run)" if DRY else "")
+    if not DRY and bal < w3.to_wei(0.01, "ether"):
+        sys.exit(f"Sepolia ETH が不足しています。{me} に 0.05 ETH ほど送ってください（faucet: https://cloud.google.com/application/web3/faucet/ethereum/sepolia など）")
 
     def send(fn) -> str:
+        if DRY:
+            print("  [dry-run] 送信予定:", fn.fn_name, "→", fn.address)
+            return "0x" + "00" * 32
         tx = fn.build_transaction({"from": me, "nonce": w3.eth.get_transaction_count(me), "chainId": s.chain_id})
         h = w3.eth.send_raw_transaction(acct.sign_transaction(tx).raw_transaction)
         r = w3.eth.wait_for_transaction_receipt(h, timeout=240)
@@ -116,10 +126,12 @@ def main() -> None:
         print("  commit")
         send(registrar.functions.commit(commitment))
         print("  60 秒待機（minCommitmentAge）")
-        time.sleep(75)
+        if not DRY:
+            time.sleep(75)
         print("  register")
         send(registrar.functions.register(label, me, secret, ZERO, Web3.to_checksum_address(resolver_addr), DURATION, Web3.to_checksum_address(s.ensv2_payment_token), b"\x00" * 32))
-        _, _, _, token_id, _ = eth_registry.functions.getState(int.from_bytes(keccak(text=label), "big")).call()
+        if not DRY:
+            _, _, _, token_id, _ = eth_registry.functions.getState(int.from_bytes(keccak(text=label), "big")).call()
 
     # 3. サブレジストリ
     sub = eth_registry.functions.getSubregistry(label).call()
@@ -134,7 +146,10 @@ def main() -> None:
             print("3. UserRegistry をデプロイ:", sub)
             send(fn)
         print("   親名にサブレジストリを設定")
-        send(eth_registry.functions.setSubregistry(token_id, sub))
+        if DRY and status != 2:
+            print("  [dry-run] 送信予定: setSubregistry（tokenId は登録後に確定）")
+        else:
+            send(eth_registry.functions.setSubregistry(token_id, sub))
 
     print("\n.env に追記してください:")
     print(f"ENS_OWNED_RESOLVER={resolver_addr}")

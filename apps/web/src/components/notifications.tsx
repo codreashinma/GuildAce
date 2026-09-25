@@ -3,20 +3,19 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
-import { api, type Case } from "@/lib/api";
+import { api, type Notice } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { noticesFromCases } from "@/lib/mock";
 
-const ICON: Record<string, string> = { approve: "承認", deliver: "提出", pay: "支払", dispute: "紛争", info: "進行" };
+const ICON: Record<string, string> = { approve: "承認", assigned: "指名", deliver: "提出", pay: "支払", dispute: "紛争", info: "進行" };
 
-/** FR-032 関係者への通知（UI モック: 自分の案件の状態から組み立てる） */
+/** FR-032 関係者への通知（API が承認待ち・指名・提出・支払い・紛争を横断して返す） */
 export function NotificationBell() {
   const { me } = useAuth();
   const [open, setOpen] = useState(false);
-  const { data } = useQuery({ queryKey: ["cases", me?.id], queryFn: () => api<Case[]>("/cases"), enabled: !!me, refetchInterval: 8000 });
+  const { data } = useQuery({ queryKey: ["notifications", me?.id], queryFn: () => api<Notice[]>("/cases/notifications"), enabled: !!me, refetchInterval: 8000 });
   if (!me) return null;
-  const notices = noticesFromCases(data ?? []);
-  const urgent = notices.filter((n) => n.kind === "approve" || n.kind === "deliver" || n.kind === "dispute").length;
+  const notices = data ?? [];
+  const urgent = notices.filter((n) => n.urgent).length;
   return (
     <div className="relative">
       <button onClick={() => setOpen((v) => !v)} className="relative inline-flex h-9 items-center whitespace-nowrap rounded-md border border-neutral-300 px-2.5 text-xs text-neutral-700 hover:border-neutral-900 hover:text-neutral-900" title="通知">

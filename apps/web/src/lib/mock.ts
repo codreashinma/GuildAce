@@ -66,22 +66,6 @@ export function contractFor(task: Task) {
   };
 }
 
-/** FR-032: 通知（案件の状態から組み立てるモック） */
-export type Notice = { id: string; title: string; body: string; href: string; kind: "approve" | "deliver" | "pay" | "dispute" | "info" };
-export function noticesFromCases(cases: Case[]): Notice[] {
-  const out: Notice[] = [];
-  for (const c of cases) {
-    if (c.status === "awaiting_approval") out.push({ id: c.id + ":a", kind: "approve", title: "計画の承認と Escrow の開設をお願いします", body: c.title, href: `/cases/${c.id}` });
-    const pending = c.tasks.filter((t) => t.chain_status === "submitted").length;
-    if (pending > 0 && c.status !== "disputed") out.push({ id: c.id + ":d", kind: "deliver", title: `${pending} 工程の成果物が提出されました。承認をお願いします`, body: c.title, href: `/cases/${c.id}` });
-    const paid = c.tasks.filter((t) => t.chain_status === "paid").length;
-    if (paid > 0) out.push({ id: c.id + ":p", kind: "pay", title: `${paid} 工程の支払いが Escrow から実行されました`, body: c.title, href: `/cases/${c.id}` });
-    if (c.status === "disputed") out.push({ id: c.id + ":x", kind: "dispute", title: "紛争が発生しました。Jury の裁定待ちです", body: c.title, href: `/cases/${c.id}` });
-    if (c.status === "in_progress") out.push({ id: c.id + ":i", kind: "info", title: "チームが作業中です", body: c.title, href: `/cases/${c.id}` });
-  }
-  return out;
-}
-
 /** FR-034: 検収タイムアウト（仮: 7 日）までの残り */
 export function reviewDeadline(c: Case): { days: number; label: string } {
   const start = new Date(c.created_at).getTime();

@@ -44,7 +44,7 @@ export type User = { id: string; wallet_address: string; display_name: string | 
 export type Me = User & { human_verified_actions: string[] };
 export type Agent = {
   id: string; creator_id: string; name: string; label: string; description: string; category: string; rules: string;
-  fee_bps: number; payout_address: string; ens_name: string | null; ens_tx_hash: string | null; status: string;
+  fee_bps: number; payout_address: string; ens_name: string | null; ens_tx_hash: string | null; parent_ens_name: string | null; owner_mode: "platform" | "creator"; status: string;
   rating_avg: number; rating_count: number; completed_count: number; ens_error: string | null; created_at: string; creator: User;
 };
 export type AgentDetail = Agent & { ens_records: Record<string, string> };
@@ -69,6 +69,8 @@ export type Case = {
   error: string | null; created_at: string; client: User; agent: Agent; tasks: Task[];
 };
 export type CaseDetail = Case & { dispute_id: string | null };
+export type PendingApproval = { case_id: string; case_title: string; task_id: string; task_title: string; task_type: string; amount: number; approval_count: number; threshold: number; payee: string | null; deliverable_hash: string | null };
+export type Notice = { id: string; kind: "approve" | "assigned" | "deliver" | "pay" | "dispute" | "info"; title: string; body: string; href: string; urgent: boolean };
 export type TypedData = { types: Record<string, { name: string; type: string }[]>; primaryType: string; domain: Record<string, unknown>; message: Record<string, string> };
 export type Review = { id: string; case_id: string; rating: number; comment: string; target_type: string; target_id: string; created_at: string; reviewer: User };
 export type JuryVote = { id: string; vote: "release" | "refund"; created_at: string; voter: User };

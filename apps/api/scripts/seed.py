@@ -67,7 +67,7 @@ def main() -> None:
         except AssertionError:
             print("skip existing", a["label"])
             continue
-        ag = creator.post(f"/agents/{ag['id']}/publish")
+        ag = creator.post(f"/agents/{ag['id']}/publish")["agent"]
         ag = creator.wait(f"/agents/{ag['id']}", "status", {"published", "publish_failed"}, timeout=300)
         print("published", ag["ens_name"], ag["status"], ag.get("ens_error") or "")
         agents.append(ag)

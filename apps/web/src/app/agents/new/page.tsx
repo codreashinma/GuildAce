@@ -5,21 +5,25 @@ import { useState } from "react";
 import { api, CATEGORY_LABEL, type Agent } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { Button, Card, ErrorBox, Field, inputCls, PageTitle } from "@/components/ui";
+import { usePublishAgent } from "@/components/publish-agent";
 
 export default function NewAgent() {
   const router = useRouter();
   const { me, config } = useAuth();
   const [f, setF] = useState({ name: "Web開発 PM Agent", label: "", description: "", category: "web", rules: "", fee_bps: 200, payout_address: "" });
+  const [mode, setMode] = useState<"platform" | "creator">("platform");
+  const [ownName, setOwnName] = useState("");
   const [err, setErr] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
+  const { publish: doPublish, step } = usePublishAgent();
   const set = (k: string, v: string | number) => setF((s) => ({ ...s, [k]: v }));
 
   const submit = async (publish: boolean) => {
     setErr(null);
     setBusy(true);
     try {
-      const a = await api<Agent>("/agents", { method: "POST", json: { ...f, payout_address: f.payout_address || null } });
-      if (publish) await api(`/agents/${a.id}/publish`, { method: "POST" });
+      const a = await api<Agent>("/agents", { method: "POST", json: { ...f, payout_address: f.payout_address || null, parent_ens_name: mode === "creator" ? ownName : null } });
+      if (publish) await doPublish(a.id);
       router.push(`/agents/${a.id}`);
     } catch (e) {
       setErr(e);
@@ -29,13 +33,25 @@ export default function NewAgent() {
   };
 
   if (!me) return <p className="text-sm text-neutral-500">ウォレットを接続して Sign in してください。</p>;
-  const ens = `${f.label || "<label>"}.${config?.ens_parent_name ?? "choice.eth"}`;
+  const parent = mode === "creator" ? (ownName || "<your-name>.eth") : (config?.ens_parent_name ?? "choice.eth");
+  const ens = `${f.label || "<label>"}.${parent}`;
 
   return (
     <div className="mx-auto max-w-2xl">
       <PageTitle title="PM Agent を作成" sub="作成した Agent は ENS の subname として公開され、利用されるたびに利用料が入ります" />
       <Card className="space-y-4">
         <Field label="名前"><input className={inputCls} value={f.name} onChange={(e) => set("name", e.target.value)} /></Field>
+        <Field label="公開先（ENS の親名）" hint="Creator 自身の .eth の下に置くと、名前の所有者は Creator になり、発行と record 書き込みは自分のウォレットで署名します">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <button type="button" onClick={() => setMode("platform")} className={`rounded-md border p-3 text-left text-sm ${mode === "platform" ? "border-neutral-900 shadow-[2px_2px_0_0_#171717]" : "border-neutral-300"}`}>
+              <div className="font-medium">プラットフォームの親名</div><div className="mt-0.5 font-mono text-xs text-neutral-600">&lt;label&gt;.{config?.ens_parent_name ?? "choice.eth"}</div><div className="mt-1 text-xs text-neutral-500">ウォレット署名不要。運用ウォレットが発行</div>
+            </button>
+            <button type="button" onClick={() => setMode("creator")} className={`rounded-md border p-3 text-left text-sm ${mode === "creator" ? "border-neutral-900 shadow-[2px_2px_0_0_#171717]" : "border-neutral-300"}`}>
+              <div className="font-medium">自分の ENS 名の下</div><div className="mt-0.5 font-mono text-xs text-neutral-600">&lt;label&gt;.&lt;your-name&gt;.eth</div><div className="mt-1 text-xs text-neutral-500">所有者を ENSv2 で確認。2 本の tx に署名</div>
+            </button>
+          </div>
+          {mode === "creator" && <input className={`${inputCls} mt-2`} placeholder="nakamine.eth（Sepolia ENSv2 で所有している名前）" value={ownName} onChange={(e) => setOwnName(e.target.value.toLowerCase())} />}
+        </Field>
         <Field label="ENS ラベル" hint={`公開先: ${ens}（英小文字・数字・ハイフン）`}>
           <input className={inputCls} placeholder="web-pm" value={f.label} onChange={(e) => set("label", e.target.value.toLowerCase())} />
         </Field>
@@ -59,7 +75,7 @@ export default function NewAgent() {
         <ErrorBox error={err} />
         <div className="flex justify-end gap-2">
           <Button variant="secondary" disabled={busy || !f.label} onClick={() => submit(false)}>下書き保存</Button>
-          <Button disabled={busy || !f.label} onClick={() => submit(true)}>{busy ? "処理中…" : "ENS に公開する"}</Button>
+          <Button disabled={busy || !f.label || (mode === "creator" && !/^[a-z0-9-]+\.eth$/.test(ownName))} onClick={() => submit(true)}>{step ?? (busy ? "処理中…" : "ENS に公開する")}</Button>
         </div>
       </Card>
     </div>

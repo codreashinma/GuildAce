@@ -20,11 +20,16 @@ def main() -> None:
     label = "web-pm-" + creator.address[-6:].lower()
     agent = creator.post("/agents", {"name": "Web開発 PM Agent", "label": label, "description": "Web サービスを 3 日で作る", "category": "web",
                                      "rules": "タスクは小さく分解し、現地確認は人間に任せる", "fee_bps": 200}, expect=201)
-    agent = creator.post(f"/agents/{agent['id']}/publish")
+    agent = creator.post(f"/agents/{agent['id']}/publish")["agent"]
     agent = creator.wait(f"/agents/{agent['id']}", "status", {"published", "publish_failed"})
     assert agent["status"] == "published", agent
     assert agent["ens_name"] == f"{label}.choice.eth"
     print("V2 agent published:", agent["ens_name"], agent["ens_tx_hash"][:12])
+    # D1: Creator 自身の .eth の下に公開（モックでは所有者チェックと tx を省略）
+    own = creator.post("/agents", {"name": "Own-name PM", "label": "own-pm-" + creator.address[-6:].lower(), "category": "web", "parent_ens_name": "smokecreator.eth"}, expect=201)
+    r = creator.post(f"/agents/{own['id']}/publish")
+    assert r["mode"] == "creator" and r["agent"]["ens_name"] == f"{own['label']}.smokecreator.eth", r
+    print("D1 creator-owned agent:", r["agent"]["ens_name"])
     listed = client.get("/agents")
     assert any(a["id"] == agent["id"] for a in listed)
     print("V3 marketplace lists agent")
@@ -76,6 +81,7 @@ def main() -> None:
     ht = next(t for t in case["tasks"] if t["type"] == "human")["human_task"]
     assert ht["status"] == "assigned" and ht["assignee"], ht
     print("V16 assigned to", ht["assignee"]["ens_name"], "-", ht["assignment_reason"])
+    assert any(n["kind"] == "assigned" for n in worker.get("/cases/notifications"))  # A2: 指名の通知
     assert ht["assignee"]["ens_name"] == f"dan.{co_ens}", ht["assignee"]  # スキル一致で Dan
     assert not any(t["id"] == ht["id"] for t in worker.get("/human-tasks"))  # 指名中は公開一覧に出ない
     assert any(t["id"] == ht["id"] for t in worker.get("/human-tasks/assigned"))
@@ -120,6 +126,13 @@ def main() -> None:
     assert ht_task["payee"] == worker.address.lower()  # Human Task の支払先は worker
     print("V7 human task done; all tasks submitted with deliverable hashes; case delivered")
 
+    # --- C1/A2: 承認者の承認待ち一覧と通知
+    pend = fin.get("/cases/pending-approvals")
+    assert len(pend) == len(case["tasks"]), (len(pend), len(case["tasks"]))
+    assert any(n["kind"] == "approve" and n["urgent"] for n in fin.get("/cases/notifications"))
+    assert j1.get("/cases/pending-approvals") == []  # 承認者でない
+    print("C1/A2 pending approvals:", len(pend), "notices ok")
+
     # --- 承認（World 検証 + EIP-712 署名）。1 人目で保留、2 人目で自動支払い
     t0 = case["tasks"][0]
     typed = client.get(f"/cases/{case['id']}/tasks/{t0['id']}/typed-data")
@@ -133,6 +146,7 @@ def main() -> None:
     case = client.get(f"/cases/{case['id']}")
     assert all(t["approval_count"] == 1 and t["chain_status"] == "submitted" for t in case["tasks"]), "1/2 で保留のはず（FR-013）"
     assert case["status"] == "delivered"
+    assert client.get("/cases/pending-approvals") == []  # 自分の分は承認済みなので消える
     for t in case["tasks"]:
         typed = fin.get(f"/cases/{case['id']}/tasks/{t['id']}/typed-data")
         fin.post(f"/cases/{case['id']}/tasks/{t['id']}/approve", {"signature": sign_typed(fin, typed), "idkit_response": None})

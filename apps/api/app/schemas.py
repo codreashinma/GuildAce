@@ -34,6 +34,7 @@ class AgentCreateIn(BaseModel):
     fee_bps: int = Field(default=200, ge=0, le=5000)
     payout_address: str | None = None
     avatar: str | None = None
+    parent_ens_name: str | None = Field(default=None, pattern=r"^[a-z0-9-]+\.eth$", description="Creator が所有する .eth。空ならプラットフォームの親名")
 
 
 class AgentOut(ORM):
@@ -48,6 +49,8 @@ class AgentOut(ORM):
     payout_address: str
     ens_name: str | None
     ens_tx_hash: str | None
+    parent_ens_name: str | None = None
+    owner_mode: str = "platform"
     status: str
     rating_avg: float
     rating_count: int
@@ -279,6 +282,28 @@ class DisputeOut(ORM):
     created_at: datetime
     case: CaseOut
     votes: list[JuryVoteOut] = []
+
+
+class PendingApprovalOut(BaseModel):
+    case_id: str
+    case_title: str
+    task_id: str
+    task_title: str
+    task_type: str
+    amount: int
+    approval_count: int
+    threshold: int
+    payee: str | None
+    deliverable_hash: str | None
+
+
+class NoticeOut(BaseModel):
+    id: str
+    kind: str  # approve | assigned | deliver | pay | dispute | info
+    title: str
+    body: str
+    href: str
+    urgent: bool = False
 
 
 class ConfigOut(BaseModel):

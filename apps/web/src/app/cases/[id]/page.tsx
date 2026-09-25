@@ -3,12 +3,13 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { use, useState } from "react";
-import { useAccount, usePublicClient, useSignTypedData, useWriteContract } from "wagmi";
-import { api, short, STATUS_LABEL, usdc, type CaseDetail, type Review, type Task, type TypedData } from "@/lib/api";
+import { useAccount, usePublicClient, useWriteContract } from "wagmi";
+import { api, short, STATUS_LABEL, usdc, type CaseDetail, type Review, type Task } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { erc20Abi, escrowAbi } from "@/lib/contracts";
 import { Markdown } from "@/components/markdown";
 import { WorldVerifyButton } from "@/components/world-verify";
+import { ApproveButton } from "@/components/approve-button";
 import { ContractsPanel, EnsPanel, ProgressPanel, ReplanPanel, TeamPanel } from "@/components/case-panels";
 import { Amount, BackLink, Badge, Button, Card, ErrorBox, HumanBadge, inputCls, KindTag, Mono, Stars, TxLink } from "@/components/ui";
 
@@ -133,36 +134,8 @@ function OpenCasePanel({ c, mock, onDone }: { c: CaseDetail; mock: boolean; onDo
   );
 }
 
-/** UC-005 / FR-010 / FR-011: 承認者が World で人間確認し、(成果物ハッシュ, 支払先) に EIP-712 で署名する */
-function ApproveButton({ c, t, onDone }: { c: CaseDetail; t: Task; onDone: () => void }) {
-  const { me } = useAuth();
-  const { signTypedDataAsync } = useSignTypedData();
-  const [err, setErr] = useState<unknown>(null);
-  const mine = t.approvals.some((a) => a.approver.id === me?.id && a.deliverable_hash === t.deliverable_hash);
-  if (t.chain_status !== "submitted") return null;
-  if (mine) return <span className="text-xs text-neutral-900">✓ あなたは承認済み（{t.approval_count}/{c.threshold}）</span>;
-  return (
-    <div className="flex flex-col gap-1">
-      <WorldVerifyButton action="approve" signal={`${t.id}:${t.deliverable_hash}`} label={`World で人間確認して承認（${t.approval_count}/${c.threshold}）`} variant="primary"
-        onVerified={async (proof) => {
-          setErr(null);
-          try {
-            const typed = await api<TypedData>(`/cases/${c.id}/tasks/${t.id}/typed-data`);
-            const signature = await signTypedDataAsync({
-              domain: typed.domain as { name: string; version: string; chainId: number; verifyingContract: `0x${string}` },
-              types: { Approval: typed.types.Approval }, primaryType: "Approval",
-              message: typed.message as { caseId: `0x${string}`; taskId: `0x${string}`; deliverableHash: `0x${string}`; payee: `0x${string}` },
-            });
-            await api(`/cases/${c.id}/tasks/${t.id}/approve`, { method: "POST", json: { signature, idkit_response: proof } });
-            onDone();
-          } catch (e) { setErr(e); throw e; }
-        }} />
-      <ErrorBox error={err} />
-    </div>
-  );
-}
-
 function TaskBoard({ c, canApprove, onDone }: { c: CaseDetail; canApprove: boolean; onDone: () => void }) {
+  const { me } = useAuth();
   const [openId, setOpenId] = useState<string | null>(null);
   const tasks = c.tasks;
   const cols: [string, string, Task[]][] = [
@@ -204,7 +177,7 @@ function TaskBoard({ c, canApprove, onDone }: { c: CaseDetail; canApprove: boole
             <p className="mt-2 text-sm">Human Task として指名・公開中 → <Link href={`/tasks/${open.human_task.id}`} className="text-neutral-900 underline">タスクページ</Link></p>
           )}
           {open.deliverable && <div className="mt-3 rounded-md border border-neutral-200 p-3"><Markdown>{open.deliverable}</Markdown></div>}
-          {canApprove && <div className="mt-3"><ApproveButton c={c} t={open} onDone={onDone} /></div>}
+          {canApprove && open.chain_status === "submitted" && <div className="mt-3"><ApproveButton caseId={c.id} taskId={open.id} deliverableHash={open.deliverable_hash} approvalCount={open.approval_count} threshold={c.threshold} alreadyApproved={open.approvals.some((a) => a.approver.id === me?.id && a.deliverable_hash === open.deliverable_hash)} onDone={onDone} /></div>}
         </Card>
       )}
       {canApprove && tasks.some((t) => t.chain_status === "submitted") && (

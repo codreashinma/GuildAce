@@ -251,8 +251,8 @@ def name_owner(name: str) -> str | None:
 
 
 def member_calldata(*, company_name: str, label: str, owner: str, texts: dict[str, str]) -> list[dict]:
-    """会社管理者のウォレットで送る tx（register + record 書き込み）の calldata。
-    会社名のサブレジストリとリゾルバは ENS から解決する。"""
+    """名前の所有者（会社管理者・Creator）のウォレットで送る tx（register + record 書き込み）の calldata。
+    親名のサブレジストリとリゾルバは ENS から解決する。Agent の公開（Creator 所有）にも同じ経路を使う。"""
     s = get_settings()
     if not s.sepolia_rpc_url:
         raise RuntimeError("RPC 未設定のため calldata を生成できません")

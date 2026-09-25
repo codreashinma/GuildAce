@@ -12,7 +12,7 @@ from ..auth import current_user
 from ..config import get_settings
 from ..db import SessionLocal, get_db
 from ..models import Agent, Approval, Case, Dispute, HumanTask, Task, User
-from ..schemas import ApproveIn, CaseCreateIn, CaseDetailOut, CaseOpenedIn, CaseOut, TaskOut
+from ..schemas import ApproveIn, CaseCreateIn, CaseDetailOut, CaseOpenedIn, CaseOut, NoticeOut, PendingApprovalOut, TaskOut
 from ..services import assign, chain, gemini, worker
 from ..services.gemini import USDC
 from .world import verify_and_record
@@ -191,6 +191,58 @@ def list_cases(user: User = Depends(current_user), db: Session = Depends(get_db)
     return sorted([*mine, *approver_cases], key=lambda c: c.created_at, reverse=True)
 
 
+def _approver_cases(db: Session, user: User) -> list[Case]:
+    return [c for c in db.query(Case).filter(Case.approvers.isnot(None)) if user.wallet_address in [a.lower() for a in (c.approvers or [])]]
+
+
+@router.get("/pending-approvals", response_model=list[PendingApprovalOut])
+def pending_approvals(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """C1: 自分の署名待ちの工程（承認者として関わる案件を横断）"""
+    out = []
+    for c in _approver_cases(db, user):
+        if c.status not in ("in_progress", "delivered"):
+            continue
+        case = _load(db, c.id)
+        for t in case.tasks:
+            if t.chain_status != "submitted" or t.status != "done":
+                continue
+            if any(a.approver_id == user.id and a.deliverable_hash == t.deliverable_hash for a in t.approvals):
+                continue
+            out.append(PendingApprovalOut(case_id=case.id, case_title=case.title, task_id=t.id, task_title=t.title, task_type=t.type, amount=int(t.estimated_cost),
+                                          approval_count=t.approval_count, threshold=case.threshold, payee=t.payee, deliverable_hash=t.deliverable_hash))
+    return out
+
+
+@router.get("/notifications", response_model=list[NoticeOut])
+def notifications(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """A2: 関係者への通知（FR-032）。承認待ち・指名・提出・支払い・紛争を横断して返す"""
+    from ..models import HumanTask, Member
+
+    out: list[NoticeOut] = []
+    for p in pending_approvals(user, db):
+        out.append(NoticeOut(id=f"approve:{p.task_id}:{p.deliverable_hash}", kind="approve", urgent=True,
+                             title=f"承認をお願いします（{p.approval_count}/{p.threshold}）", body=f"{p.case_title} / {p.task_title}", href=f"/cases/{p.case_id}"))
+    member_ids = [m.id for m in db.query(Member).filter(Member.wallet_address == user.wallet_address)]
+    if member_ids:
+        for ht in db.query(HumanTask).filter(HumanTask.status == "assigned", HumanTask.assignee_member_id.in_(member_ids)):
+            out.append(NoticeOut(id=f"assigned:{ht.id}", kind="assigned", urgent=True, title="PM Agent から指名されました", body=ht.title, href=f"/tasks/{ht.id}"))
+    for c in db.query(Case).filter(Case.client_id == user.id).order_by(Case.created_at.desc()).limit(20):
+        if c.status == "awaiting_approval":
+            out.append(NoticeOut(id=f"open:{c.id}", kind="approve", urgent=True, title="計画の承認と Escrow の開設をお願いします", body=c.title, href=f"/cases/{c.id}"))
+        elif c.status == "disputed":
+            out.append(NoticeOut(id=f"dispute:{c.id}", kind="dispute", urgent=True, title="紛争が発生しました。Jury の裁定待ちです", body=c.title, href=f"/cases/{c.id}"))
+        elif c.status == "completed":
+            out.append(NoticeOut(id=f"paid:{c.id}", kind="pay", title="全工程の支払いが Escrow から実行されました", body=c.title, href=f"/cases/{c.id}"))
+        elif c.status in ("in_progress", "delivered"):
+            paid = sum(1 for t in c.tasks if t.chain_status == "paid")
+            sub = sum(1 for t in c.tasks if t.chain_status == "submitted")
+            if sub:
+                out.append(NoticeOut(id=f"deliver:{c.id}:{sub}", kind="deliver", title=f"{sub} 工程の成果物が提出されています", body=c.title, href=f"/cases/{c.id}"))
+            if paid:
+                out.append(NoticeOut(id=f"paid:{c.id}:{paid}", kind="pay", title=f"{paid} 工程の支払いが実行されました", body=c.title, href=f"/cases/{c.id}"))
+    return out
+
+
 @router.post("", response_model=CaseOut, status_code=201)
 def create_case(body: CaseCreateIn, bg: BackgroundTasks, user: User = Depends(current_user), db: Session = Depends(get_db)):
     agent = db.get(Agent, body.agent_id)
@@ -251,7 +303,7 @@ def opened(case_id: str, body: CaseOpenedIn, bg: BackgroundTasks, user: User = D
     s = get_settings()
     worker.enqueue(db, "ens_project", f"ens_project:{case.id}", {
         "case_db_id": case.id, "agent_label": case.agent.label, "project_label": project_label(case),
-        "agent_mock": not case.agent.ens_tx_hash or case.agent.ens_tx_hash.startswith("0xmock"),
+        "agent_mock": not case.agent.ens_tx_hash or case.agent.ens_tx_hash.startswith("0xmock") or case.agent.owner_mode == "creator",
         "texts": {"description": case.title, "project.case": case.id, "project.escrow": s.escrow_address or "mock", "project.escrow_case_id": case.escrow_case_id,
                   "project.client": user.wallet_address, "project.status": "in_progress", "url": f"{s.app_url}/cases/{case.id}"},
     })

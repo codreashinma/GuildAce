@@ -44,7 +44,12 @@ MetaMask 等で Sepolia に接続 → 「Sign in」で SIWE 署名 → Marketpla
 ### バックエンドの通しテスト
 
 ```bash
-cd apps/api && .venv/bin/python scripts/smoke_flow.py   # 空の DB（seed 前）で実行する
+# 別の DB（choice_test）に向けたモックモードの API を起動してから実行する
+docker compose exec db psql -U choice -d choice -c "create database choice_test"
+cd apps/api
+DATABASE_URL=postgresql+psycopg://choice:choice@localhost:5433/choice_test ESCROW_ADDRESS= USDC_ADDRESS= SEPOLIA_RPC_URL= ENS_WRITE_ENABLED=false \
+  .venv/bin/uvicorn app.main:app --port 8002
+.venv/bin/python scripts/smoke_flow.py http://localhost:8002   # 2 回目以降は choice_test を作り直す
 ```
 
 ログイン → Agent 公開 → 案件作成 → 計画 → 入金 → AI 実行 → Human Task → 支払い → レビュー（二重投稿拒否）→ 紛争 → Jury 3 票で resolve まで自動で検証する。
@@ -72,6 +77,13 @@ cd contracts && forge test
    以降、Agent を公開すると `<label>.choice.eth` が発行され、text record（description / agent.category / agent.fee_bps / agent.rating / agent.completed …）が書かれる。
 4. **World ID**: [Developer Portal](https://developer.world.org) でアプリと RP を作り、action `review` / `jury` / `human-task` を作成。`WORLD_APP_ID` / `WORLD_RP_ID` / `WORLD_RP_SIGNING_KEY` を設定し `WORLD_VERIFY_ENABLED=true`。
 5. **Gemini**: `GEMINI_API_KEY` を設定（モデルは `GEMINI_MODEL`、既定 `gemini-2.5-flash`）。
+
+## Agent の公開先（ENS）
+
+Agent 作成時に公開先を選べる。
+
+- **プラットフォームの親名**（既定）: `<label>.choice.eth`。運用ウォレット（チェーン連携ワーカー）が subname を発行し record を書く。
+- **Creator 自身の ENS 名**: `<label>.<creator>.eth`。接続ウォレットがその名前の所有者かを ENSv2 で確認し、`register` と `multicall` の calldata を API が返す。Creator のウォレットが 2 本の tx に署名する。名前の所有者は Creator。Creator 側で名前・サブレジストリ・リゾルバを用意しておく必要がある（`docs/ens-manual-check.md` 4 章）。評価・完了数の record 更新はプラットフォームに権限が無いため DB のみ（EAC で Reputation 役割を委任するまでの暫定）。
 
 ## 会社の人員と Human Task の指名
 

@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/auth";
 import { erc20Abi, escrowAbi } from "@/lib/contracts";
 import { Markdown } from "@/components/markdown";
 import { WorldVerifyButton } from "@/components/world-verify";
+import { ApproverPanel, ContractsPanel, EnsPanel, ProgressPanel, ReplanPanel, TeamPanel } from "@/components/case-panels";
 import { BackLink, Badge, Button, Card, ErrorBox, HumanBadge, inputCls, Stars, TxLink } from "@/components/ui";
 
 const STEPS = ["planning", "awaiting_approval", "in_progress", "delivered", "completed"];
@@ -19,6 +20,7 @@ export default function CasePage({ params }: { params: Promise<{ id: string }> }
   const qc = useQueryClient();
   const { data: c } = useQuery({ queryKey: ["case", id], queryFn: () => api<CaseDetail>(`/cases/${id}`), refetchInterval: 3000 });
   const { data: reviews } = useQuery({ queryKey: ["case-reviews", id], queryFn: () => api<Review[]>(`/reviews/case/${id}`) });
+  const [approved, setApproved] = useState(false);
   const refresh = () => { qc.invalidateQueries({ queryKey: ["case", id] }); qc.invalidateQueries({ queryKey: ["case-reviews", id] }); };
   if (!c) return <p className="text-sm text-slate-500">読み込み中…</p>;
   const isClient = me?.id === c.client.id;
@@ -47,7 +49,7 @@ export default function CasePage({ params }: { params: Promise<{ id: string }> }
       </Card>
 
       {c.status === "planning" && <Card><p className="animate-pulse text-sm">🤖 {c.agent.name} がタスクを分解し、チームを編成しています…</p></Card>}
-      {c.status === "planning_failed" && isClient && <Card><ErrorBox error={c.error} /><Button className="mt-3" onClick={() => api(`/cases/${id}/replan`, { method: "POST" }).then(refresh)}>再計画する</Button></Card>}
+      {c.status === "planning_failed" && isClient && <ReplanPanel c={c} onReplan={() => api(`/cases/${id}/replan`, { method: "POST" }).then(refresh)} />}
 
       {c.plan_json && (
         <Card>
@@ -61,12 +63,17 @@ export default function CasePage({ params }: { params: Promise<{ id: string }> }
         </Card>
       )}
 
+      {c.tasks.length > 0 && <TeamPanel c={c} />}
+      {c.tasks.length > 0 && <ContractsPanel c={c} />}
+      {c.tasks.length > 0 && c.status !== "awaiting_approval" && <ProgressPanel c={c} />}
       {c.tasks.length > 0 && <TaskBoard tasks={c.tasks} />}
 
-      {c.status === "delivered" && isClient && <ReleasePanel c={c} mock={!!config?.mock.chain} onDone={refresh} />}
+      {c.status === "delivered" && isClient && <ApproverPanel c={c} onAllApproved={setApproved} />}
+      {c.status === "delivered" && isClient && <ReleasePanel c={c} mock={!!config?.mock.chain} onDone={refresh} approved={approved} />}
       {c.status === "disputed" && <Card><p className="text-sm">⚖️ 紛争中です。資金は Escrow に保留されています。 <Link className="text-blue-700 underline" href={`/jury/${c.dispute_id}`}>Jury 画面へ</Link></p></Card>}
       {c.status === "resolved" && <Card><p className="text-sm">⚖️ Human Jury の多数決で解決しました。 <Link className="text-blue-700 underline" href={`/jury/${c.dispute_id}`}>結果を見る</Link></p></Card>}
 
+      {c.tasks.length > 0 && <EnsPanel c={c} />}
       {(c.status === "completed" || c.status === "resolved") && me && (
         <ReviewPanel c={c} reviews={reviews ?? []} meId={me.id} onDone={refresh} />
       )}
@@ -131,7 +138,7 @@ function DepositPanel({ c, mock, onDone }: { c: CaseDetail; mock: boolean; onDon
   );
 }
 
-function ReleasePanel({ c, mock, onDone }: { c: CaseDetail; mock: boolean; onDone: () => void }) {
+function ReleasePanel({ c, mock, onDone, approved }: { c: CaseDetail; mock: boolean; onDone: () => void; approved: boolean }) {
   const { config } = useAuth();
   const { writeContractAsync } = useWriteContract();
   const pc = usePublicClient();
@@ -178,13 +185,13 @@ function ReleasePanel({ c, mock, onDone }: { c: CaseDetail; mock: boolean; onDon
   };
   return (
     <Card className="border-violet-200 bg-violet-50">
-      <h2 className="font-semibold">検収・承認</h2>
-      <p className="mt-1 text-sm">すべてのタスクが完了しました。成果物を確認し、承認すると Escrow から次の配分で支払われます。</p>
+      <h2 className="font-semibold">支払いの実行</h2>
+      <p className="mt-1 text-sm">{approved ? "必要な承認（開発部・経理部）がそろいました。" : "上の承認フローで開発部・経理部の承認をそろえてください。"} 承認がそろうと Escrow から次の配分で支払われます。</p>
       <ul className="mt-2 space-y-1 text-sm">
         {c.split.map((s) => <li key={s.address} className="flex justify-between"><span>{s.label} <span className="font-mono text-xs text-slate-500">{short(s.address)}</span></span><b>{usdc(s.amount)} USDC</b></li>)}
       </ul>
       <div className="mt-4 flex flex-wrap gap-2">
-        <Button onClick={release} disabled={busy}>{busy ? "処理中…" : mock ? "承認して支払う（モック）" : "承認して支払う"}</Button>
+        <Button onClick={release} disabled={busy || !approved}>{busy ? "処理中…" : mock ? "Escrow から支払う（モック）" : "Escrow から支払う"}</Button>
         <Button variant="danger" onClick={() => setShowDispute((v) => !v)} disabled={busy}>差し戻す</Button>
       </div>
       {showDispute && (

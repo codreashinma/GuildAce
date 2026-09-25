@@ -6,6 +6,7 @@ import { use } from "react";
 import { api, CATEGORY_LABEL, short, type AgentDetail, type Review } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { BackLink, Badge, Button, Card, EnsLink, HumanBadge, Stars, TxLink } from "@/components/ui";
+import { PERMISSIONS } from "@/lib/mock";
 
 export default function AgentPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -30,7 +31,7 @@ export default function AgentPage({ params }: { params: Promise<{ id: string }> 
             <div className="mt-1 flex flex-wrap items-center gap-3 text-sm">
               {a.ens_name && <EnsLink name={a.ens_name} />}
               <TxLink hash={a.ens_tx_hash} label="ENS tx" />
-              <span className="text-slate-500">Creator {short(a.creator.wallet_address)}</span>
+              <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-700">Creator: <b>{a.creator.display_name ?? short(a.creator.wallet_address)}</b> <span className="font-mono">{short(a.creator.wallet_address)}</span></span>
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-4 text-sm">
               <Stars value={Number(a.rating_avg)} count={a.rating_count} />
@@ -63,6 +64,15 @@ export default function AgentPage({ params }: { params: Promise<{ id: string }> 
           )}
         </Card>
       </div>
+
+      <Card>
+        <h2 className="mb-2 font-semibold">権限管理 <span className="text-xs font-normal text-slate-500">ENSv2 EAC で「誰がどの情報を更新できるか」を制御</span></h2>
+        <table className="w-full text-xs">
+          <thead className="text-left text-slate-500"><tr><th className="py-1">ロール</th><th>名前</th><th>できること</th></tr></thead>
+          <tbody>{PERMISSIONS.map((p) => <tr key={p.role} className="border-t border-slate-100"><td className="py-1 font-medium">{p.role}</td><td className="font-mono text-blue-700">{p.ens(a.ens_name ?? `${a.label}.choice.eth`, a.creator.display_name ?? short(a.creator.wallet_address))}</td><td>{p.can}</td></tr>)}</tbody>
+        </table>
+        <p className="mt-2 text-xs text-slate-500">名前を持つことと権限を持つことは別。サービスが止まっても Agent の identity は ENS 上に残り、他のサービスから参照できます。</p>
+      </Card>
 
       <Card>
         <h2 className="mb-3 font-semibold">Human-backed Review <span className="text-xs font-normal text-slate-500">World で人間確認をした当事者だけが投稿できます</span></h2>

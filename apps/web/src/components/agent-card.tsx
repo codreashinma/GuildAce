@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CATEGORY_LABEL, type Agent } from "@/lib/api";
+import { CATEGORY_LABEL, short, type Agent } from "@/lib/api";
 import { Badge, Card, Stars } from "./ui";
 
 export function AgentCard({ agent }: { agent: Agent }) {
@@ -14,6 +14,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
               <Badge>{CATEGORY_LABEL[agent.category] ?? agent.category}</Badge>
             </div>
             {agent.ens_name && <div className="truncate font-mono text-xs text-blue-700">{agent.ens_name}</div>}
+            <div className="truncate text-xs text-slate-500">Creator: {agent.creator.display_name ?? short(agent.creator.wallet_address)}</div>
           </div>
         </div>
         <p className="mt-3 line-clamp-2 text-sm text-slate-600">{agent.description || "（説明なし）"}</p>

@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { Button } from "./ui";
+import { NotificationBell } from "./notifications";
 
 const NAV = [
   { href: "/", label: "Marketplace" },
@@ -57,6 +58,7 @@ export function Header() {
         </nav>
         <div className="ml-auto flex items-center gap-2">
           {mocks.length > 0 && <span className="hidden rounded-md bg-amber-50 px-2 py-1 text-[11px] text-amber-700 lg:inline" title="未設定の外部連携はモックで動作">mock: {mocks.join(", ")}</span>}
+          <NotificationBell />
           <ConnectButton showBalance={false} chainStatus="icon" accountStatus="address" />
           {isConnected && !me && (
             <Button onClick={doSignIn} disabled={busy}>{busy ? "署名待ち…" : "Sign in"}</Button>

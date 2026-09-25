@@ -251,6 +251,7 @@ def opened(case_id: str, body: CaseOpenedIn, bg: BackgroundTasks, user: User = D
     s = get_settings()
     worker.enqueue(db, "ens_project", f"ens_project:{case.id}", {
         "case_db_id": case.id, "agent_label": case.agent.label, "project_label": project_label(case),
+        "agent_mock": not case.agent.ens_tx_hash or case.agent.ens_tx_hash.startswith("0xmock"),
         "texts": {"description": case.title, "project.case": case.id, "project.escrow": s.escrow_address or "mock", "project.escrow_case_id": case.escrow_case_id,
                   "project.client": user.wallet_address, "project.status": "in_progress", "url": f"{s.app_url}/cases/{case.id}"},
     })

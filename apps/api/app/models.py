@@ -248,3 +248,4 @@ class ChainJob(TimestampMixin, Base):
     tx_hash: Mapped[str | None] = mapped_column(String(66))
     error: Mapped[str | None] = mapped_column(Text)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # 再送の待ち時間（他のジョブをブロックしない）

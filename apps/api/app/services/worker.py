@@ -6,8 +6,7 @@
 
 import logging
 import threading
-import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy.exc import IntegrityError
@@ -116,6 +115,9 @@ def _ens_update(p: dict) -> tuple[str, dict]:
 
 
 def _ens_project(p: dict) -> tuple[str, dict]:
+    if p.get("agent_mock"):
+        # Agent がモック公開（ENS 上に無い）なら project subname もモック
+        return chain.mock_tx_hash(), {"project_ens_name": f"{p['project_label']}.{ens.agent_ens_name(p['agent_label'])}"}
     name, tx = ens.publish_project(agent_label=p["agent_label"], project_label=p["project_label"], texts=p["texts"])
     return tx, {"project_ens_name": name}
 
@@ -165,7 +167,13 @@ def _fail(db: Session, job: ChainJob, err: str) -> None:
 
 def process_once(db: Session) -> bool:
     """queued なジョブを 1 件処理する。処理したら True。"""
-    job = db.query(ChainJob).filter(ChainJob.status.in_(["queued", "retry"])).order_by(ChainJob.created_at).first()
+    now = datetime.now(UTC)
+    job = (
+        db.query(ChainJob)
+        .filter(ChainJob.status.in_(["queued", "retry"]), (ChainJob.next_attempt_at.is_(None)) | (ChainJob.next_attempt_at <= now))
+        .order_by(ChainJob.created_at)
+        .first()
+    )
     if job is None:
         return False
     job.status, job.attempts = "running", job.attempts + 1
@@ -180,11 +188,10 @@ def process_once(db: Session) -> bool:
         log.exception("chain job failed: %s", job.kind)
         job.error = str(e)[:2000]
         job.status = "retry" if job.attempts < MAX_ATTEMPTS else "failed"
+        job.next_attempt_at = datetime.now(UTC) + timedelta(seconds=min(5 * 2 ** job.attempts, 120))  # 他のジョブを先に進める
         db.commit()
         if job.status == "failed":
             _fail(db, job, job.error)
-        else:
-            time.sleep(min(2 ** job.attempts, 30))
     return True
 
 

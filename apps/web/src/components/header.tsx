@@ -73,7 +73,7 @@ export function Header() {
           ))}
         </nav>
         <div className="ml-auto flex shrink-0 items-center gap-2">
-          {mocks.length > 0 && <span className="hidden whitespace-nowrap rounded-sm border border-dashed border-neutral-400 px-2 py-1 text-[11px] text-neutral-600 xl:inline" title="未設定の外部連携はモックで動作">mock: {mocks.join(", ")}</span>}
+          {mocks.length > 0 && <span className="hidden whitespace-nowrap rounded-sm border border-dashed border-neutral-400 px-2 py-1 text-[11px] text-neutral-600 2xl:inline" title="未設定の外部連携はモックで動作">mock: {mocks.join(", ")}</span>}
           <DevAutoLogin />
           <NotificationBell />
           <ConnectButton showBalance={false} chainStatus="icon" accountStatus="address" label="ウォレット接続" />
@@ -86,7 +86,7 @@ export function Header() {
               {devUsers.map((u) => <option key={u.role} value={u.role}>{u.label}</option>)}
             </select>
           )}
-          {me && <span className="hidden whitespace-nowrap text-xs text-neutral-500 sm:inline">{me.display_name ?? me.wallet_address.slice(0, 8)}</span>}
+          {me && <span className="hidden max-w-32 truncate whitespace-nowrap text-xs text-neutral-500 xl:inline">{me.display_name ?? me.wallet_address.slice(0, 8)}</span>}
           {me && <Button variant="ghost" onClick={signOut} title={me.wallet_address}>Sign out</Button>}
         </div>
       </div>

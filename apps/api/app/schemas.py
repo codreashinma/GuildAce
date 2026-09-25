@@ -63,6 +63,8 @@ class AgentOut(ORM):
 
 class AgentDetailOut(AgentOut):
     ens_records: dict[str, str] = {}
+    ens_reputation_name: str | None = None  # reputation.<agent>（評価 record の置き場）
+    ens_reputation_records: dict[str, str] = {}
     ens_roles: list[dict[str, Any]] = []  # EAC の役割（オンチェーンから読んだ実データ）
 
 

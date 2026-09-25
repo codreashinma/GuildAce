@@ -102,3 +102,4 @@
 | 最初の Agent | `web-pm-live.choice.eth`（tx `0x96624eab…`）。`agent.category=web` 等の text record と `addr` を API / `ens_check.py` / `cast` の 3 経路で読み取り確認 |
 
 | 役割リゾルバ | Reputation `0xBBE26551f7f9F6d1DC344c275634F5f38F88af5d`（admin `0x7543…4845`）、Project `0x956D275DB002499d28Ee275fF5a3F1247a14F69c`（admin `0xBFE9…eD25`） |
+| 役割分離の実機確認（2026-09-26） | `scripts/ens_roles_check.py web-pm` で 11 項目すべて設計どおり（許可 3・拒否 8）。Project 鍵が `project-831.web-pm.choice.eth` を発行し `codrea.project.*` を Project リゾルバに書き込み、Reputation 鍵が `reputation.web-pm.choice.eth` に評価 record を保持。Agent サブレジストリ `0x152b12b295785C7dCd5e4c7DD008983b658e803B` |

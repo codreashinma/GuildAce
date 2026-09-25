@@ -136,8 +136,8 @@ def get_agent(agent_id: str, db: Session = Depends(get_db)):
     out = AgentDetailOut.model_validate(agent)
     if agent.ens_name and agent.owner_mode == "platform" and agent.ens_tx_hash and not agent.ens_tx_hash.startswith("0xmock"):
         out.ens_records = ens.read_texts(agent.ens_name)
-        rep = ens.read_texts(ens.reputation_name(agent.label), ens.REPUTATION_KEYS)
-        out.ens_records.update({f"{k} @reputation": v for k, v in rep.items()})
+        out.ens_reputation_name = ens.reputation_name(agent.label)
+        out.ens_reputation_records = ens.read_texts(out.ens_reputation_name, ens.REPUTATION_KEYS)
         out.ens_roles = ens.agent_roles(agent.ens_name, agent.label)
     elif agent.ens_name:
         out.ens_records = ens.read_texts(agent.ens_name)

@@ -48,7 +48,7 @@ export type Agent = {
   rating_avg: number; rating_count: number; completed_count: number; ens_error: string | null; created_at: string; creator: User;
 };
 export type EnsRole = { role: string; account?: string | null; where?: string; can?: string; cannot?: string; subregistry?: string | null; verified?: boolean; checks?: Record<string, boolean | null>; error?: string };
-export type AgentDetail = Agent & { ens_records: Record<string, string>; ens_roles: EnsRole[] };
+export type AgentDetail = Agent & { ens_records: Record<string, string>; ens_reputation_name: string | null; ens_reputation_records: Record<string, string>; ens_roles: EnsRole[] };
 export type MemberBrief = { id: string; name: string; ens_name: string; role: string; skills: string; location: string; wallet_address: string };
 export type Member = MemberBrief & { company_id: string; label: string; available: boolean; ens_status: string; ens_tx_hash: string | null; rating_avg: number; completed_count: number };
 export type Company = { id: string; name: string; ens_name: string; description: string; ens_verified: boolean; admin: User; members: Member[] };

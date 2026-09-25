@@ -56,11 +56,25 @@ export default function AgentPage({ params }: { params: Promise<{ id: string }> 
           {ensEntries.length === 0 ? (
             <p className="text-sm text-neutral-500">{a.ens_name ? "ENS から取得できませんでした（RPC 未設定またはモック公開）。" : "未公開"}</p>
           ) : (
-            <dl className="space-y-1 text-sm">
-              {ensEntries.map(([k, v]) => (
-                <div key={k} className="flex gap-2"><dt className="w-36 shrink-0 whitespace-nowrap font-mono text-xs text-neutral-500">{k}</dt><dd className="min-w-0 [overflow-wrap:anywhere]">{v}</dd></div>
-              ))}
-            </dl>
+            <>
+              <div className="mb-1 font-mono text-xs text-neutral-900">{a.ens_name}</div>
+              <dl className="space-y-1 text-sm">
+                {ensEntries.map(([k, v]) => (
+                  <div key={k} className="grid grid-cols-[11rem_1fr] gap-2"><dt className="truncate font-mono text-xs leading-5 text-neutral-500" title={k}>{k}</dt><dd className="min-w-0 [overflow-wrap:anywhere]">{v}</dd></div>
+                ))}
+              </dl>
+              {a.ens_reputation_name && (
+                <>
+                  <div className="mb-1 mt-4 font-mono text-xs text-neutral-900">{a.ens_reputation_name} <span className="font-sans text-neutral-500">（Reputation 鍵のみ更新可）</span></div>
+                  <dl className="space-y-1 text-sm">
+                    {Object.entries(a.ens_reputation_records).map(([k, v]) => (
+                      <div key={k} className="grid grid-cols-[11rem_1fr] gap-2"><dt className="truncate font-mono text-xs leading-5 text-neutral-500" title={k}>{k}</dt><dd className="tabular-nums">{v}</dd></div>
+                    ))}
+                    {Object.keys(a.ens_reputation_records).length === 0 && <dd className="text-xs text-neutral-500">未取得</dd>}
+                  </dl>
+                </>
+              )}
+            </>
           )}
         </Card>
       </div>

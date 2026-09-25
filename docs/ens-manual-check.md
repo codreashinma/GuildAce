@@ -69,3 +69,12 @@
 - `execution reverted` で register が落ちる: commit から 60 秒未満、または `approve` 額不足。`ens_setup.py` を再実行すれば登録済み判定でスキップされる。
 - `サブレジストリがありません`: 親名に `setSubregistry` が未実施。`ens_setup.py` を再実行。
 - 画面の ENS レコードが空: API の `SEPOLIA_RPC_URL` が空か、`ENS_WRITE_ENABLED=false` でモック公開されている（tx hash が `0xmock…`）。
+
+## 実行記録（2026-09-25）
+
+| 項目 | 値 / tx |
+|---|---|
+| OwnedResolver | `0xDE7b6e8A92aEcF12239b5aad8ab89f827BFD8f8a`（tx `0xe5e91130…`） |
+| `choice.eth` 登録 | commit `0x7953bcad…` → register `0xe62d27b1…` |
+| サブレジストリ（UserRegistry） | `0xF174FBa4E328ce1C126243be52E02c84Aa75Ab27`（deploy `0x4c5683eb…`、setSubregistry `0x60e6d47f…`） |
+| 最初の Agent | `web-pm-live.choice.eth`（tx `0x96624eab…`）。`agent.category=web` 等の text record と `addr` を API / `ens_check.py` / `cast` の 3 経路で読み取り確認 |

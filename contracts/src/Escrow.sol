@@ -3,99 +3,187 @@ pragma solidity ^0.8.28;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
-/// @title Escrow - 案件ごとの「お金の預かり箱」
-/// @notice 発注者が案件予算を預け、発注者の承認（release）または
-///         Human Jury の多数決結果を受けた arbiter（resolve）によってのみ資金が動く。
-///         期限の到来や AI の判断では資金は動かない。
-contract Escrow {
+/// @title Escrow - タスク（工程）単位の契約・預託・検収・自動支払い
+/// @notice アーキテクチャ設計書 ADR-001 / ADR-005 / ADR-006、CON-006、FR-012 / FR-013 / FR-019 に対応する。
+///  - 資金の状態機械はこのコントラクトが正本。オフチェーン DB は投影のみ。
+///  - 契約はタスク単位。預託も「その工程分だけ」を作業前に行う。
+///  - 成果物はハッシュだけを記録し、承認は (成果物ハッシュ, 支払先) に紐づく。差し替えると承認は無効になる。
+///  - 必要数の承認がそろった時点で、このコントラクトが自動で支払う。オフチェーンから送金を指示する経路は無い。
+///  - 承認者の署名（EIP-712）を運用ウォレット（ops = チェーン連携ワーカー）が中継する。ops は承認を偽造できない。
+///  - 紛争時は保留し、Jury の裁定を arbiter（ops）が resolve として反映する。
+contract Escrow is EIP712 {
     using SafeERC20 for IERC20;
 
-    enum Status {
+    enum TaskStatus {
         None,
         Funded,
-        Released,
+        Submitted,
+        Paid,
+        Disputed,
         Resolved
     }
 
-    struct Case {
+    struct CaseInfo {
         address client;
         address token;
+        address[] approvers;
+        uint8 threshold;
+    }
+
+    struct TaskInfo {
         uint256 amount;
-        Status status;
+        address payee;
+        bytes32 deliverableHash;
+        uint8 approvalCount;
+        TaskStatus status;
     }
 
-    address public immutable arbiter;
-    mapping(bytes32 => Case) public cases;
+    bytes32 public constant APPROVAL_TYPEHASH =
+        keccak256("Approval(bytes32 caseId,bytes32 taskId,bytes32 deliverableHash,address payee)");
 
-    event Deposited(bytes32 indexed caseId, address indexed client, address token, uint256 amount);
-    event Released(bytes32 indexed caseId, address[] recipients, uint256[] amounts);
-    event Resolved(bytes32 indexed caseId, address[] recipients, uint256[] amounts);
+    address public immutable ops; // チェーン連携ワーカー（預託の要求・提出と承認の中継・裁定の反映）
 
-    error AlreadyFunded();
-    error NotFunded();
+    mapping(bytes32 => CaseInfo) internal _cases;
+    mapping(bytes32 => mapping(bytes32 => TaskInfo)) internal _tasks;
+    mapping(bytes32 => mapping(bytes32 => mapping(address => bytes32))) public approvedHash; // 承認者が承認したハッシュ
+
+    event CaseOpened(bytes32 indexed caseId, address indexed client, address token, address[] approvers, uint8 threshold);
+    event TaskFunded(bytes32 indexed caseId, bytes32 indexed taskId, uint256 amount);
+    event Submitted(bytes32 indexed caseId, bytes32 indexed taskId, bytes32 deliverableHash, address payee);
+    event Approved(bytes32 indexed caseId, bytes32 indexed taskId, address indexed approver, bytes32 deliverableHash, uint8 approvalCount);
+    event Paid(bytes32 indexed caseId, bytes32 indexed taskId, address indexed payee, uint256 amount);
+    event Disputed(bytes32 indexed caseId, bytes32 indexed taskId);
+    event Resolved(bytes32 indexed caseId, bytes32 indexed taskId, uint256 paid, uint256 refunded);
+
+    error NotOps();
     error NotClient();
-    error NotArbiter();
+    error CaseExists();
+    error CaseNotFound();
+    error BadApprovers();
+    error TaskExists();
+    error BadStatus();
     error ZeroAmount();
-    error LengthMismatch();
+    error NotApprover();
+    error AlreadyApproved();
+    error HashMismatch();
     error SumMismatch();
+    error ZeroPayee();
 
-    constructor(address arbiter_) {
-        arbiter = arbiter_;
+    constructor(address ops_) EIP712("ChoiceEscrow", "1") {
+        ops = ops_;
     }
 
-    /// @notice 発注者が案件分の資金を預ける（事前に token.approve が必要）
-    function deposit(bytes32 caseId, address token, uint256 amount) external {
+    modifier onlyOps() {
+        if (msg.sender != ops) revert NotOps();
+        _;
+    }
+
+    // ------------------------------------------------------------------ case
+
+    /// @notice 発注者が案件を開く。承認者と必要承認数をここで固定する（名前ではなく権限で承認できる者を決める）。
+    function openCase(bytes32 caseId, address token, address[] calldata approvers, uint8 threshold) external {
+        if (_cases[caseId].client != address(0)) revert CaseExists();
+        if (approvers.length == 0 || threshold == 0 || threshold > approvers.length) revert BadApprovers();
+        _cases[caseId] = CaseInfo({client: msg.sender, token: token, approvers: approvers, threshold: threshold});
+        emit CaseOpened(caseId, msg.sender, token, approvers, threshold);
+    }
+
+    // ------------------------------------------------------------------ task
+
+    /// @notice 工程分の資金を預ける（ops が発注者の allowance から引き落とす。発注者が openCase で許可した案件にのみ使える）
+    function fundTask(bytes32 caseId, bytes32 taskId, uint256 amount) external onlyOps {
+        CaseInfo storage c = _cases[caseId];
+        if (c.client == address(0)) revert CaseNotFound();
         if (amount == 0) revert ZeroAmount();
-        Case storage c = cases[caseId];
-        if (c.status != Status.None) revert AlreadyFunded();
-
-        c.client = msg.sender;
-        c.token = token;
-        c.amount = amount;
-        c.status = Status.Funded;
-
-        IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
-        emit Deposited(caseId, msg.sender, token, amount);
+        TaskInfo storage t = _tasks[caseId][taskId];
+        if (t.status != TaskStatus.None) revert TaskExists();
+        t.amount = amount;
+        t.status = TaskStatus.Funded;
+        IERC20(c.token).safeTransferFrom(c.client, address(this), amount);
+        emit TaskFunded(caseId, taskId, amount);
     }
 
-    /// @notice 発注者が検収を承認し、配分どおりに支払う
-    function release(bytes32 caseId, address[] calldata recipients, uint256[] calldata amounts) external {
-        Case storage c = cases[caseId];
-        if (c.status != Status.Funded) revert NotFunded();
-        if (msg.sender != c.client) revert NotClient();
-
-        c.status = Status.Released;
-        _distribute(c, recipients, amounts);
-        emit Released(caseId, recipients, amounts);
+    /// @notice 成果物の提出（ハッシュ）と支払先の確定。再提出すると承認はリセットされる（差し替え前の承認は使えない）。
+    function submit(bytes32 caseId, bytes32 taskId, bytes32 deliverableHash, address payee) external onlyOps {
+        TaskInfo storage t = _tasks[caseId][taskId];
+        if (t.status != TaskStatus.Funded && t.status != TaskStatus.Submitted) revert BadStatus();
+        if (payee == address(0)) revert ZeroPayee();
+        t.deliverableHash = deliverableHash;
+        t.payee = payee;
+        t.approvalCount = 0;
+        t.status = TaskStatus.Submitted;
+        emit Submitted(caseId, taskId, deliverableHash, payee);
     }
 
-    /// @notice Human Jury の多数決結果を arbiter が反映する（支払い・返金・分割清算）
-    function resolve(bytes32 caseId, address[] calldata recipients, uint256[] calldata amounts) external {
-        if (msg.sender != arbiter) revert NotArbiter();
-        Case storage c = cases[caseId];
-        if (c.status != Status.Funded) revert NotFunded();
+    /// @notice 承認者の EIP-712 署名を ops が中継する。必要数がそろった時点で自動的に支払う（FR-012）。
+    function approve(bytes32 caseId, bytes32 taskId, bytes32 deliverableHash, address payee, address approver, bytes calldata signature)
+        external
+        onlyOps
+    {
+        CaseInfo storage c = _cases[caseId];
+        TaskInfo storage t = _tasks[caseId][taskId];
+        if (t.status != TaskStatus.Submitted) revert BadStatus();
+        if (t.deliverableHash != deliverableHash || t.payee != payee) revert HashMismatch();
+        if (!_isApprover(c, approver)) revert NotApprover();
+        if (approvedHash[caseId][taskId][approver] == deliverableHash) revert AlreadyApproved();
 
-        c.status = Status.Resolved;
-        _distribute(c, recipients, amounts);
-        emit Resolved(caseId, recipients, amounts);
-    }
+        bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(APPROVAL_TYPEHASH, caseId, taskId, deliverableHash, payee)));
+        if (ECDSA.recover(digest, signature) != approver) revert NotApprover();
 
-    function getCase(bytes32 caseId) external view returns (Case memory) {
-        return cases[caseId];
-    }
+        approvedHash[caseId][taskId][approver] = deliverableHash;
+        t.approvalCount += 1;
+        emit Approved(caseId, taskId, approver, deliverableHash, t.approvalCount);
 
-    function _distribute(Case storage c, address[] calldata recipients, uint256[] calldata amounts) internal {
-        if (recipients.length != amounts.length) revert LengthMismatch();
-        uint256 total;
-        for (uint256 i = 0; i < amounts.length; i++) {
-            total += amounts[i];
+        if (t.approvalCount >= c.threshold) {
+            t.status = TaskStatus.Paid;
+            IERC20(c.token).safeTransfer(payee, t.amount);
+            emit Paid(caseId, taskId, payee, t.amount);
         }
-        if (total != c.amount) revert SumMismatch();
+        // 条件未達なら何もしない = 保留（FR-013）
+    }
 
-        IERC20 token = IERC20(c.token);
-        for (uint256 i = 0; i < recipients.length; i++) {
-            if (amounts[i] > 0) token.safeTransfer(recipients[i], amounts[i]);
+    /// @notice 差し戻し。資金は保留のまま Jury の裁定を待つ。
+    function dispute(bytes32 caseId, bytes32 taskId) external onlyOps {
+        TaskInfo storage t = _tasks[caseId][taskId];
+        if (t.status != TaskStatus.Funded && t.status != TaskStatus.Submitted) revert BadStatus();
+        t.status = TaskStatus.Disputed;
+        emit Disputed(caseId, taskId);
+    }
+
+    /// @notice Jury の裁定を反映する（支払い・返金・分割清算）。合計は預託額と一致しなければならない。
+    function resolve(bytes32 caseId, bytes32 taskId, uint256 payAmount, uint256 refundAmount) external onlyOps {
+        CaseInfo storage c = _cases[caseId];
+        TaskInfo storage t = _tasks[caseId][taskId];
+        if (t.status != TaskStatus.Disputed) revert BadStatus();
+        if (payAmount + refundAmount != t.amount) revert SumMismatch();
+        if (payAmount > 0 && t.payee == address(0)) revert ZeroPayee();
+        t.status = TaskStatus.Resolved;
+        if (payAmount > 0) IERC20(c.token).safeTransfer(t.payee, payAmount);
+        if (refundAmount > 0) IERC20(c.token).safeTransfer(c.client, refundAmount);
+        emit Resolved(caseId, taskId, payAmount, refundAmount);
+    }
+
+    // ------------------------------------------------------------------ views
+
+    function getCase(bytes32 caseId) external view returns (CaseInfo memory) {
+        return _cases[caseId];
+    }
+
+    function getTask(bytes32 caseId, bytes32 taskId) external view returns (TaskInfo memory) {
+        return _tasks[caseId][taskId];
+    }
+
+    function approvalDigest(bytes32 caseId, bytes32 taskId, bytes32 deliverableHash, address payee) external view returns (bytes32) {
+        return _hashTypedDataV4(keccak256(abi.encode(APPROVAL_TYPEHASH, caseId, taskId, deliverableHash, payee)));
+    }
+
+    function _isApprover(CaseInfo storage c, address a) internal view returns (bool) {
+        for (uint256 i = 0; i < c.approvers.length; i++) {
+            if (c.approvers[i] == a) return true;
         }
+        return false;
     }
 }

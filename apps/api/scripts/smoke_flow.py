@@ -2,9 +2,10 @@
 使い方: API を起動した状態で `.venv/bin/python scripts/smoke_flow.py [http://localhost:8001]`"""
 
 import sys
+import time
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
-from _client import Client, fake_tx  # noqa: E402
+from _client import Client, fake_tx, sign_typed  # noqa: E402
 
 BASE = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8001"
 
@@ -40,20 +41,28 @@ def main() -> None:
     print("V15 company + members:", [m["ens_name"] for m in co_admin.get(f"/companies/{co['id']}")["members"]])
 
     # --- 案件作成 → 計画
-    case = client.post("/cases", {"agent_id": agent["id"], "title": "レストラン予約 Web サービス", "description": "3 日で MVP", "budget_usdc": 300}, expect=201)
+    # 依頼開始は World 検証つき（FR-002）。承認者は開発部(client 本人)と経理部(fin) の 2 名・必要 2
+    fin = Client(BASE); fin.login()
+    case = client.post("/cases", {"agent_id": agent["id"], "title": "レストラン予約 Web サービス", "description": "3 日で MVP", "budget_usdc": 300,
+                                  "approvers": [client.address, fin.address], "threshold": 2, "idkit_response": None}, expect=201)
     case = client.wait(f"/cases/{case['id']}", "status", {"awaiting_approval", "planning_failed"})
     assert case["status"] == "awaiting_approval", case
     assert case["tasks"] and any(t["type"] == "human" for t in case["tasks"])
     total = sum(t["estimated_cost"] for t in case["tasks"])
-    assert total <= case["budget"], (total, case["budget"])
-    print("V4 plan:", len(case["tasks"]), "tasks, cost", total)
+    assert total == case["budget"], (total, case["budget"])  # PM 管理費もタスクとして契約（CON-006）
+    print("V4 plan:", len(case["tasks"]), "tasks (incl. PM), total == budget")
 
-    # --- 入金（モック tx）→ 実行
-    case = client.post(f"/cases/{case['id']}/funded", {"tx_hash": fake_tx()})
+    # --- openCase（発注者の tx。モック）→ worker が工程ごとに預託
+    case = client.post(f"/cases/{case['id']}/opened", {"tx_hash": fake_tx()})
     assert case["status"] == "in_progress"
-    print("V5 funded")
+    for _ in range(60):
+        case = client.get(f"/cases/{case['id']}")
+        if all(t["chain_status"] in ("funded", "submitted", "paid") for t in case["tasks"]):
+            break
+        time.sleep(0.5)
+    assert all(t["chain_status"] != "none" for t in case["tasks"]), [t["chain_status"] for t in case["tasks"]]
+    print("V5 each task funded via worker; project subname:", case["project_ens_name"])
     # AI タスクが終わり、human タスクだけ残るまで待つ
-    import time
     for _ in range(60):
         case = client.get(f"/cases/{case['id']}")
         ai_done = all(t["status"] == "done" for t in case["tasks"] if t["type"] == "ai")
@@ -101,15 +110,36 @@ def main() -> None:
     ht = worker.post(f"/human-tasks/{ht['id']}/submit", {"submission": "https://example.com/photo1.jpg 外観 3 枚"})
     assert ht["status"] == "done"
     case = client.wait(f"/cases/{case['id']}", "status", {"delivered"})
-    print("V7 human task done, case delivered. split:", case["split"])
-    assert sum(int(s["amount"]) for s in case["split"]) == case["budget"]
-    assert any(s["address"] == worker.address.lower() for s in case["split"])
+    for _ in range(60):
+        case = client.get(f"/cases/{case['id']}")
+        if all(t["chain_status"] == "submitted" for t in case["tasks"]):
+            break
+        time.sleep(0.5)
+    assert all(t["chain_status"] == "submitted" and t["deliverable_hash"] for t in case["tasks"]), [(t["title"], t["chain_status"]) for t in case["tasks"]]
+    ht_task = next(t for t in case["tasks"] if t["type"] == "human")
+    assert ht_task["payee"] == worker.address.lower()  # Human Task の支払先は worker
+    print("V7 human task done; all tasks submitted with deliverable hashes; case delivered")
 
-    # --- 支払い
-    case = client.post(f"/cases/{case['id']}/released", {"tx_hash": fake_tx()})
-    assert case["status"] == "completed"
+    # --- 承認（World 検証 + EIP-712 署名）。1 人目で保留、2 人目で自動支払い
+    t0 = case["tasks"][0]
+    typed = client.get(f"/cases/{case['id']}/tasks/{t0['id']}/typed-data")
+    j1.post(f"/cases/{case['id']}/tasks/{t0['id']}/approve", {"signature": sign_typed(j1, typed), "idkit_response": None}, expect=403)  # 承認者以外
+    client.post(f"/cases/{case['id']}/tasks/{t0['id']}/approve", {"signature": sign_typed(fin, typed), "idkit_response": None}, expect=400)  # 他人の署名
+    for t in case["tasks"]:
+        typed = client.get(f"/cases/{case['id']}/tasks/{t['id']}/typed-data")
+        client.post(f"/cases/{case['id']}/tasks/{t['id']}/approve", {"signature": sign_typed(client, typed), "idkit_response": None})
+    client.post(f"/cases/{case['id']}/tasks/{t0['id']}/approve", {"signature": sign_typed(client, typed), "idkit_response": None}, expect=409)  # 二重承認
+    time.sleep(2)
+    case = client.get(f"/cases/{case['id']}")
+    assert all(t["approval_count"] == 1 and t["chain_status"] == "submitted" for t in case["tasks"]), "1/2 で保留のはず（FR-013）"
+    assert case["status"] == "delivered"
+    for t in case["tasks"]:
+        typed = fin.get(f"/cases/{case['id']}/tasks/{t['id']}/typed-data")
+        fin.post(f"/cases/{case['id']}/tasks/{t['id']}/approve", {"signature": sign_typed(fin, typed), "idkit_response": None})
+    case = client.wait(f"/cases/{case['id']}", "status", {"completed"})
+    assert all(t["chain_status"] == "paid" for t in case["tasks"])
     assert client.get(f"/agents/{agent['id']}")["completed_count"] == 1
-    print("V8 released, completed_count=1")
+    print("V8 2/2 approvals → auto-paid per task (FR-012), case completed")
 
     # --- レビュー（World 検証: モック）
     rv = client.post("/reviews", {"case_id": case["id"], "rating": 5, "comment": "良いコミュニケーションでした！", "idkit_response": None}, expect=201)
@@ -123,9 +153,9 @@ def main() -> None:
     print("V9/V10 reviews ok, duplicate rejected")
 
     # --- 紛争 → Jury
-    case2 = client.post("/cases", {"agent_id": agent["id"], "title": "紛争テスト案件", "description": "", "budget_usdc": 100}, expect=201)
+    case2 = client.post("/cases", {"agent_id": agent["id"], "title": "紛争テスト案件", "description": "", "budget_usdc": 100, "idkit_response": None}, expect=201)
     case2 = client.wait(f"/cases/{case2['id']}", "status", {"awaiting_approval"})
-    client.post(f"/cases/{case2['id']}/funded", {"tx_hash": fake_tx()})
+    client.post(f"/cases/{case2['id']}/opened", {"tx_hash": fake_tx()})
     for _ in range(60):
         c2 = client.get(f"/cases/{case2['id']}")
         if all(t["status"] == "done" for t in c2["tasks"] if t["type"] == "ai"):
@@ -150,9 +180,9 @@ def main() -> None:
     j2.post(f"/disputes/{d['id']}/vote", {"vote": "release"})
     d = j3.post(f"/disputes/{d['id']}/vote", {"vote": "refund"})
     assert d["status"] == "closed" and d["outcome"] == "refund", d
-    assert d["resolve_tx_hash"]
-    assert client.get(f"/cases/{case2['id']}")["status"] == "resolved"
-    print("V12 jury resolved:", d["outcome"], d["resolve_tx_hash"][:12])
+    c2 = client.wait(f"/cases/{case2['id']}", "status", {"resolved"})
+    assert all(t["chain_status"] == "resolved" for t in c2["tasks"])
+    print("V12 jury resolved:", d["outcome"], "→ each task resolved via worker")
     print("\nALL SMOKE CHECKS PASSED")
 
 

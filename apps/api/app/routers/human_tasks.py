@@ -8,7 +8,7 @@ from ..db import get_db
 from ..models import HumanTask, User
 from ..schemas import HumanTaskAcceptIn, HumanTaskOut, HumanTaskSubmitIn
 from ..services import assign, gemini
-from .cases import _load, check_delivered
+from .cases import submit_human_task
 from .world import verify_and_record
 
 router = APIRouter(prefix="/human-tasks", tags=["human-tasks"])
@@ -99,6 +99,6 @@ def submit(task_id: str, body: HumanTaskSubmitIn, user: User = Depends(current_u
     task.deliverable = f"{body.submission}\n\n---\nPM Agent の確認: {check.comment}"
     task.status, task.completed_at = "done", datetime.now(UTC)
     db.commit()
-    check_delivered(db, _load(db, ht.case_id))
+    submit_human_task(db, ht)
     db.refresh(ht)
     return ht

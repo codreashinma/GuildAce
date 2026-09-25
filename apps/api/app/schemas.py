@@ -67,6 +67,11 @@ class CaseCreateIn(BaseModel):
     description: str = ""
     budget_usdc: int = Field(gt=0, le=10_000_000, description="USDC 単位（整数）")
     deadline: str | None = None
+    approvers: list[str] = Field(default_factory=list, description="承認者アドレス（空なら発注者本人）")
+    threshold: int = Field(default=1, ge=1, le=10)
+    idkit_response: dict[str, Any] | None = None  # FR-002 依頼開始時の World 検証
+
+
 
 
 class CompanyCreateIn(BaseModel):
@@ -129,6 +134,13 @@ class MemberBrief(ORM):
     wallet_address: str
 
 
+class ApprovalOut(ORM):
+    id: str
+    deliverable_hash: str
+    created_at: datetime
+    approver: UserOut
+
+
 class HumanTaskOut(ORM):
     id: str
     task_id: str
@@ -158,6 +170,13 @@ class TaskOut(ORM):
     deliverable: str | None
     completed_at: datetime | None
     human_task: HumanTaskOut | None = None
+    escrow_task_id: str | None = None
+    chain_status: str = "none"
+    deliverable_hash: str | None = None
+    payee: str | None = None
+    approval_count: int = 0
+    chain_tx_hash: str | None = None
+    approvals: list[ApprovalOut] = []
 
 
 class CaseOut(ORM):
@@ -169,8 +188,11 @@ class CaseOut(ORM):
     status: str
     plan_json: dict[str, Any] | None
     escrow_case_id: str
-    deposit_tx_hash: str | None
-    release_tx_hash: str | None
+    approvers: list[str] | None = []
+    threshold: int = 1
+    open_tx_hash: str | None
+    project_ens_name: str | None
+    project_ens_tx_hash: str | None
     error: str | None
     created_at: datetime
     client: UserOut
@@ -185,8 +207,8 @@ class SplitItem(BaseModel):
 
 
 class CaseDetailOut(CaseOut):
-    split: list[SplitItem] = []
     dispute_id: str | None = None
+    typed_data: dict[str, Any] | None = None  # 承認用 EIP-712（承認者向け、タスクごとに API から取得）
 
 
 class TxIn(BaseModel):
@@ -199,6 +221,14 @@ class WorldProofIn(BaseModel):
 
 class HumanTaskAcceptIn(WorldProofIn):
     pass
+
+
+class CaseOpenedIn(TxIn):
+    pass
+
+
+class ApproveIn(WorldProofIn):
+    signature: str = Field(pattern=r"^0x[0-9a-fA-F]{130}$")
 
 
 class HumanTaskSubmitIn(BaseModel):

@@ -14,7 +14,7 @@ from eth_utils import keccak
 
 from ..config import get_settings
 
-ACTIONS = {"review", "jury", "human-task"}
+ACTIONS = {"request", "approve", "review", "jury", "human-task"}  # NFR-001 の 5 行為
 RP_SIGNATURE_MSG_VERSION = 1
 
 

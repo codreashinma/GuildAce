@@ -1,15 +1,15 @@
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException  # noqa: F401
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from ..auth import current_user
 from ..config import get_settings
-from ..db import SessionLocal, get_db
+from ..db import get_db
 from ..models import Agent, Review, User
 from ..schemas import AgentCreateIn, AgentDetailOut, AgentOut, ReviewOut
-from ..services import ens
+from ..services import ens, worker
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/agents", tags=["agents"])
@@ -33,21 +33,10 @@ def profile_texts(agent: Agent, avatar: str | None = None) -> dict[str, str]:
     return t
 
 
-def _publish_job(agent_id: str, avatar: str | None) -> None:
-    db = SessionLocal()
-    try:
-        agent = db.get(Agent, agent_id)
-        if agent is None:
-            return
-        try:
-            name, tx = ens.publish_agent(label=agent.label, payout_address=agent.payout_address, texts=profile_texts(agent, avatar))
-            agent.ens_name, agent.ens_tx_hash, agent.status, agent.ens_error = name, tx, "published", None
-        except Exception as e:  # noqa: BLE001
-            log.exception("ENS publish failed")
-            agent.status, agent.ens_error = "publish_failed", str(e)[:1000]
-        db.commit()
-    finally:
-        db.close()
+def ens_update_job(db: Session, agent: Agent, texts: dict[str, str]) -> None:
+    """ENS の text record 更新を worker に投入する（値ごとに冪等）"""
+    key = "ens_update:" + agent.label + ":" + ",".join(f"{k}={v}" for k, v in sorted(texts.items()))
+    worker.enqueue(db, "ens_update", key[:200], {"label": agent.label, "texts": texts})
 
 
 @router.get("", response_model=list[AgentOut])
@@ -94,7 +83,7 @@ def publish_agent(agent_id: str, bg: BackgroundTasks, user: User = Depends(curre
     agent.ens_error = None
     db.commit()
     db.refresh(agent)
-    bg.add_task(_publish_job, agent.id, None)
+    worker.enqueue(db, "ens_publish", f"ens_publish:{agent.id}:{agent.status}", {"agent_id": agent.id, "label": agent.label, "payout_address": agent.payout_address, "texts": profile_texts(agent)})
     return agent
 
 

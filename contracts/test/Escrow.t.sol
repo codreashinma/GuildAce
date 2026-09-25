@@ -9,112 +9,152 @@ contract EscrowTest is Test {
     Escrow escrow;
     MockUSDC usdc;
 
-    address arbiter = makeAddr("arbiter");
+    address ops = makeAddr("ops");
     address client = makeAddr("client");
+    uint256 devKey = 0xA11CE;
+    uint256 finKey = 0xB0B;
+    address dev;
+    address fin;
     address agent = makeAddr("agent");
     address worker = makeAddr("worker");
     address stranger = makeAddr("stranger");
 
-    bytes32 constant CASE_ID = keccak256("case-1");
-    uint256 constant AMOUNT = 300e6;
+    bytes32 constant CASE = keccak256("case-1");
+    bytes32 constant T1 = keccak256("task-1");
+    bytes32 constant T2 = keccak256("task-2");
+    bytes32 constant H1 = keccak256("deliverable-1");
 
     function setUp() public {
+        dev = vm.addr(devKey);
+        fin = vm.addr(finKey);
         usdc = new MockUSDC();
-        escrow = new Escrow(arbiter);
+        escrow = new Escrow(ops);
         usdc.mint(client, 1_000e6);
         vm.prank(client);
         usdc.approve(address(escrow), type(uint256).max);
-    }
-
-    function _deposit() internal {
+        address[] memory approvers = new address[](2);
+        approvers[0] = dev;
+        approvers[1] = fin;
         vm.prank(client);
-        escrow.deposit(CASE_ID, address(usdc), AMOUNT);
+        escrow.openCase(CASE, address(usdc), approvers, 2);
     }
 
-    function _split() internal view returns (address[] memory r, uint256[] memory a) {
-        r = new address[](2);
-        a = new uint256[](2);
-        r[0] = agent;
-        r[1] = worker;
-        a[0] = 250e6;
-        a[1] = 50e6;
+    function _sig(uint256 key, bytes32 taskId, bytes32 h, address payee) internal view returns (bytes memory) {
+        bytes32 digest = escrow.approvalDigest(CASE, taskId, h, payee);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(key, digest);
+        return abi.encodePacked(r, s, v);
     }
 
-    function test_deposit() public {
-        _deposit();
-        Escrow.Case memory c = escrow.getCase(CASE_ID);
-        assertEq(c.client, client);
-        assertEq(c.amount, AMOUNT);
-        assertEq(uint256(c.status), uint256(Escrow.Status.Funded));
-        assertEq(usdc.balanceOf(address(escrow)), AMOUNT);
+    /// vm.prank は次の外部呼び出し（approvalDigest）で消費されるため、署名を先に作ってから ops で呼ぶ
+    function _approveAs(uint256 key, address approver, bytes32 taskId, bytes32 h, address payee) internal {
+        bytes memory sig = _sig(key, taskId, h, payee);
+        vm.prank(ops);
+        escrow.approve(CASE, taskId, h, payee, approver, sig);
     }
 
-    function test_deposit_revertsWhenAlreadyFunded() public {
-        _deposit();
-        vm.prank(client);
-        vm.expectRevert(Escrow.AlreadyFunded.selector);
-        escrow.deposit(CASE_ID, address(usdc), AMOUNT);
+    function _approveExpectRevert(uint256 key, address approver, bytes32 taskId, bytes32 h, address payee, bytes4 err) internal {
+        bytes memory sig = _sig(key, taskId, h, payee);
+        vm.prank(ops);
+        vm.expectRevert(err);
+        escrow.approve(CASE, taskId, h, payee, approver, sig);
     }
 
-    function test_release_byClient() public {
-        _deposit();
-        (address[] memory r, uint256[] memory a) = _split();
-        vm.prank(client);
-        escrow.release(CASE_ID, r, a);
-        assertEq(usdc.balanceOf(agent), 250e6);
-        assertEq(usdc.balanceOf(worker), 50e6);
-        assertEq(usdc.balanceOf(address(escrow)), 0);
-        assertEq(uint256(escrow.getCase(CASE_ID).status), uint256(Escrow.Status.Released));
-    }
-
-    function test_release_revertsForNonClient() public {
-        _deposit();
-        (address[] memory r, uint256[] memory a) = _split();
-        vm.prank(stranger);
-        vm.expectRevert(Escrow.NotClient.selector);
-        escrow.release(CASE_ID, r, a);
-        // arbiter も release はできない（resolve のみ）
-        vm.prank(arbiter);
-        vm.expectRevert(Escrow.NotClient.selector);
-        escrow.release(CASE_ID, r, a);
-    }
-
-    function test_release_revertsOnSumMismatch() public {
-        _deposit();
-        (address[] memory r, uint256[] memory a) = _split();
-        a[1] = 49e6;
-        vm.prank(client);
-        vm.expectRevert(Escrow.SumMismatch.selector);
-        escrow.release(CASE_ID, r, a);
-    }
-
-    function test_resolve_refundByArbiter() public {
-        _deposit();
-        address[] memory r = new address[](1);
-        uint256[] memory a = new uint256[](1);
-        r[0] = client;
-        a[0] = AMOUNT;
-        vm.prank(arbiter);
-        escrow.resolve(CASE_ID, r, a);
-        assertEq(usdc.balanceOf(client), 1_000e6);
-        assertEq(uint256(escrow.getCase(CASE_ID).status), uint256(Escrow.Status.Resolved));
-    }
-
-    function test_resolve_revertsForNonArbiter() public {
-        _deposit();
-        (address[] memory r, uint256[] memory a) = _split();
-        vm.prank(client);
-        vm.expectRevert(Escrow.NotArbiter.selector);
-        escrow.resolve(CASE_ID, r, a);
-    }
-
-    function test_cannotReleaseTwice() public {
-        _deposit();
-        (address[] memory r, uint256[] memory a) = _split();
-        vm.startPrank(client);
-        escrow.release(CASE_ID, r, a);
-        vm.expectRevert(Escrow.NotFunded.selector);
-        escrow.release(CASE_ID, r, a);
+    function _fundAndSubmit() internal {
+        vm.startPrank(ops);
+        escrow.fundTask(CASE, T1, 100e6);
+        escrow.submit(CASE, T1, H1, agent);
         vm.stopPrank();
+    }
+
+    function test_openCase_rejectsBadApprovers() public {
+        address[] memory a = new address[](1);
+        a[0] = dev;
+        vm.prank(client);
+        vm.expectRevert(Escrow.BadApprovers.selector);
+        escrow.openCase(keccak256("x"), address(usdc), a, 2);
+    }
+
+    function test_fundTask_pullsFromClient_onlyOps() public {
+        vm.prank(stranger);
+        vm.expectRevert(Escrow.NotOps.selector);
+        escrow.fundTask(CASE, T1, 100e6);
+        vm.prank(ops);
+        escrow.fundTask(CASE, T1, 100e6);
+        assertEq(usdc.balanceOf(address(escrow)), 100e6);
+        assertEq(uint256(escrow.getTask(CASE, T1).status), uint256(Escrow.TaskStatus.Funded));
+    }
+
+    function test_autoPay_whenThresholdReached() public {
+        _fundAndSubmit();
+        _approveAs(devKey, dev, T1, H1, agent);
+        assertEq(usdc.balanceOf(agent), 0); // 1/2 -> 保留（FR-013）
+        assertEq(uint256(escrow.getTask(CASE, T1).status), uint256(Escrow.TaskStatus.Submitted));
+        _approveAs(finKey, fin, T1, H1, agent);
+        assertEq(usdc.balanceOf(agent), 100e6); // 2/2 -> 自動支払い（FR-012）
+        assertEq(uint256(escrow.getTask(CASE, T1).status), uint256(Escrow.TaskStatus.Paid));
+    }
+
+    function test_approve_rejectsForgedOrWrongSigner() public {
+        _fundAndSubmit();
+        // ops が dev の承認を偽造（fin の鍵で署名）
+        _approveExpectRevert(finKey, dev, T1, H1, agent, Escrow.NotApprover.selector);
+        // 承認者でない者の署名
+        _approveExpectRevert(0xC0DE, stranger, T1, H1, agent, Escrow.NotApprover.selector);
+    }
+
+    function test_approve_rejectsHashOrPayeeMismatch() public {
+        _fundAndSubmit();
+        _approveExpectRevert(devKey, dev, T1, keccak256("other"), agent, Escrow.HashMismatch.selector);
+        _approveExpectRevert(devKey, dev, T1, H1, stranger, Escrow.HashMismatch.selector);
+    }
+
+    function test_resubmit_invalidatesApprovals() public {
+        _fundAndSubmit();
+        _approveAs(devKey, dev, T1, H1, agent);
+        bytes32 h2 = keccak256("deliverable-2");
+        vm.prank(ops);
+        escrow.submit(CASE, T1, h2, agent);
+        assertEq(escrow.getTask(CASE, T1).approvalCount, 0);
+        // 古いハッシュへの承認は使えない
+        _approveExpectRevert(finKey, fin, T1, H1, agent, Escrow.HashMismatch.selector);
+    }
+
+    function test_approve_rejectsDouble() public {
+        _fundAndSubmit();
+        _approveAs(devKey, dev, T1, H1, agent);
+        _approveExpectRevert(devKey, dev, T1, H1, agent, Escrow.AlreadyApproved.selector);
+    }
+
+    function test_dispute_and_resolve_split() public {
+        _fundAndSubmit();
+        vm.prank(ops);
+        escrow.dispute(CASE, T1);
+        vm.prank(ops);
+        vm.expectRevert(Escrow.SumMismatch.selector);
+        escrow.resolve(CASE, T1, 50e6, 40e6);
+        vm.prank(ops);
+        escrow.resolve(CASE, T1, 40e6, 60e6);
+        assertEq(usdc.balanceOf(agent), 40e6);
+        assertEq(usdc.balanceOf(client), 1_000e6 - 100e6 + 60e6);
+        assertEq(uint256(escrow.getTask(CASE, T1).status), uint256(Escrow.TaskStatus.Resolved));
+    }
+
+    function test_noPaymentPathWithoutApprovals() public {
+        _fundAndSubmit();
+        // Funded/Submitted のまま資金を動かす関数は存在しない: resolve は Disputed でのみ
+        vm.prank(ops);
+        vm.expectRevert(Escrow.BadStatus.selector);
+        escrow.resolve(CASE, T1, 100e6, 0);
+        assertEq(usdc.balanceOf(address(escrow)), 100e6);
+    }
+
+    function test_humanTaskPayeeIsWorker() public {
+        vm.startPrank(ops);
+        escrow.fundTask(CASE, T2, 30e6);
+        escrow.submit(CASE, T2, keccak256("photo"), worker);
+        vm.stopPrank();
+        _approveAs(devKey, dev, T2, keccak256("photo"), worker);
+        _approveAs(finKey, fin, T2, keccak256("photo"), worker);
+        assertEq(usdc.balanceOf(worker), 30e6);
     }
 }

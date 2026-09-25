@@ -14,6 +14,9 @@ logging.basicConfig(level=logging.INFO)
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     Base.metadata.create_all(bind=engine)  # MVP: マイグレーションの代わりに create_all
+    from .services import worker
+
+    worker.start()  # チェーン連携ワーカー（ADR-006）
     yield
 
 

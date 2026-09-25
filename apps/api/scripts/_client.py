@@ -58,5 +58,11 @@ class Client:
         raise TimeoutError(f"{path} {field} not in {values} (last={d[field]})")
 
 
+def sign_typed(client: "Client", typed: dict) -> str:
+    from eth_account.messages import encode_typed_data
+
+    return client.acct.sign_message(encode_typed_data(full_message=typed)).signature.to_0x_hex()
+
+
 def fake_tx() -> str:
     return "0x" + secrets.token_hex(32)

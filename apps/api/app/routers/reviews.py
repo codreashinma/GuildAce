@@ -8,7 +8,6 @@ from ..auth import current_user
 from ..db import get_db
 from ..models import Agent, HumanTask, Review, User
 from ..schemas import ReviewCreateIn, ReviewOut
-from ..services import ens
 from .cases import _load
 from .world import verify_and_record
 
@@ -36,10 +35,9 @@ def create_review(body: ReviewCreateIn, user: User = Depends(current_user), db: 
         avg, cnt = db.query(func.avg(Review.rating), func.count(Review.id)).filter(Review.target_type == "agent", Review.target_id == agent.id).one()
         agent.rating_avg, agent.rating_count = round(float(avg or 0), 1), int(cnt)
         db.commit()
-        try:
-            ens.update_texts(agent.label, {"agent.rating": f"{agent.rating_avg:.1f}", "agent.reviews": str(agent.rating_count)})
-        except Exception:  # noqa: BLE001
-            log.exception("ENS rating update failed")
+        from .agents import ens_update_job
+
+        ens_update_job(db, agent, {"agent.rating": f"{float(agent.rating_avg):.1f}", "agent.reviews": str(agent.rating_count)})
     db.refresh(review)
     return review
 

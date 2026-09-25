@@ -70,8 +70,12 @@ class Case(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(30), default="draft", index=True)
     plan_json: Mapped[dict | None] = mapped_column(JSON)
     escrow_case_id: Mapped[str] = mapped_column(String(66))
-    deposit_tx_hash: Mapped[str | None] = mapped_column(String(66))
-    release_tx_hash: Mapped[str | None] = mapped_column(String(66))
+    approvers: Mapped[list | None] = mapped_column(JSON, default=list)  # 承認者アドレス（openCase で固定）
+    threshold: Mapped[int] = mapped_column(Integer, default=1)
+    open_tx_hash: Mapped[str | None] = mapped_column(String(66))  # 発注者が送った openCase
+    project_ens_name: Mapped[str | None] = mapped_column(String(255))  # project-<n>.<agent>.choice.eth
+    project_ens_tx_hash: Mapped[str | None] = mapped_column(String(66))
+    request_nullifier: Mapped[str | None] = mapped_column(String(80))  # 依頼開始時の World 検証
     error: Mapped[str | None] = mapped_column(Text)
 
     client: Mapped[User] = relationship()
@@ -93,8 +97,16 @@ class Task(TimestampMixin, Base):
     assignee_name: Mapped[str | None] = mapped_column(String(120))
     deliverable: Mapped[str | None] = mapped_column(Text)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # --- オンチェーン（Escrow）の投影。正本はコントラクト（ADR-001）
+    escrow_task_id: Mapped[str | None] = mapped_column(String(66))
+    chain_status: Mapped[str] = mapped_column(String(20), default="none")  # none|funded|submitted|paid|disputed|resolved
+    deliverable_hash: Mapped[str | None] = mapped_column(String(66))
+    payee: Mapped[str | None] = mapped_column(String(42))
+    approval_count: Mapped[int] = mapped_column(Integer, default=0)
+    chain_tx_hash: Mapped[str | None] = mapped_column(String(66))
 
     case: Mapped[Case] = relationship(back_populates="tasks")
+    approvals: Mapped[list["Approval"]] = relationship(back_populates="task")
     human_task: Mapped["HumanTask | None"] = relationship(back_populates="task", uselist=False)
 
 
@@ -207,3 +219,32 @@ class WorldVerification(TimestampMixin, Base):
     action: Mapped[str] = mapped_column(String(40))
     signal: Mapped[str] = mapped_column(String(120))
     nullifier: Mapped[str] = mapped_column(String(80))
+
+
+class Approval(TimestampMixin, Base):
+    """承認者の承認（World 検証 + EIP-712 署名）。オンチェーンへは worker が中継する"""
+    __tablename__ = "approvals"
+    __table_args__ = (UniqueConstraint("task_id", "approver_id", "deliverable_hash", name="uq_approvals_task_approver_hash"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    task_id: Mapped[str] = mapped_column(ForeignKey("tasks.id"), index=True)
+    approver_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    deliverable_hash: Mapped[str] = mapped_column(String(66))
+    signature: Mapped[str] = mapped_column(Text)
+    nullifier: Mapped[str] = mapped_column(String(80))
+
+    task: Mapped[Task] = relationship(back_populates="approvals")
+    approver: Mapped[User] = relationship()
+
+
+class ChainJob(TimestampMixin, Base):
+    """チェーン連携ワーカーのジョブ（ADR-006）。冪等キーで二重送信を防ぐ"""
+    __tablename__ = "chain_jobs"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    kind: Mapped[str] = mapped_column(String(30), index=True)
+    idempotency_key: Mapped[str] = mapped_column(String(200), unique=True)
+    payload: Mapped[dict] = mapped_column(JSON)
+    status: Mapped[str] = mapped_column(String(20), default="queued", index=True)  # queued|running|retry|done|failed
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    tx_hash: Mapped[str | None] = mapped_column(String(66))
+    error: Mapped[str | None] = mapped_column(Text)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

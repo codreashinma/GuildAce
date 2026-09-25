@@ -8,7 +8,7 @@ from ..auth import current_user
 from ..db import SessionLocal, get_db
 from ..models import Dispute, JuryVote, User
 from ..schemas import DisputeCreateIn, DisputeOut, JuryVoteIn
-from ..services import chain, gemini, payouts
+from ..services import gemini, worker
 from .cases import _load
 from .world import verify_and_record
 
@@ -40,13 +40,17 @@ def open_dispute(case_id: str, body: DisputeCreateIn, bg: BackgroundTasks, user:
     case = _load(db, case_id)
     if case.client_id != user.id:
         raise HTTPException(403)
-    if case.status != "delivered":
-        raise HTTPException(400, "納品済みの案件のみ差し戻せます")
+    if case.status not in ("delivered", "in_progress"):
+        raise HTTPException(400, "進行中または納品済みの案件のみ差し戻せます")
     d = Dispute(case_id=case.id, reason=body.reason, status="open")
     case.status = "disputed"
     db.add(d)
     db.commit()
     db.refresh(d)
+    # 未払いのタスクを保留（Disputed）にする。資金は動かない（FR-013）
+    for t in case.tasks:
+        if t.chain_status in ("funded", "submitted"):
+            worker.enqueue(db, "dispute", f"dispute:{t.id}:{d.id}", {"task_db_id": t.id, "case_id_hex": case.escrow_case_id, "task_id_hex": t.escrow_task_id})
     bg.add_task(_summarize_job, d.id)
     return d
 
@@ -88,14 +92,18 @@ def vote(dispute_id: str, body: JuryVoteIn, user: User = Depends(current_user), 
     if len(d.votes) >= d.required_votes:
         counts = Counter(v.vote for v in d.votes)
         outcome = "release" if counts["release"] > counts["refund"] else "refund"
-        split = payouts.compute_split(case) if outcome == "release" else payouts.refund_split(case)
-        try:
-            tx = chain.send_resolve(case.escrow_case_id, [s["address"] for s in split], [int(s["amount"]) for s in split])
-        except Exception as e:  # noqa: BLE001
-            log.exception("resolve failed")
-            raise HTTPException(500, f"Escrow の resolve に失敗しました: {e}") from e
-        d.outcome, d.resolve_tx_hash, d.status = outcome, tx, "closed"
-        case.status = "resolved"
+        # 裁定に基づく資金解放（FR-019）: タスクごとに worker が resolve を送る。支払先が無い（未提出）タスクは返金
+        jobs = []
+        for t in case.tasks:
+            if t.chain_status not in ("disputed", "funded", "submitted"):
+                continue
+            amt = int(t.estimated_cost)
+            pay = amt if (outcome == "release" and t.payee) else 0
+            job = worker.enqueue(db, "resolve", f"resolve:{t.id}:{d.id}", {"task_db_id": t.id, "case_id_hex": case.escrow_case_id, "task_id_hex": t.escrow_task_id, "pay_amount": str(pay), "refund_amount": str(amt - pay)})
+            if job:
+                jobs.append(job.id)
+        d.outcome, d.status, d.resolve_tx_hash = outcome, "closed", None
+        d.summary_json = {**(d.summary_json or {}), "resolve_jobs": jobs}
         db.commit()
         db.refresh(d)
     return d

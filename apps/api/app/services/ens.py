@@ -156,6 +156,46 @@ def publish_agent(*, label: str, payout_address: str, texts: dict[str, str]) -> 
     return name, tx
 
 
+def _ensure_subregistry(w3: Web3, parent_registry, parent_label: str, parent_name: str) -> str:
+    """親名（Agent）にサブレジストリが無ければデプロイして設定する。project subname の受け皿。"""
+    s = get_settings()
+    from eth_abi import encode
+
+    sub = parent_registry.functions.getSubregistry(parent_label).call()
+    if int(sub, 16):
+        return sub
+    acct = _account()
+    factory = w3.eth.contract(address=Web3.to_checksum_address(s.ensv2_verifiable_factory), abi=[{"type": "function", "name": "deployProxy", "stateMutability": "nonpayable",
+        "inputs": [{"name": "implementation", "type": "address"}, {"name": "salt", "type": "uint256"}, {"name": "data", "type": "bytes"}], "outputs": [{"type": "address"}]}])
+    salt = int.from_bytes(keccak(encode(["bytes32", "bytes32", "uint256"], [keccak(text="UserRegistry"), namehash(parent_name), 0])), "big")
+    init = w3.eth.contract(abi=[{"type": "function", "name": "initialize", "stateMutability": "nonpayable", "inputs": [{"name": "rootAccount", "type": "address"}, {"name": "roleBitmap", "type": "uint256"}], "outputs": []}]).encode_abi("initialize", args=[acct.address, ALL_ROLES])
+    fn = factory.functions.deployProxy(Web3.to_checksum_address(s.ensv2_subregistry_impl), salt, bytes.fromhex(init[2:]))
+    sub = fn.call({"from": acct.address})
+    if w3.eth.get_code(sub) in (b"", b"\x00"):
+        _send(w3, fn)
+    _, _, _, token_id, _ = parent_registry.functions.getState(int.from_bytes(keccak(text=parent_label), "big")).call()
+    _send(w3, parent_registry.functions.setSubregistry(token_id, sub))
+    return sub
+
+
+def publish_project(*, agent_label: str, project_label: str, texts: dict[str, str]) -> tuple[str, str]:
+    """案件ごとの subname（project-<n>.<agent>.choice.eth）を発行し、record を書く（FR-027）。"""
+    s = get_settings()
+    name = f"{project_label}.{agent_ens_name(agent_label)}"
+    if not s.ens_write_enabled:
+        return name, "0xmock" + secrets.token_hex(29)
+    w3 = _w3()
+    acct = _account()
+    parent_reg = _subregistry(w3)  # choice.eth のサブレジストリ（Agent を登録している）
+    sub = _ensure_subregistry(w3, parent_reg, agent_label, agent_ens_name(agent_label))
+    reg = w3.eth.contract(address=sub, abi=V2_REGISTRY_ABI)
+    if int(reg.functions.getResolver(project_label).call(), 16) == 0:
+        _send(w3, reg.functions.register(project_label, acct.address, "0x" + "00" * 20, Web3.to_checksum_address(s.ens_owned_resolver), V2_DEFAULT_OWNER_ROLE_BITMAP, int(time.time()) + ONE_YEAR))
+    node = namehash(name)
+    tx = _send(w3, _resolver(w3).functions.multicall(_records_calldata(w3, node, texts, None)))
+    return name, tx
+
+
 def update_texts(label: str, texts: dict[str, str]) -> str | None:
     s = get_settings()
     if not s.ens_write_enabled:

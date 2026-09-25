@@ -55,18 +55,21 @@ export type HumanTask = {
   id: string; task_id: string; case_id: string; title: string; description: string; reward: number; status: string;
   worker: User | null; submission: string | null; ai_check: string | null; assignee: MemberBrief | null; assignment_reason: string | null; created_at: string;
 };
+export type Approval = { id: string; deliverable_hash: string; created_at: string; approver: User };
+export type ChainStatus = "none" | "funded" | "submitted" | "paid" | "disputed" | "resolved";
 export type Task = {
   id: string; order_no: number; title: string; description: string; type: "ai" | "human"; role: string; estimated_cost: number;
   status: string; assignee_name: string | null; deliverable: string | null; completed_at: string | null; human_task: HumanTask | null;
+  escrow_task_id: string | null; chain_status: ChainStatus; deliverable_hash: string | null; payee: string | null; approval_count: number; chain_tx_hash: string | null; approvals: Approval[];
 };
 export type Case = {
   id: string; title: string; description: string; budget: number; deadline: string | null; status: string;
   plan_json: { summary?: string; team?: { name: string; role: string; kind: string }[] } | null;
-  escrow_case_id: string; deposit_tx_hash: string | null; release_tx_hash: string | null; error: string | null; created_at: string;
-  client: User; agent: Agent; tasks: Task[];
+  escrow_case_id: string; approvers: string[]; threshold: number; open_tx_hash: string | null; project_ens_name: string | null; project_ens_tx_hash: string | null;
+  error: string | null; created_at: string; client: User; agent: Agent; tasks: Task[];
 };
-export type SplitItem = { address: string; amount: string; label: string };
-export type CaseDetail = Case & { split: SplitItem[]; dispute_id: string | null };
+export type CaseDetail = Case & { dispute_id: string | null };
+export type TypedData = { types: Record<string, { name: string; type: string }[]>; primaryType: string; domain: Record<string, unknown>; message: Record<string, string> };
 export type Review = { id: string; case_id: string; rating: number; comment: string; target_type: string; target_id: string; created_at: string; reviewer: User };
 export type JuryVote = { id: string; vote: "release" | "refund"; created_at: string; voter: User };
 export type Dispute = {
@@ -86,6 +89,7 @@ export const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 export const etherscanTx = (h: string) => (h.startsWith("0xmock") ? null : `https://sepolia.etherscan.io/tx/${h}`);
 export const CATEGORY_LABEL: Record<string, string> = { web: "Web開発", design: "デザイン", video: "動画制作", wedding: "Wedding", other: "その他" };
 export const STATUS_LABEL: Record<string, string> = {
+  "chain:none": "未預託", "chain:funded": "預託済", "chain:submitted": "提出済（承認待ち）", "chain:paid": "支払済", "chain:disputed": "保留（紛争）", "chain:resolved": "裁定済",
   draft: "下書き", planning: "計画中", planning_failed: "計画失敗", awaiting_approval: "承認待ち", funded: "入金済み", in_progress: "進行中",
   delivered: "納品済み（検収待ち）", completed: "完了", disputed: "紛争中", resolved: "仲裁で解決",
   publishing: "ENS に公開中", published: "公開中", publish_failed: "公開失敗",

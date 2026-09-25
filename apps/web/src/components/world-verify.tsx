@@ -6,7 +6,7 @@ import { api, type RpContext } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { Button } from "./ui";
 
-export type WorldAction = "review" | "jury" | "human-task";
+export type WorldAction = "request" | "approve" | "review" | "jury" | "human-task";
 
 /**
  * World ID で人間確認をしてから onVerified(proof) を呼ぶボタン。

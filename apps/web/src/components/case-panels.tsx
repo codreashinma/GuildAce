@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { short, usdc, type Case, type Task } from "@/lib/api";
 import { candidatesFor, contractFor, memberEnsFor, PERMISSIONS, projectSubname, reviewDeadline, type Candidate } from "@/lib/mock";
-import { Badge, Card, HumanBadge } from "./ui";
+import { Badge, Card } from "./ui";
 
 const KIND = { company: "🏢 企業", ai: "🤖 AI Agent", human: "🧑 人間" };
 
@@ -14,7 +14,7 @@ export function TeamPanel({ c }: { c: Case }) {
     <Card>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-semibold">チーム編成 <span className="text-xs font-normal text-slate-500">PM Agent が ENS から候補を検索して編成</span></h2>
-        <span className="font-mono text-xs text-blue-700">{projectSubname(c)}</span>
+        <span className="font-mono text-xs text-blue-700">{c.project_ens_name ?? projectSubname(c)}</span>
       </div>
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         {c.tasks.map((t) => {
@@ -58,9 +58,7 @@ function CandidateList({ items, chosen }: { items: Candidate[]; chosen: string }
 /** UC-003 / FR-006 / FR-007 / CON-006: タスク別契約と工程ごとの預託 */
 export function ContractsPanel({ c }: { c: Case }) {
   const [open, setOpen] = useState<string | null>(null);
-  const funded = !!c.deposit_tx_hash;
   const total = c.tasks.reduce((s, t) => s + Number(t.estimated_cost), 0);
-  const fee = Number(c.budget) - total;
   return (
     <Card>
       <h2 className="font-semibold">契約と Escrow <span className="text-xs font-normal text-slate-500">タスク（工程）単位で契約し、資金を預ける</span></h2>
@@ -76,8 +74,8 @@ export function ContractsPanel({ c }: { c: Case }) {
                     <td className="py-2 font-mono text-xs">{ct.id}</td><td>{t.title}</td>
                     <td className="font-mono text-xs text-blue-700">{memberEnsFor(t, c.agent.label)}</td>
                     <td className="text-right">{usdc(t.estimated_cost)}</td>
-                    <td>{funded ? <span className="text-emerald-700">🔒 預託済</span> : <span className="text-slate-400">未</span>}</td>
-                    <td><Badge>{ct.status}</Badge></td>
+                    <td>{t.chain_status === "none" ? <span className="text-slate-400">未</span> : <span className="text-emerald-700">🔒 {t.chain_status === "paid" ? "支払済" : t.chain_status === "resolved" ? "裁定済" : "預託中"}</span>}</td>
+                    <td><Badge status={`chain:${t.chain_status}`} /></td>
                   </tr>
                   {open === t.id && (
                     <tr key={t.id + "x"}><td colSpan={6} className="bg-slate-50 px-3 py-2 text-xs text-slate-700"><ul className="list-disc pl-4">{ct.terms.map((x) => <li key={x}>{x}</li>)}</ul></td></tr>
@@ -85,12 +83,11 @@ export function ContractsPanel({ c }: { c: Case }) {
                 </>
               );
             })}
-            <tr className="border-t border-slate-200 text-xs text-slate-500"><td className="py-2" colSpan={3}>PM Agent 手数料（{c.agent.fee_bps / 100}%）</td><td className="text-right">{usdc(fee)}</td><td colSpan={2}></td></tr>
-            <tr className="font-semibold"><td className="py-2" colSpan={3}>合計（Escrow 預託額）</td><td className="text-right">{usdc(c.budget)} USDC</td><td colSpan={2}>{funded ? "🔒 Escrow 保管中" : ""}</td></tr>
+            <tr className="border-t border-slate-200 font-semibold"><td className="py-2" colSpan={3}>合計（工程ごとに預託。PM 管理費 {c.agent.fee_bps / 100}% を含む）</td><td className="text-right">{usdc(total)} USDC</td><td colSpan={2}></td></tr>
           </tbody>
         </table>
       </div>
-      <p className="mt-2 text-xs text-slate-500">資金は契約条件（検収承認）を満たすまでスマートコントラクトの外に出ません。期限の到来や AI の判断では動きません。</p>
+      <p className="mt-2 text-xs text-slate-500">資金は工程ごとに Escrow が保持し、承認者の承認が必要数そろった工程から自動で支払われます。オフチェーンから送金を指示する経路はありません。期限の到来や AI の判断では動きません。</p>
     </Card>
   );
 }
@@ -122,36 +119,6 @@ export function ProgressPanel({ c }: { c: Case }) {
   );
 }
 
-function ApproverRow({ label, desc, ok, done, onClick, disabled }: { label: string; desc: string; ok: boolean; done: boolean; onClick: () => void; disabled?: boolean }) {
-  return (
-    <li className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 p-3 text-sm">
-      <div className="flex-1"><div className="font-medium">{label}</div><div className="text-xs text-slate-500">{desc}</div></div>
-      {ok || done ? <span className="flex items-center gap-2 text-emerald-700"><HumanBadge />承認済み</span> : (
-        <button disabled={disabled} onClick={onClick} className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs text-white disabled:bg-slate-300">◎ World で人間確認して承認</button>
-      )}
-    </li>
-  );
-}
-
-/** UC-005 / FR-010 / FR-011: 発注者側の承認者（開発部 → 経理部）と World による人間確認（UI モック） */
-export function ApproverPanel({ c, onAllApproved }: { c: Case; onAllApproved: (ok: boolean) => void }) {
-  const [dev, setDev] = useState(false);
-  const [fin, setFin] = useState(false);
-  const done = c.status !== "delivered";
-  const toggleDev = () => { setDev(true); };
-  const toggleFin = () => { setFin(true); onAllApproved(true); };
-  return (
-    <Card>
-      <h2 className="font-semibold">承認フロー <span className="text-xs font-normal text-slate-500">重要な承認では毎回、人間であることの確認と内容への署名を行う</span></h2>
-      <ol className="mt-3 space-y-2">
-        <ApproverRow label="1. 開発部（検収の承認）" desc="成果物が約束どおりの内容か確認する" ok={dev} done={done} onClick={toggleDev} />
-        <ApproverRow label="2. 経理部（支払の承認）" desc="検収済みの内容と支払額を承認する" ok={fin} done={done} onClick={toggleFin} disabled={!dev} />
-      </ol>
-      <p className="mt-2 text-xs text-slate-500">名前と権限は別のもの。部署名があるだけでは承認できず、会社の管理者が担当者に付与した権限（ENSv2 EAC）を Escrow が確認します。</p>
-    </Card>
-  );
-}
-
 /** FR-027 / FR-028: プロジェクト subname と ENSv2 の権限 */
 export function EnsPanel({ c }: { c: Case }) {
   const agentName = c.agent.ens_name ?? `${c.agent.label}.choice.eth`;
@@ -162,8 +129,7 @@ export function EnsPanel({ c }: { c: Case }) {
       <div className="mt-2 rounded-lg bg-slate-50 p-3 font-mono text-xs">
         <div>{c.agent.creator.display_name ?? short(c.agent.creator.wallet_address)} <span className="text-slate-400">(Creator)</span></div>
         <div>└─ <span className="text-blue-700">{agentName}</span> <span className="text-slate-400">(PM Agent)</span></div>
-        <div>&nbsp;&nbsp;&nbsp;&nbsp;└─ <span className="text-blue-700">{projectSubname(c)}</span> <span className="text-slate-400">(この案件)</span></div>
-        {c.tasks.map((t) => <div key={t.id}>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ {t.role}.{projectSubname(c)}</div>)}
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;└─ <span className="text-blue-700">{c.project_ens_name ?? projectSubname(c)}</span> <span className="text-slate-400">(この案件{c.project_ens_name ? "・発行済" : "・openCase 後に発行"})</span></div>
       </div>
       <table className="mt-3 w-full text-xs">
         <thead className="text-left text-slate-500"><tr><th className="py-1">ロール</th><th>名前</th><th>できること</th></tr></thead>

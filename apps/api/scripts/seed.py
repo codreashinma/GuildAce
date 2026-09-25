@@ -7,7 +7,7 @@ import sys
 import httpx
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
-from _client import Client, fake_tx  # noqa: E402
+from _client import Client, fake_tx, sign_typed  # noqa: E402
 
 BASE = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8001"
 
@@ -77,13 +77,13 @@ def main() -> None:
     # 完了済み案件 + レビューを 1 件作る（Web PM の実績用）
     web = agents[0]
     import time
-    case = client.post("/cases", {"agent_id": web["id"], "title": "レストラン予約 Web サービス", "description": "3 日で MVP を作りたい。予算 300 USDC", "budget_usdc": 300}, expect=201)
+    case = client.post("/cases", {"agent_id": web["id"], "title": "レストラン予約 Web サービス", "description": "3 日で MVP を作りたい。予算 300 USDC", "budget_usdc": 300, "idkit_response": None}, expect=201)
     case = client.wait(f"/cases/{case['id']}", "status", {"awaiting_approval", "planning_failed"}, timeout=120)
     if case["status"] != "awaiting_approval":
         print("planning failed", case.get("error"))
         return
     if client.get("/config")["mock"]["chain"]:
-        client.post(f"/cases/{case['id']}/funded", {"tx_hash": fake_tx()})
+        client.post(f"/cases/{case['id']}/opened", {"tx_hash": fake_tx()})
         for _ in range(120):
             c = client.get(f"/cases/{case['id']}")
             if all(t["status"] == "done" for t in c["tasks"] if t["type"] == "ai"):
@@ -94,7 +94,15 @@ def main() -> None:
                 worker.post(f"/human-tasks/{ht['id']}/accept", {})
                 worker.post(f"/human-tasks/{ht['id']}/submit", {"submission": "https://example.com/photos/store-1.jpg ほか 3 枚を撮影しました。"})
         client.wait(f"/cases/{case['id']}", "status", {"delivered"}, timeout=120)
-        client.post(f"/cases/{case['id']}/released", {"tx_hash": fake_tx()})
+        for _ in range(60):
+            c = client.get(f"/cases/{case['id']}")
+            if all(t["chain_status"] == "submitted" for t in c["tasks"]):
+                break
+            time.sleep(1)
+        for t in c["tasks"]:
+            typed = client.get(f"/cases/{case['id']}/tasks/{t['id']}/typed-data")
+            client.post(f"/cases/{case['id']}/tasks/{t['id']}/approve", {"signature": sign_typed(client, typed), "idkit_response": None})
+        client.wait(f"/cases/{case['id']}", "status", {"completed"}, timeout=120)
         client.post("/reviews", {"case_id": case["id"], "rating": 5, "comment": "良いコミュニケーションでした！タスク分解が的確。"}, expect=201)
         print("demo case completed + reviewed:", case["id"])
     else:

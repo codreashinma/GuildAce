@@ -45,7 +45,7 @@ export function memberEnsFor(task: Task, agentLabel: string): string {
 /** FR-027: プロジェクトごとの subname */
 export function projectSubname(c: Case): string {
   const n = parseInt(c.id.replace(/-/g, "").slice(0, 6), 16) % 1000;
-  return `project-${n}.${c.agent.label}.choice.eth`;
+  return `project-${n}.${c.agent.label}.choice.eth`;  // API と同じ導出（openCase 後に実発行）
 }
 
 /** FR-028: ENSv2 EAC の権限（モック） */
@@ -71,9 +71,11 @@ export type Notice = { id: string; title: string; body: string; href: string; ki
 export function noticesFromCases(cases: Case[]): Notice[] {
   const out: Notice[] = [];
   for (const c of cases) {
-    if (c.status === "awaiting_approval") out.push({ id: c.id + ":a", kind: "approve", title: "計画の承認と入金をお願いします", body: c.title, href: `/cases/${c.id}` });
-    if (c.status === "delivered") out.push({ id: c.id + ":d", kind: "deliver", title: "成果物が提出されました。検収をお願いします", body: c.title, href: `/cases/${c.id}` });
-    if (c.status === "completed") out.push({ id: c.id + ":p", kind: "pay", title: "Escrow から支払いが実行されました", body: c.title, href: `/cases/${c.id}` });
+    if (c.status === "awaiting_approval") out.push({ id: c.id + ":a", kind: "approve", title: "計画の承認と Escrow の開設をお願いします", body: c.title, href: `/cases/${c.id}` });
+    const pending = c.tasks.filter((t) => t.chain_status === "submitted").length;
+    if (pending > 0 && c.status !== "disputed") out.push({ id: c.id + ":d", kind: "deliver", title: `${pending} 工程の成果物が提出されました。承認をお願いします`, body: c.title, href: `/cases/${c.id}` });
+    const paid = c.tasks.filter((t) => t.chain_status === "paid").length;
+    if (paid > 0) out.push({ id: c.id + ":p", kind: "pay", title: `${paid} 工程の支払いが Escrow から実行されました`, body: c.title, href: `/cases/${c.id}` });
     if (c.status === "disputed") out.push({ id: c.id + ":x", kind: "dispute", title: "紛争が発生しました。Jury の裁定待ちです", body: c.title, href: `/cases/${c.id}` });
     if (c.status === "in_progress") out.push({ id: c.id + ":i", kind: "info", title: "チームが作業中です", body: c.title, href: `/cases/${c.id}` });
   }

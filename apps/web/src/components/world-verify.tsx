@@ -27,8 +27,9 @@ export function WorldVerifyButton({ action, signal, label, onVerified, disabled,
     setErr(null);
     setBusy(true);
     try {
-      if (!config || config.mock.world) {
-        await onVerified(null);
+      if (!config) throw new Error("設定を読み込み中です。少し待ってから再試行してください");
+      if (config.mock.world) {
+        await onVerified(null);  // World 未設定: proof なし（サーバーはウォレット単位の疑似 nullifier を記録）
         return;
       }
       const ctx = await api<RpContext>(`/world/rp-context?action=${action}`);
@@ -43,8 +44,8 @@ export function WorldVerifyButton({ action, signal, label, onVerified, disabled,
 
   return (
     <div className="inline-flex flex-col gap-1">
-      <Button variant={variant} onClick={start} disabled={disabled || busy}>
-        <span aria-hidden>◎</span><span>{busy ? "処理中…" : label}</span>
+      <Button variant={variant} onClick={start} disabled={disabled || busy || !config} title={config?.mock.world ? "World 未設定のため人間確認はモック（proof なし）" : undefined}>
+        <span aria-hidden>◎</span><span>{busy ? "処理中…" : config?.mock.world ? `${label}（World モック）` : label}</span>
       </Button>
       {err && <span className="max-w-xs text-xs text-neutral-900">{err}</span>}
       {config && !config.mock.world && rp && (

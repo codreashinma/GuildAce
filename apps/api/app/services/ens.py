@@ -394,6 +394,8 @@ def verify_written(*, name: str, tx_hash: str, sender: str, key: str) -> dict:
     s = get_settings()
     if not s.sepolia_rpc_url:
         return {"mock": True}
+    if tx_hash.startswith("0xmock"):
+        raise ValueError("モックの tx hash はこの環境（RPC 設定済み）では受け付けません。ウォレットで実際に送信してください")
     w3 = _w3()
     try:
         receipt = w3.eth.get_transaction_receipt(tx_hash)

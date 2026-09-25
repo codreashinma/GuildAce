@@ -5,6 +5,7 @@ import { useCallback, useState } from "react";
 import { usePublicClient, useSendTransaction } from "wagmi";
 import { api, short, type Company, type Member } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { mockTxHash, useEnsureSepolia } from "@/lib/chain";
 import { Badge, Button, Card, Empty, ErrorBox, Field, inputCls, Mono, PageTitle, TxLink } from "@/components/ui";
 import { EnsNameCheck, EnsRecords } from "@/components/ens-records";
 
@@ -29,7 +30,7 @@ export default function Companies() {
     <div className="space-y-8">
       <PageTitle title="会社と人員" sub="会社が所有する .eth の下に人員を subname として登録します。PM Agent は ENS のレコード（役割・スキル・拠点・稼働可否）を見て Human Task を指名します" />
 
-      {mine?.map((c) => <CompanyCard key={c.id} c={c} mock={!config || !!config.mock.chain} />)}
+      {config && mine?.map((c) => <CompanyCard key={c.id} c={c} mock={!!config.mock.chain} />)}
 
       <Card className="space-y-3">
         <h2 className="font-semibold">会社を登録</h2>
@@ -128,14 +129,16 @@ function CompanyCard({ c, mock }: { c: Company; mock: boolean }) {
 function EnsWrite({ c, m, mock }: { c: Company; m: Member; mock: boolean }) {
   const qc = useQueryClient();
   const { sendTransactionAsync } = useSendTransaction();
+  const ensureSepolia = useEnsureSepolia();
   const pc = usePublicClient();
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const run = async () => {
     setErr(null);
     try {
-      let last = "0x" + Array.from(crypto.getRandomValues(new Uint8Array(32))).map((b) => b.toString(16).padStart(2, "0")).join("");
+      let last = mockTxHash();
       if (!mock) {
+        await ensureSepolia();
         const r = await api<{ mock: boolean; txs: { to: string; data: string; label: string }[] }>(`/companies/${c.id}/members/${m.id}/ens-calldata`);
         for (const tx of r.txs) {
           setBusy(tx.label);

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePublicClient, useSendTransaction } from "wagmi";
 import { Button } from "@/components/ui";
+import { useEnsureSepolia } from "@/lib/chain";
 import { api } from "@/lib/api";
 import { Mono } from "@/components/ui";
 
@@ -94,6 +95,7 @@ type SetupCalldata = { mock: boolean; ready: boolean; txs: { to: string; data: s
 export function EnsSetupButton({ name, onDone }: { name: string; onDone?: () => void }) {
   const qc = useQueryClient();
   const { sendTransactionAsync } = useSendTransaction();
+  const ensureSepolia = useEnsureSepolia();
   const pc = usePublicClient();
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -102,6 +104,7 @@ export function EnsSetupButton({ name, onDone }: { name: string; onDone?: () => 
     try {
       setBusy("準備内容を取得中…");
       const r = await api<SetupCalldata>(`/ens/setup-calldata?name=${encodeURIComponent(name)}`);
+      if (r.txs.length) await ensureSepolia();
       for (const tx of r.txs) {
         setBusy(`${tx.label} に署名…`);
         const h = await sendTransactionAsync({ to: tx.to as `0x${string}`, data: tx.data as `0x${string}` });

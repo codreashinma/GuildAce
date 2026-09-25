@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { usePublicClient, useSendTransaction } from "wagmi";
 import { api, CATEGORY_LABEL, type Agent } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { useEnsureSepolia } from "@/lib/chain";
 import { BackLink, Button, Card, ErrorBox, Field, inputCls, Mono, PageTitle } from "@/components/ui";
 
 type UpdateResult = { mode: "platform" | "creator"; changed_keys: string[]; ens?: "queued" | "mock" | "sign"; txs?: { to: string; data: string; label: string }[]; agent: Agent };
@@ -25,6 +26,7 @@ export default function EditAgent() {
 function EditForm({ a }: { a: Agent }) {
   const router = useRouter();
   const { sendTransactionAsync } = useSendTransaction();
+  const ensureSepolia = useEnsureSepolia();
   const pc = usePublicClient();
   const [f, setF] = useState(() => ({ name: a.name, description: a.description, category: a.category, rules: a.rules, fee_bps: a.fee_bps }));
   const [err, setErr] = useState<unknown>(null);
@@ -37,6 +39,7 @@ function EditForm({ a }: { a: Agent }) {
     try {
       const r = await api<UpdateResult>(`/agents/${a.id}`, { method: "PATCH", json: f });
       if (r.ens === "sign" && r.txs?.length) {
+        await ensureSepolia();
         let last = "";
         for (const tx of r.txs) {
           setStep(`${tx.label} に署名…`);

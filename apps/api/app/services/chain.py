@@ -95,6 +95,8 @@ def verify_case_opened(tx_hash: str, case_id_hex: str, client: str, approvers: l
     s = get_settings()
     if not s.chain_enabled:
         return
+    if tx_hash.startswith("0xmock"):
+        raise ValueError("モックの tx hash はこの環境（チェーン設定済み）では受け付けません。ウォレットで openCase を送信してください")
     w = w3()
     receipt = w.eth.get_transaction_receipt(tx_hash)
     if receipt is None or receipt["status"] != 1:

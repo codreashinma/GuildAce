@@ -111,6 +111,15 @@ subname 発行と record 書き込みは会社管理者のウォレットが署�
 
 Sepolia 実機の通しテスト: `cd apps/api && .venv/bin/python scripts/smoke_chain.py`
 
+## デモ・公開前チェックリスト
+
+- `JWT_SECRET` をランダムな値にする（既定値のままだと API 起動時に警告が出る）
+- `DEV_LOGIN_ENABLED=false` にする。デモログインのユーザーは秘密鍵が無いので、実チェーンでは openCase と EIP-712 承認ができない（画面にもその旨が出る）。発注者・承認者・Human Task 受注者は実ウォレットで Sign in する
+- World を実連携にする（`WORLD_APP_ID` / `WORLD_RP_ID` / `WORLD_RP_SIGNING_KEY`、`WORLD_VERIFY_ENABLED=true`）。モックのときはボタンに「（World モック）」、ヘッダーに `mock: world` と出る
+- `GEMINI_API_KEY` を設定する。空だと固定の計画と「（モック）」入りの成果物になる
+- 公開 URL に出すなら `NEXT_PUBLIC_API_URL`（https）、API の `CORS_ORIGINS` / `APP_URL` に公開 origin を入れる。`APP_URL` は ENS の `codrea.project.url` にも書かれる
+- ウォレットが Sepolia 以外に接続されている場合は、書き込み・署名の前に自動で切替を促す
+
 ## 設計上の不変条件
 
 1. AI は提案・生成のみを行い、資金を動かさない。オフチェーンから送金を指示する経路は無く、支払いはコントラクトが承認数で判定する

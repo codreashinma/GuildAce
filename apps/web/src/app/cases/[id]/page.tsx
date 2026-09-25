@@ -7,6 +7,7 @@ import { useAccount, usePublicClient, useWriteContract } from "wagmi";
 import { api, short, STATUS_LABEL, usdc, type CaseDetail, type Review, type Task } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { erc20Abi, escrowAbi } from "@/lib/contracts";
+import { mockTxHash, useEnsureSepolia } from "@/lib/chain";
 import { Markdown } from "@/components/markdown";
 import { WorldVerifyButton } from "@/components/world-verify";
 import { ApproveButton } from "@/components/approve-button";
@@ -27,7 +28,7 @@ export default function CasePage({ params }: { params: Promise<{ id: string }> }
   const isClient = me?.id === c.client.id;
   const isApprover = !!me && c.approvers.map((a) => a.toLowerCase()).includes(me.wallet_address);
   const stepIdx = Math.max(STEPS.indexOf(c.status), c.status === "disputed" || c.status === "resolved" ? 3 : 0);
-  const mock = !config || config.mock.chain;
+  const mock = !!config?.mock.chain;
 
   return (
     <div className="space-y-6">
@@ -82,9 +83,10 @@ export default function CasePage({ params }: { params: Promise<{ id: string }> }
 
 /** UC-003: 発注者が openCase（承認者の固定）と USDC の approve を行い、worker が工程ごとに預託する */
 function OpenCasePanel({ c, mock, onDone }: { c: CaseDetail; mock: boolean; onDone: () => void }) {
-  const { config } = useAuth();
+  const { config, dev } = useAuth();
   const { address } = useAccount();
   const { writeContractAsync } = useWriteContract();
+  const ensureSepolia = useEnsureSepolia();
   const pc = usePublicClient();
   const [err, setErr] = useState<unknown>(null);
   const [step, setStep] = useState<string | null>(null);
@@ -94,9 +96,10 @@ function OpenCasePanel({ c, mock, onDone }: { c: CaseDetail; mock: boolean; onDo
     try {
       let txHash: string;
       if (mock) {
-        txHash = "0x" + Array.from(crypto.getRandomValues(new Uint8Array(32))).map((b) => b.toString(16).padStart(2, "0")).join("");
+        txHash = mockTxHash();
       } else {
         if (!config || !address || !pc) throw new Error("ウォレット未接続");
+        await ensureSepolia();
         const escrow = config.escrow_address as `0x${string}`;
         const token = config.usdc_address as `0x${string}`;
         const bal = await pc.readContract({ address: token, abi: erc20Abi, functionName: "balanceOf", args: [address] });
@@ -129,7 +132,11 @@ function OpenCasePanel({ c, mock, onDone }: { c: CaseDetail; mock: boolean; onDo
   return (
     <div className="mt-4 rounded-md border border-neutral-900 p-4">
       <p className="text-sm">計画を承認すると、Escrow に案件を開き（承認者 {c.approvers.length} 名 / 必要 {c.threshold} を固定）、USDC の引き落としを許可します。そのあとチェーン連携ワーカーが<b>工程ごとに</b>資金を預けて作業が始まります。支払いは承認がそろった工程から自動で実行されます。</p>
-      <div className="mt-3"><Button onClick={run} disabled={!!step}>{step ?? (mock ? "承認して Escrow を開く（モック）" : "承認して Escrow を開く")}</Button></div>
+      {!mock && dev ? (
+        <p className="mt-3 text-sm text-neutral-700">デモログイン中は Escrow を開けません（openCase の署名にはウォレットが必要です）。発注者のウォレットで Sign in してください。</p>
+      ) : (
+        <div className="mt-3"><Button onClick={run} disabled={!!step || !config}>{step ?? (mock ? "承認して Escrow を開く（モック）" : "承認して Escrow を開く")}</Button></div>
+      )}
       <div className="mt-2"><ErrorBox error={err} /></div>
     </div>
   );

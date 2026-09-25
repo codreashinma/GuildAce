@@ -14,6 +14,12 @@ logging.basicConfig(level=logging.INFO)
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     Base.metadata.create_all(bind=engine)  # MVP: マイグレーションの代わりに create_all
+    s = get_settings()
+    log = logging.getLogger("choice")
+    if s.jwt_secret == "dev-secret-change-me":
+        log.warning("JWT_SECRET が既定値のままです。公開環境では必ずランダムな値に変えてください（トークン偽造が可能）")
+    if s.dev_login_enabled and s.chain_enabled:
+        log.warning("DEV_LOGIN_ENABLED=true かつ実チェーン設定です。デモログインのユーザーは署名できず、Jury 3 票で resolve が実行できます。公開環境では false にしてください")
     from .services import worker
 
     worker.start()  # チェーン連携ワーカー（ADR-006）

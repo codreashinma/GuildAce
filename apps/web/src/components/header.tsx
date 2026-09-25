@@ -74,7 +74,7 @@ export function Header() {
           ))}
         </nav>
         <div className="ml-auto flex shrink-0 items-center gap-2">
-          {mocks.length > 0 && <span className="hidden whitespace-nowrap rounded-sm border border-dashed border-neutral-400 px-2 py-1 text-[11px] text-neutral-600 2xl:inline" title="未設定の外部連携はモックで動作">mock: {mocks.join(", ")}</span>}
+          {mocks.length > 0 && <span className="hidden whitespace-nowrap rounded-sm border border-dashed border-neutral-400 px-2 py-1 text-[11px] text-neutral-600 md:inline" title="未設定の外部連携はモックで動作">mock: {mocks.join(", ")}</span>}
           <DevAutoLogin />
           <NotificationBell />
           <ConnectButton showBalance={false} chainStatus="icon" accountStatus="address" label="ウォレット接続" />

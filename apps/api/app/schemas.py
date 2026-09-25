@@ -230,7 +230,8 @@ class CaseDetailOut(CaseOut):
 
 
 class TxIn(BaseModel):
-    tx_hash: str = Field(pattern=r"^0x[0-9a-fA-F]{64}$")
+    """tx hash。モック（チェーン未設定）のときはフロントが `0xmock` + 58 hex を報告する"""
+    tx_hash: str = Field(pattern=r"^0x([0-9a-fA-F]{64}|mock[0-9a-fA-F]{58})$")
 
 
 class WorldProofIn(BaseModel):

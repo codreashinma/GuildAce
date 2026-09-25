@@ -16,6 +16,7 @@ from ..config import get_settings
 
 ACTIONS = {"request", "approve", "review", "jury", "human-task"}  # NFR-001 の 5 行為
 RP_SIGNATURE_MSG_VERSION = 1
+_issued_nonces: dict[str, tuple[str, int]] = {}  # rp-context で発行した nonce → (action, expires_at)。再利用・他 action への流用を拒否する
 
 
 def _hash_to_field(data: bytes) -> bytes:
@@ -29,6 +30,9 @@ def sign_request(action: str, ttl: int = 300) -> dict:
     created = int(time.time())
     expires = created + ttl
     nonce = _hash_to_field(os.urandom(32))
+    _issued_nonces["0x" + nonce.hex()] = (action, expires)
+    for k in [k for k, (_, exp) in _issued_nonces.items() if exp < created - 3600]:
+        _issued_nonces.pop(k, None)
     if not s.world_rp_signing_key:
         return {
             "rp_id": s.world_rp_id or "rp_mock",
@@ -71,6 +75,39 @@ def _extract_nullifier(obj) -> str | None:
     return None
 
 
+def _find_str(obj, keys: tuple[str, ...]) -> str | None:
+    """レスポンス内（ネスト含む）から最初に見つかった文字列値を返す"""
+    if isinstance(obj, dict):
+        for k in keys:
+            if isinstance(obj.get(k), str):
+                return obj[k]
+        for v in obj.values():
+            r = _find_str(v, keys)
+            if r:
+                return r
+    if isinstance(obj, list):
+        for v in obj:
+            r = _find_str(v, keys)
+            if r:
+                return r
+    return None
+
+
+def check_binding(*, idkit_response: dict, action: str, signal: str) -> None:
+    """proof がこの操作（action / signal）向けに作られたものかをサーバー側で確認する。
+    IDKit v4 のレスポンスに signal / nonce が含まれる場合に照合し、無い場合は Developer Portal の検証に委ねる。"""
+    sig = _find_str(idkit_response, ("signal",))
+    if sig is not None and sig != signal:
+        raise ValueError("World ID の proof が別の操作向けです（signal 不一致）")
+    nonce = _find_str(idkit_response, ("nonce",))
+    if nonce is not None and nonce.startswith("0x") and len(nonce) == 66:
+        issued = _issued_nonces.pop(nonce, None)
+        if issued is None:
+            raise ValueError("World ID の rp_context が無効か使用済みです。もう一度お試しください")
+        if issued[0] != action or issued[1] < int(time.time()):
+            raise ValueError("World ID の rp_context が別の操作向けか期限切れです")
+
+
 def verify_proof(*, idkit_response: dict | None, action: str, signal: str, user_wallet: str) -> str:
     """検証に成功したら nullifier を返す。失敗なら ValueError。"""
     s = get_settings()
@@ -83,6 +120,7 @@ def verify_proof(*, idkit_response: dict | None, action: str, signal: str, user_
         raise ValueError("World ID の proof がありません")
     if idkit_response.get("action") not in (None, action):
         raise ValueError("action が一致しません")
+    check_binding(idkit_response=idkit_response, action=action, signal=signal)
     r = httpx.post(f"{s.world_verify_url}/{s.world_rp_id}", json=idkit_response, timeout=30)
     if r.status_code >= 400:
         raise ValueError(f"World ID 検証に失敗しました: {r.text[:300]}")

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useSignTypedData } from "wagmi";
 import { api, type TypedData } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { useEnsureSepolia } from "@/lib/chain";
 import { WorldVerifyButton } from "./world-verify";
 import { ErrorBox } from "./ui";
 
@@ -11,10 +12,12 @@ import { ErrorBox } from "./ui";
 export function ApproveButton({ caseId, taskId, deliverableHash, approvalCount, threshold, alreadyApproved, onDone }: {
   caseId: string; taskId: string; deliverableHash: string | null; approvalCount: number; threshold: number; alreadyApproved: boolean; onDone: () => void;
 }) {
-  const { me } = useAuth();
+  const { me, dev, config } = useAuth();
   const { signTypedDataAsync } = useSignTypedData();
+  const ensureSepolia = useEnsureSepolia();
   const [err, setErr] = useState<unknown>(null);
   if (!me) return null;
+  if (dev) return <span className="max-w-xs text-xs text-neutral-700">デモログイン中は承認できません（EIP-712 署名にはウォレットが必要です）。承認者のウォレットで Sign in してください。</span>;
   if (alreadyApproved) return <span className="whitespace-nowrap text-xs text-neutral-900">承認済み（{approvalCount}/{threshold}）</span>;
   return (
     <div className="flex flex-col gap-1">
@@ -23,6 +26,7 @@ export function ApproveButton({ caseId, taskId, deliverableHash, approvalCount, 
           setErr(null);
           try {
             const typed = await api<TypedData>(`/cases/${caseId}/tasks/${taskId}/typed-data`);
+            if (!config?.mock.chain) await ensureSepolia();
             const signature = await signTypedDataAsync({
               domain: typed.domain as { name: string; version: string; chainId: number; verifyingContract: `0x${string}` },
               types: { Approval: typed.types.Approval }, primaryType: "Approval",

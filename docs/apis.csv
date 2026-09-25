@@ -50,5 +50,10 @@ API-72,紛争,GET,/disputes/{id},不要,紛争詳細（論点サマリー・投�
 API-73,紛争,POST,/disputes/{id}/vote,要,Jury 投票。当事者除外・World 検証（action=jury）・1 人 1 票。3 票で多数決し worker が resolve を工程ごとに送信,入力: vote（release / refund）/ idkit_response。出力: DisputeOut,F2,"FR-018, FR-019",済,,
 API-80,運用,GET,/ops/jobs,要（運用者）,chain_jobs の一覧（状態・試行回数・エラー・tx）,出力: ChainJob[],G1,ADR-006,未,,低
 API-81,運用,POST,/ops/jobs/{id}/retry,要（運用者）,失敗ジョブの再投入,出力: ChainJob,G1,ADR-006,未,,低
-API-82,運用,GET,/ens/resolve?name=,不要,任意の ENS 名の所有者・リゾルバ・record を読む（案件・人員の ENS 表示用）,入力: name。出力: owner / resolver / addr / texts,G3,"FR-026, FR-027",未,scripts/ens_check.py の内容を API 化する,中
 API-90,マイページ,GET,/me/summary,要,所属会社・受取履歴・World 検証済み行為をまとめて返す,出力: 集計,A4,-,未,,低
+API-100,ENS,GET,/ens/resolve?name=,不要,任意の ENS 名の所有者・レジストリ・リゾルバ・addr・text record を Sepolia から読む（scripts/ens_check.py の API 化）,入力: name。出力: owner / registry / resolver / addr / texts,"G3, B5, E1, B2","FR-026, FR-027, NFR-004",未,案件（project subname）と人員の ENS 表示に使う,中
+API-101,ENS,GET,/ens/check-owner?name=,要,入力中の名前が接続ウォレットの所有か（ENSv2 .eth レジストリの latestOwner）を事前確認,入力: name。出力: owner / is_mine / status,"D1, E1","FR-026, 追補1 F9",未,今は登録時にしか分からない,中
+API-102,ENS,GET,/ens/readiness?name=,不要,名前にサブレジストリとリゾルバが設定済みかを返す。無いと subname 発行が revert する,入力: name。出力: registered / subregistry / resolver / ready,"D1, E1","FR-026, FR-027",未,D1 の Creator 所有と E1 の人員発行の前提チェック,中
+API-103,ENS,GET,/ens/setup-calldata?name=,要,名前の所有者が自分のウォレットで署名する、リゾルバ（OwnedResolver）デプロイ・サブレジストリ（UserRegistry）デプロイ・setSubregistry の calldata を返す,入力: name。出力: txs[]（to / data / label）と予定アドレス,"D1, E1","FR-026, FR-028",未,scripts/ens_setup.py の 1・3 段階を calldata 化。Creator と会社がセルフサービスで準備できる,中
+API-104,ENS,GET,/ens/reverse?address=,不要,アドレス → ENS 名の逆引き。ENSv2 の逆引きが無ければ members / agents テーブルで代替,入力: address。出力: name / source,"B6, C1, F2, G2",NFR-010,未,承認者・Jury・レビュー投稿者を名前で表示する,低
+API-105,ENS,GET,/ens/names,不要,プラットフォームが発行した全名前（Agent・案件・人員）と tx・発行日時の一覧,出力: name / kind / owner / tx_hash / created_at の配列,G2,"FR-026, FR-027",未,ENS 賞のデモと監査向け,低

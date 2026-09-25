@@ -1,0 +1,224 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1700" height="1420" viewBox="0 0 1700 1420" font-family="'Noto Sans JP','Hiragino Sans','Yu Gothic UI','Meiryo','MS PGothic',sans-serif">
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="7.5" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="#6E6B62"/>
+    </marker>
+    <marker id="aro" markerWidth="9" markerHeight="9" refX="7.5" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="#8A6220"/>
+    </marker>
+  </defs>
+
+  <rect width="1700" height="1420" fill="#F7F7F4"/>
+
+  <!-- ===== Title ===== -->
+  <text x="40" y="46" font-size="29" font-weight="700" fill="#2B2A26">B2B 受発注エスクロー基盤 — World Mini App 構成（案B）</text>
+  <text x="40" y="76" font-size="13" fill="#6E6B62">出典: ETH_Globalユースケース.pdf（企画段階 / 2026-09-22）　｜　World App 内の webview で動くミニアプリとして実装する場合　｜　チェーンとバックエンドは上下関係ではなく、並列の接続先</text>
+
+  <!-- ===== Layer 1: Users ===== -->
+  <rect x="40" y="104" width="1600" height="124" rx="14" fill="#EEF2F9" stroke="#C3D0E4"/>
+  <rect x="56" y="118" width="584" height="24" rx="6" fill="#3C5A82"/>
+  <text x="68" y="135" font-size="12.5" font-weight="700" fill="#FFFFFF">利用者とロール　—　全員が World App を持つ個人。World App に法人アカウントは存在しない</text>
+
+  <rect x="70" y="156" width="740" height="56" rx="10" fill="#FFFFFF" stroke="#8FA8C8"/>
+  <text x="86" y="180" font-size="14" font-weight="700" fill="#2B2A26">依頼する会社（発注者）</text>
+  <text x="86" y="200" font-size="12" fill="#55534C">承認担当／開発部（検収）／経理部（支払）／管理者（権限の付与）</text>
+
+  <rect x="840" y="156" width="730" height="56" rx="10" fill="#FFFFFF" stroke="#8FA8C8"/>
+  <text x="856" y="180" font-size="14" font-weight="700" fill="#2B2A26">開発する会社（受注者）</text>
+  <text x="856" y="200" font-size="12" fill="#55534C">担当者（成果物の提出）／管理者（権限の付与）／受取先は World App のウォレット</text>
+
+  <!-- gap 1 -->
+  <line x1="420" y1="232" x2="420" y2="262" stroke="#6E6B62" stroke-width="1.8" marker-end="url(#ar)"/>
+  <text x="432" y="252" font-size="11.5" fill="#6E6B62">World App を開き、ミニアプリを起動する</text>
+  <line x1="1180" y1="232" x2="1180" y2="262" stroke="#6E6B62" stroke-width="1.8" marker-end="url(#ar)"/>
+  <text x="1192" y="252" font-size="11.5" fill="#6E6B62">成果物の提出・状況の確認</text>
+
+  <!-- ===== Layer 2: World App host ===== -->
+  <rect x="40" y="268" width="1600" height="370" rx="14" fill="#E4F1F4" stroke="#B9D8E1"/>
+  <rect x="56" y="282" width="590" height="24" rx="6" fill="#1F5F70"/>
+  <text x="68" y="299" font-size="12.5" font-weight="700" fill="#FFFFFF">World App（ホストアプリ / iOS・Android）　—　ミニアプリはこの中の webview で動く</text>
+
+  <rect x="70" y="318" width="363" height="96" rx="10" fill="#FFFFFF" stroke="#5FA3B5"/>
+  <text x="86" y="342" font-size="14" font-weight="700" fill="#2B2A26">ウォレット（内蔵）</text>
+  <text x="86" y="364" font-size="12" fill="#55534C">ERC-4337 のスマートコントラクトウォレット。</text>
+  <text x="86" y="382" font-size="12" fill="#55534C">接続操作も秘密鍵の管理も利用者に見えない</text>
+  <text x="86" y="400" font-size="12" font-weight="700" fill="#1F5F70">署名の検証は ERC-1271 で行う</text>
+
+  <rect x="449" y="318" width="363" height="96" rx="10" fill="#FFFFFF" stroke="#5FA3B5"/>
+  <text x="465" y="342" font-size="14" font-weight="700" fill="#2B2A26">World ID（人間性の確認）</text>
+  <text x="465" y="364" font-size="12" fill="#55534C">虹彩 / デバイスによる確認。</text>
+  <text x="465" y="382" font-size="12" fill="#55534C">アプリを離れずその場で完了する</text>
+  <text x="465" y="400" font-size="12" font-weight="700" fill="#1F5F70">呼び出しは IDKit（MiniKit から移管）</text>
+
+  <rect x="828" y="318" width="363" height="96" rx="10" fill="#FFFFFF" stroke="#5FA3B5"/>
+  <text x="844" y="342" font-size="14" font-weight="700" fill="#2B2A26">Usernames</text>
+  <text x="844" y="364" font-size="12" fill="#55534C">ENS 互換の識別子。アドレスの代わりに</text>
+  <text x="844" y="382" font-size="12" fill="#55534C">「誰が承認したか」を人の名前で出せる</text>
+  <text x="844" y="400" font-size="12" fill="#55534C">getUserByAddress / usernames サービス</text>
+
+  <rect x="1207" y="318" width="363" height="96" rx="10" fill="#FFFFFF" stroke="#5FA3B5"/>
+  <text x="1223" y="342" font-size="14" font-weight="700" fill="#2B2A26">通知 / World Chat</text>
+  <text x="1223" y="364" font-size="12" fill="#55534C">「承認をお願いします」をプッシュで送る。</text>
+  <text x="1223" y="382" font-size="12" fill="#55534C">多段承認の待ち時間を詰められる</text>
+  <text x="1223" y="400" font-size="12" fill="#55534C">送信は Developer Portal 経由</text>
+
+  <rect x="70" y="428" width="1500" height="36" rx="8" fill="#CFE6EC" stroke="#8CC0CE"/>
+  <text x="86" y="451" font-size="12" font-weight="700" fill="#14515F">MiniKit（ホストとミニアプリの橋渡し）　│　walletAuth（SIWE でログイン）　│　sendTransaction（World Chain へ送信）　│　signTypedData（EIP-712）　│　pay　│　share・notifications</text>
+
+  <rect x="64" y="478" width="1552" height="144" rx="12" fill="#F6FBFC" stroke="#9CC8D4"/>
+  <rect x="80" y="488" width="404" height="22" rx="6" fill="#2F7D8F"/>
+  <text x="92" y="504" font-size="11.5" font-weight="700" fill="#FFFFFF">ミニアプリ（本体 / webview で動く Web アプリ・自前でホスティング）</text>
+
+  <rect x="90" y="518" width="363" height="92" rx="10" fill="#FFFFFF" stroke="#9CC8D4"/>
+  <text x="106" y="542" font-size="14" font-weight="700" fill="#2B2A26">案件・工程（マイルストーン）</text>
+  <text x="106" y="566" font-size="12" fill="#55534C">つくるもの・完成条件・金額と、</text>
+  <text x="106" y="584" font-size="12" fill="#55534C">工程ごとの進行状況を表示する</text>
+
+  <rect x="469" y="518" width="363" height="92" rx="10" fill="#FFFFFF" stroke="#9CC8D4"/>
+  <text x="485" y="542" font-size="14" font-weight="700" fill="#2B2A26">提出・検収・差し戻し</text>
+  <text x="485" y="566" font-size="12" fill="#55534C">提出物のハッシュを作り、</text>
+  <text x="485" y="584" font-size="12" fill="#55534C">承認の対象を一意に固定する</text>
+
+  <rect x="848" y="518" width="363" height="92" rx="10" fill="#FFFFFF" stroke="#9CC8D4"/>
+  <text x="864" y="542" font-size="14" font-weight="700" fill="#2B2A26">承認アクション</text>
+  <text x="864" y="566" font-size="12" fill="#55534C">World ID で人間性を確認 →</text>
+  <text x="864" y="584" font-size="12" fill="#55534C">そのまま World Chain へ送信する</text>
+
+  <rect x="1227" y="518" width="363" height="92" rx="10" fill="#FFFFFF" stroke="#C99A6A"/>
+  <text x="1243" y="542" font-size="14" font-weight="700" fill="#2B2A26">モバイル縦画面の UI</text>
+  <text x="1243" y="566" font-size="12" fill="#55534C">経理部の承認もスマホで行うことになる。</text>
+  <text x="1243" y="584" font-size="12" font-weight="700" fill="#A8382F">PC 向けの管理画面は別に要る</text>
+
+  <!-- gap 2 : two independent destinations -->
+  <line x1="500" y1="642" x2="500" y2="676" stroke="#8A6220" stroke-width="2.4" marker-end="url(#aro)"/>
+  <text x="512" y="659" font-size="12" font-weight="700" fill="#8A6220">World App が直接ブロードキャストする（userOp）</text>
+  <text x="512" y="675" font-size="11.5" fill="#8A6220">バックエンドを経由しない。Relayer は自前で持たない</text>
+
+  <line x1="1180" y1="642" x2="1180" y2="676" stroke="#6E6B62" stroke-width="1.8" marker-end="url(#ar)"/>
+  <text x="1192" y="664" font-size="11.5" fill="#6E6B62">API 呼び出し・成果物のアップロード</text>
+  <line x1="1490" y1="678" x2="1490" y2="644" stroke="#6E6B62" stroke-width="1.8" marker-end="url(#ar)"/>
+  <text x="1502" y="664" font-size="11.5" fill="#6E6B62">AI の提案・承認状況</text>
+
+  <!-- ===== Layer 3 LEFT: World Chain ===== -->
+  <rect x="40" y="682" width="950" height="348" rx="14" fill="#FBF1E3" stroke="#E8D4B4"/>
+  <rect x="56" y="696" width="452" height="24" rx="6" fill="#8A6220"/>
+  <text x="68" y="713" font-size="12.5" font-weight="700" fill="#FFFFFF">World Chain（OP Stack の L2）　—　ミニアプリが送れるのはここだけ</text>
+
+  <rect x="70" y="740" width="286" height="130" rx="10" fill="#FFFFFF" stroke="#C9A05A"/>
+  <text x="84" y="764" font-size="13.5" font-weight="700" fill="#2B2A26">Escrow Vault</text>
+  <text x="84" y="782" font-size="13.5" font-weight="700" fill="#2B2A26">（工程ごとの預かり箱）</text>
+  <text x="84" y="808" font-size="11.5" fill="#55534C">・着手前に工程分だけ預かる</text>
+  <text x="84" y="826" font-size="11.5" fill="#55534C">・条件成立で受注者へ支払う</text>
+  <text x="84" y="844" font-size="11.5" fill="#55534C">・打ち切り時の分割清算</text>
+  <text x="84" y="862" font-size="11.5" fill="#55534C">　（支払額と返金額）に対応</text>
+
+  <rect x="372" y="740" width="286" height="130" rx="10" fill="#FFFFFF" stroke="#C9A05A"/>
+  <text x="386" y="764" font-size="13.5" font-weight="700" fill="#2B2A26">Milestone /</text>
+  <text x="386" y="782" font-size="13.5" font-weight="700" fill="#2B2A26">Approval State</text>
+  <text x="386" y="808" font-size="11.5" fill="#55534C">・工程の状態遷移を持つ</text>
+  <text x="386" y="826" font-size="11.5" fill="#55534C">・承認を成果物ハッシュに</text>
+  <text x="386" y="844" font-size="11.5" fill="#55534C">　紐づけて記録する</text>
+  <text x="386" y="862" font-size="11.5" fill="#55534C">・差し替えで承認は無効化</text>
+
+  <rect x="674" y="740" width="286" height="130" rx="10" fill="#FFFFFF" stroke="#C9A05A"/>
+  <text x="688" y="764" font-size="13.5" font-weight="700" fill="#2B2A26">Permission</text>
+  <text x="688" y="782" font-size="13.5" font-weight="700" fill="#2B2A26">Registry（権限）</text>
+  <text x="688" y="808" font-size="11.5" fill="#55534C">・会社 / 部署 / 役割の定義</text>
+  <text x="688" y="826" font-size="11.5" fill="#55534C">・管理者が担当者へ付与</text>
+  <text x="688" y="844" font-size="11.5" font-weight="700" fill="#8A3020">・World App に法人は無い。</text>
+  <text x="688" y="862" font-size="11.5" font-weight="700" fill="#8A3020">　所属はここだけが持つ</text>
+
+  <rect x="70" y="884" width="286" height="130" rx="10" fill="#FFFFFF" stroke="#4E9FB0"/>
+  <text x="84" y="908" font-size="13.5" font-weight="700" fill="#2B2A26">World ID Verifier /</text>
+  <text x="84" y="926" font-size="13.5" font-weight="700" fill="#2B2A26">PBH・Paymaster</text>
+  <text x="84" y="952" font-size="11.5" fill="#55534C">・proof の検証、nullifier</text>
+  <text x="84" y="970" font-size="11.5" fill="#55534C">　の重複を拒否</text>
+  <text x="84" y="988" font-size="11.5" font-weight="700" fill="#1F5F70">・認証済みの人間には</text>
+  <text x="84" y="1006" font-size="11.5" font-weight="700" fill="#1F5F70">　無料ガス枠と優先枠</text>
+
+  <rect x="372" y="884" width="286" height="130" rx="10" fill="#FFFFFF" stroke="#C9A05A"/>
+  <text x="386" y="908" font-size="13.5" font-weight="700" fill="#2B2A26">ステーブルコイン</text>
+  <text x="386" y="926" font-size="13.5" font-weight="700" fill="#2B2A26">（ERC-20）</text>
+  <text x="386" y="952" font-size="11.5" fill="#55534C">・預託と支払いの通貨</text>
+  <text x="386" y="970" font-size="11.5" fill="#55534C">・Escrow が残高を保有し、</text>
+  <text x="386" y="988" font-size="11.5" fill="#55534C">　条件成立時にのみ送金する</text>
+  <text x="386" y="1006" font-size="11.5" fill="#55534C">・pay は WLD と現地通貨建て</text>
+
+  <rect x="674" y="884" width="286" height="130" rx="10" fill="#FFF6E6" stroke="#E0BE80"/>
+  <text x="688" y="908" font-size="13.5" font-weight="700" fill="#6B4A10">事前登録（allowlist）</text>
+  <text x="688" y="926" font-size="13.5" font-weight="700" fill="#6B4A10">が要る</text>
+  <text x="688" y="952" font-size="11.5" fill="#6B4A10">・呼ぶコントラクトと</text>
+  <text x="688" y="970" font-size="11.5" fill="#6B4A10">　扱うトークンを Portal へ</text>
+  <text x="688" y="988" font-size="11.5" fill="#6B4A10">・未登録なら呼べない</text>
+  <text x="688" y="1006" font-size="11.5" fill="#6B4A10">　（invalid_contract）</text>
+
+  <!-- ===== Layer 3 RIGHT: Backend (peer, not in the send path) ===== -->
+  <rect x="1040" y="682" width="600" height="348" rx="14" fill="#F0EFEA" stroke="#D8D6CC"/>
+  <rect x="1056" y="696" width="336" height="24" rx="6" fill="#5A5648"/>
+  <text x="1068" y="713" font-size="12.5" font-weight="700" fill="#FFFFFF">自前のバックエンド　—　チェーンへは書き込まない</text>
+
+  <rect x="1070" y="740" width="540" height="130" rx="10" fill="#FFFFFF" stroke="#A8A496"/>
+  <text x="1086" y="764" font-size="14.5" font-weight="700" fill="#2B2A26">BFF / API サーバ</text>
+  <text x="1086" y="790" font-size="12.5" fill="#55534C">・案件と工程の管理、成果物の保管とハッシュ化</text>
+  <text x="1086" y="810" font-size="12.5" fill="#55534C">・承認状況の集計（誰が、どの成果物に、いつ承認したか）</text>
+  <text x="1086" y="830" font-size="12.5" fill="#55534C">・イベント購読とインデックス／userOpHash の追跡</text>
+  <text x="1086" y="850" font-size="12.5" fill="#55534C">・PostgreSQL ／ オブジェクトストレージ（成果物の実体）</text>
+
+  <rect x="1070" y="884" width="540" height="130" rx="10" fill="#FBF7FD" stroke="#9B77B0"/>
+  <text x="1086" y="908" font-size="14.5" font-weight="700" fill="#5A3B70">仲介 AI エージェント</text>
+  <text x="1086" y="934" font-size="12.5" fill="#55534C">・双方の希望を整理し、工程・完成条件・金額の案をつくる</text>
+  <text x="1086" y="954" font-size="12.5" fill="#55534C">・提出物と完成条件の差分を示し、論点と合意案を提示する</text>
+  <text x="1086" y="974" font-size="12.5" fill="#55534C">・LLM 推論／案件コンテキスト／提案と根拠の履歴</text>
+  <text x="1086" y="996" font-size="12.5" font-weight="700" fill="#A8382F">▲ ウォレットを持たない。支払いも返金も決定しない</text>
+
+  <!-- chain -> backend : read only -->
+  <line x1="994" y1="890" x2="1034" y2="890" stroke="#6E6B62" stroke-width="1.8" marker-end="url(#ar)"/>
+  <text transform="translate(1014,1010) rotate(-90)" font-size="11.5" fill="#6E6B62">イベント購読（読み取り専用）</text>
+
+  <!-- gap 3 -->
+  <line x1="420" y1="1034" x2="420" y2="1064" stroke="#6E6B62" stroke-width="1.8" marker-end="url(#ar)"/>
+  <text x="432" y="1054" font-size="11.5" fill="#6E6B62">名前解決（CCIP-Read）</text>
+  <line x1="1300" y1="1034" x2="1300" y2="1064" stroke="#6E6B62" stroke-width="1.8" marker-end="url(#ar)"/>
+  <text x="1312" y="1054" font-size="11.5" fill="#6E6B62">allowlist 登録・送信結果の照会・通知</text>
+
+  <!-- ===== Layer 4: External ===== -->
+  <rect x="40" y="1070" width="1600" height="124" rx="14" fill="#EAF1F4" stroke="#C6DCE4"/>
+  <rect x="56" y="1084" width="212" height="24" rx="6" fill="#2C6B7C"/>
+  <text x="68" y="1101" font-size="12.5" font-weight="700" fill="#FFFFFF">外部ネットワーク・サービス</text>
+
+  <rect x="70" y="1122" width="890" height="56" rx="10" fill="#FFFFFF" stroke="#8CB9C7"/>
+  <text x="86" y="1145" font-size="13.5" font-weight="700" fill="#2B2A26">ENS（Ethereum メインネット）</text>
+  <text x="86" y="1165" font-size="12" fill="#55534C">会社・部署・エージェントの名前。L2 側のサブネームは CCIP-Read で解決する</text>
+
+  <rect x="1070" y="1122" width="540" height="56" rx="10" fill="#FFFFFF" stroke="#8CB9C7"/>
+  <text x="1086" y="1145" font-size="13.5" font-weight="700" fill="#2B2A26">World Developer Portal</text>
+  <text x="1086" y="1165" font-size="12" fill="#55534C">allowlist・送信結果の照会・通知の送信・Usernames</text>
+
+  <!-- ===== Constraints ===== -->
+  <rect x="40" y="1234" width="1600" height="146" rx="14" fill="#FBF7EA" stroke="#E4DCC2"/>
+  <text x="64" y="1264" font-size="14.5" font-weight="700" fill="#6B5A2A">ミニアプリにすると増える制約（World の公式ドキュメントより）</text>
+
+  <text x="80"  y="1302" font-size="12.5" font-weight="700" fill="#A8382F">01</text>
+  <text x="106" y="1302" font-size="12.5" fill="#44423C">呼ぶコントラクトとトークンは事前登録が要る。</text>
+  <text x="106" y="1320" font-size="12.5" fill="#44423C">未登録なら invalid_contract で止まる。</text>
+
+  <text x="593" y="1302" font-size="12.5" font-weight="700" fill="#A8382F">02</text>
+  <text x="619" y="1302" font-size="12.5" fill="#44423C">返るのは userOpHash で、txHash ではない。</text>
+  <text x="619" y="1320" font-size="12.5" fill="#44423C">確定は Portal の API で追う必要がある。</text>
+
+  <text x="1106" y="1302" font-size="12.5" font-weight="700" fill="#A8382F">03</text>
+  <text x="1132" y="1302" font-size="12.5" fill="#44423C">ウォレットはスマートコントラクトウォレット。</text>
+  <text x="1132" y="1320" font-size="12.5" fill="#44423C">署名の検証は ERC-1271 で行う。</text>
+
+  <text x="80"  y="1352" font-size="12.5" font-weight="700" fill="#A8382F">04</text>
+  <text x="106" y="1352" font-size="12.5" fill="#44423C">日次のトランザクション上限がある。</text>
+  <text x="106" y="1370" font-size="12.5" fill="#44423C">承認のたびに送る設計は上限に当たりうる。</text>
+
+  <text x="593" y="1352" font-size="12.5" font-weight="700" fill="#A8382F">05</text>
+  <text x="619" y="1352" font-size="12.5" fill="#44423C">送信先は World Chain に限られる。</text>
+  <text x="619" y="1370" font-size="12.5" fill="#44423C">他チェーンへ出すなら別経路が要る。</text>
+
+  <text x="1106" y="1352" font-size="12.5" font-weight="700" fill="#A8382F">06</text>
+  <text x="1132" y="1352" font-size="12.5" fill="#44423C">World App は個人のアプリで、法人は無い。</text>
+  <text x="1132" y="1370" font-size="12.5" fill="#44423C">会社との紐づけは Permission Registry が持つ。</text>
+</svg>

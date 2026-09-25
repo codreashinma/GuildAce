@@ -1,0 +1,231 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1700" height="1660" viewBox="0 0 1700 1660" font-family="'Noto Sans JP','Hiragino Sans','Yu Gothic UI','Meiryo','MS PGothic',sans-serif">
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="7.5" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="#6E6B62"/>
+    </marker>
+    <marker id="arb" markerWidth="9" markerHeight="9" refX="7.5" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="#2C6B7C"/>
+    </marker>
+    <marker id="arn" markerWidth="9" markerHeight="9" refX="7.5" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="#1F5F70"/>
+    </marker>
+  </defs>
+
+  <rect width="1700" height="1660" fill="#F7F7F4"/>
+
+  <!-- ===== Title ===== -->
+  <text x="40" y="46" font-size="29" font-weight="700" fill="#2B2A26">B2B 受発注エスクロー基盤 — 全体アーキテクチャ</text>
+  <text x="40" y="76" font-size="13" fill="#6E6B62">出典: ETH_Globalユースケース.pdf（企画段階 / 2026-09-22）　｜　Web アプリケーション構成　｜　ENS = Ethereum Name Service、World = World ID（人間性の確認）</text>
+
+  <!-- ===== Layer 1: Users ===== -->
+  <rect x="40" y="104" width="1600" height="166" rx="14" fill="#EEF2F9" stroke="#C3D0E4"/>
+  <rect x="56" y="118" width="430" height="24" rx="6" fill="#3C5A82"/>
+  <text x="68" y="135" font-size="12.5" font-weight="700" fill="#FFFFFF">利用者とロール　—　オンチェーンの権限は、各社の管理者が付与する</text>
+
+  <rect x="70" y="156" width="740" height="98" rx="10" fill="#FFFFFF" stroke="#8FA8C8"/>
+  <text x="86" y="182" font-size="14.5" font-weight="700" fill="#2B2A26">依頼する会社（発注者）</text>
+  <rect x="86"  y="196" width="165" height="42" rx="6" fill="#F5F5F2" stroke="#DDDBD2"/>
+  <text x="168.5" y="222" font-size="12.5" fill="#44423C" text-anchor="middle">承認担当（条件の合意）</text>
+  <rect x="266" y="196" width="165" height="42" rx="6" fill="#F5F5F2" stroke="#DDDBD2"/>
+  <text x="348.5" y="222" font-size="12.5" fill="#44423C" text-anchor="middle">開発部（検収の承認）</text>
+  <rect x="446" y="196" width="165" height="42" rx="6" fill="#F5F5F2" stroke="#DDDBD2"/>
+  <text x="528.5" y="222" font-size="12.5" fill="#44423C" text-anchor="middle">経理部（支払の承認）</text>
+  <rect x="626" y="196" width="165" height="42" rx="6" fill="#F5F5F2" stroke="#DDDBD2"/>
+  <text x="708.5" y="222" font-size="12.5" fill="#44423C" text-anchor="middle">管理者（権限の付与）</text>
+
+  <rect x="840" y="156" width="730" height="98" rx="10" fill="#FFFFFF" stroke="#8FA8C8"/>
+  <text x="856" y="182" font-size="14.5" font-weight="700" fill="#2B2A26">開発する会社（受注者）</text>
+  <rect x="856"  y="196" width="225" height="42" rx="6" fill="#F5F5F2" stroke="#DDDBD2"/>
+  <text x="968.5" y="222" font-size="12.5" fill="#44423C" text-anchor="middle">担当者（成果物の提出）</text>
+  <rect x="1096" y="196" width="225" height="42" rx="6" fill="#F5F5F2" stroke="#DDDBD2"/>
+  <text x="1208.5" y="222" font-size="12.5" fill="#44423C" text-anchor="middle">管理者（権限の付与）</text>
+  <rect x="1336" y="196" width="225" height="42" rx="6" fill="#F5F5F2" stroke="#DDDBD2"/>
+  <text x="1448.5" y="222" font-size="12.5" fill="#44423C" text-anchor="middle">受取ウォレット</text>
+
+  <!-- gap 1 -->
+  <line x1="420" y1="274" x2="420" y2="304" stroke="#6E6B62" stroke-width="1.8" marker-end="url(#ar)"/>
+  <text x="432" y="294" font-size="11.5" fill="#6E6B62">条件の合意・検収・支払の承認</text>
+  <line x1="1180" y1="274" x2="1180" y2="304" stroke="#6E6B62" stroke-width="1.8" marker-end="url(#ar)"/>
+  <text x="1192" y="294" font-size="11.5" fill="#6E6B62">成果物の提出・状況の確認</text>
+
+  <!-- ===== Layer 2: Web app ===== -->
+  <rect x="40" y="310" width="1600" height="152" rx="14" fill="#EAF3EE" stroke="#C2DCCC"/>
+  <rect x="56" y="324" width="382" height="24" rx="6" fill="#2F6B4F"/>
+  <text x="68" y="341" font-size="12.5" font-weight="700" fill="#FFFFFF">Web アプリケーション（ブラウザ）　—　署名鍵は外に出ない</text>
+
+  <rect x="70" y="362" width="363" height="84" rx="10" fill="#FFFFFF" stroke="#7FB294"/>
+  <text x="86" y="386" font-size="14" font-weight="700" fill="#2B2A26">案件・工程（マイルストーン）</text>
+  <text x="86" y="408" font-size="12" fill="#55534C">つくるもの・完成条件・金額と、</text>
+  <text x="86" y="426" font-size="12" fill="#55534C">工程ごとの進行状況を表示する</text>
+
+  <rect x="449" y="362" width="363" height="84" rx="10" fill="#FFFFFF" stroke="#7FB294"/>
+  <text x="465" y="386" font-size="14" font-weight="700" fill="#2B2A26">提出・検収・差し戻し</text>
+  <text x="465" y="408" font-size="12" fill="#55534C">提出物のハッシュを作り、</text>
+  <text x="465" y="426" font-size="12" fill="#55534C">承認の対象を一意に固定する</text>
+
+  <rect x="828" y="362" width="363" height="84" rx="10" fill="#FFFFFF" stroke="#7FB294"/>
+  <text x="844" y="386" font-size="14" font-weight="700" fill="#2B2A26">ウォレット接続 / EIP-712 署名</text>
+  <text x="844" y="408" font-size="12" fill="#55534C">承認する内容そのものに署名する。</text>
+  <text x="844" y="426" font-size="12" fill="#55534C">鍵はブラウザの外へ出ない</text>
+
+  <rect x="1207" y="362" width="363" height="84" rx="10" fill="#FFFFFF" stroke="#4E9FB0"/>
+  <text x="1223" y="386" font-size="14" font-weight="700" fill="#2B2A26">World ID 認証（IDKit）</text>
+  <text x="1223" y="408" font-size="12" fill="#55534C">重要な承認のたびに、操作者が</text>
+  <text x="1223" y="426" font-size="12" fill="#55534C">人間であることを確認する</text>
+
+  <!-- gap 2 -->
+  <line x1="420" y1="466" x2="420" y2="496" stroke="#6E6B62" stroke-width="1.8" marker-end="url(#ar)"/>
+  <text x="432" y="486" font-size="11.5" fill="#6E6B62">API 呼び出し・成果物のアップロード・署名の提出</text>
+  <line x1="1180" y1="498" x2="1180" y2="468" stroke="#6E6B62" stroke-width="1.8" marker-end="url(#ar)"/>
+  <text x="1192" y="486" font-size="11.5" fill="#6E6B62">工程・金額の案、論点と合意案の提示</text>
+
+  <!-- ===== Layer 3: Server ===== -->
+  <rect x="40" y="502" width="1600" height="234" rx="14" fill="#F0EFEA" stroke="#D8D6CC"/>
+  <rect x="56" y="516" width="296" height="24" rx="6" fill="#5A5648"/>
+  <text x="68" y="533" font-size="12.5" font-weight="700" fill="#FFFFFF">アプリケーションサーバ（オフチェーン）</text>
+
+  <rect x="70" y="554" width="740" height="116" rx="10" fill="#FFFFFF" stroke="#A8A496"/>
+  <text x="86" y="578" font-size="14.5" font-weight="700" fill="#2B2A26">BFF / API サーバ</text>
+  <text x="86" y="602" font-size="12.5" fill="#55534C">・案件と工程の管理、成果物の保管とハッシュ化</text>
+  <text x="86" y="622" font-size="12.5" fill="#55534C">・承認オーケストレーション（誰の署名が、どの成果物に、いくつ揃ったか）</text>
+  <text x="86" y="642" font-size="12.5" fill="#55534C">・オンチェーンイベントの購読とインデックス（状況表示の元データ）</text>
+  <text x="86" y="662" font-size="12.5" fill="#55534C">・Relayer / Paymaster — 署名済みメタトランザクションの中継とガス代の肩代わり</text>
+
+  <rect x="840" y="554" width="730" height="116" rx="10" fill="#FBF7FD" stroke="#9B77B0"/>
+  <text x="856" y="578" font-size="14.5" font-weight="700" fill="#5A3B70">仲介 AI エージェント（agent.acme.eth）</text>
+  <text x="856" y="602" font-size="12.5" fill="#55534C">・双方の希望を整理し、工程・完成条件・金額の案をつくる</text>
+  <text x="856" y="622" font-size="12.5" fill="#55534C">・提出物と完成条件の差分を示し、論点と合意案を提示する</text>
+  <text x="856" y="642" font-size="12.5" fill="#55534C">・LLM 推論／案件コンテキスト／提案と根拠の履歴</text>
+  <text x="856" y="662" font-size="12.5" font-weight="700" fill="#A8382F">▲ 名前は持つが、権限は持たない。支払いも返金も決定しない</text>
+
+  <rect x="70" y="682" width="1500" height="42" rx="8" fill="#F5F5F2" stroke="#DDDBD2"/>
+  <text x="86" y="708" font-size="12.5" fill="#44423C">データストア　│　PostgreSQL（案件・工程・承認・署名の状態）　│　オブジェクトストレージ（成果物の実体）　│　オンチェーンへ出すのはハッシュのみ</text>
+
+  <!-- gap 3 -->
+  <line x1="420" y1="740" x2="420" y2="770" stroke="#6E6B62" stroke-width="1.8" marker-end="url(#ar)"/>
+  <text x="432" y="760" font-size="11.5" fill="#6E6B62">署名済みメタトランザクションの中継</text>
+  <line x1="1180" y1="772" x2="1180" y2="742" stroke="#6E6B62" stroke-width="1.8" marker-end="url(#ar)"/>
+  <text x="1192" y="760" font-size="11.5" fill="#6E6B62">イベント購読・状態の読み取り</text>
+
+  <!-- ===== Layer 4: On-chain ===== -->
+  <rect x="40" y="776" width="1600" height="252" rx="14" fill="#FBF1E3" stroke="#E8D4B4"/>
+  <rect x="56" y="790" width="518" height="24" rx="6" fill="#8A6220"/>
+  <text x="68" y="807" font-size="12.5" font-weight="700" fill="#FFFFFF">オンチェーン（スマートコントラクト）　—　支払いの条件を保持し、自動で実行する</text>
+
+  <rect x="70" y="828" width="287" height="128" rx="10" fill="#FFFFFF" stroke="#4E9FB0" stroke-width="1.8"/>
+  <text x="84" y="852" font-size="13.5" font-weight="700" fill="#2B2A26">Escrow Vault</text>
+  <text x="84" y="870" font-size="13.5" font-weight="700" fill="#2B2A26">（工程ごとの預かり箱）</text>
+  <text x="84" y="896" font-size="11.5" fill="#55534C">・着手前に工程分だけ預かる</text>
+  <text x="84" y="914" font-size="11.5" fill="#55534C">・条件成立で受注者へ支払う</text>
+  <text x="84" y="932" font-size="11.5" fill="#55534C">・打ち切り時は分割清算</text>
+  <text x="84" y="950" font-size="11.5" font-weight="700" fill="#1F5F70">・案件名（ENS）で引く</text>
+
+  <rect x="373" y="828" width="287" height="128" rx="10" fill="#FFFFFF" stroke="#C9A05A"/>
+  <text x="387" y="852" font-size="13.5" font-weight="700" fill="#2B2A26">Milestone /</text>
+  <text x="387" y="870" font-size="13.5" font-weight="700" fill="#2B2A26">Approval State</text>
+  <text x="387" y="896" font-size="11.5" fill="#55534C">・工程の状態遷移を持つ</text>
+  <text x="387" y="914" font-size="11.5" fill="#55534C">・承認を成果物ハッシュに</text>
+  <text x="387" y="932" font-size="11.5" fill="#55534C">　紐づけて記録する</text>
+  <text x="387" y="950" font-size="11.5" fill="#55534C">・差し替えで承認は無効化</text>
+
+  <rect x="676" y="828" width="287" height="128" rx="10" fill="#FFFFFF" stroke="#4E9FB0" stroke-width="1.8"/>
+  <text x="690" y="852" font-size="13.5" font-weight="700" fill="#2B2A26">Permission</text>
+  <text x="690" y="870" font-size="13.5" font-weight="700" fill="#2B2A26">Registry（権限）</text>
+  <text x="690" y="896" font-size="11.5" fill="#55534C">・管理者が担当者へ付与</text>
+  <text x="690" y="914" font-size="11.5" fill="#55534C">・検収の承認権／支払の承認権</text>
+  <text x="690" y="932" font-size="11.5" font-weight="700" fill="#1F5F70">・鍵は namehash（ENS node）</text>
+  <text x="690" y="950" font-size="11.5" font-weight="700" fill="#8A3020">・名前があっても権限は別</text>
+
+  <rect x="979" y="828" width="287" height="128" rx="10" fill="#FFFFFF" stroke="#4E9FB0"/>
+  <text x="993" y="852" font-size="13.5" font-weight="700" fill="#2B2A26">World ID</text>
+  <text x="993" y="870" font-size="13.5" font-weight="700" fill="#2B2A26">Verifier</text>
+  <text x="993" y="896" font-size="11.5" fill="#55534C">・proof を検証する</text>
+  <text x="993" y="914" font-size="11.5" fill="#55534C">・nullifier の重複を拒否</text>
+  <text x="993" y="932" font-size="11.5" fill="#55534C">・重要な承認の前提条件</text>
+  <text x="993" y="950" font-size="11.5" fill="#55534C">　（人間性の確認）</text>
+
+  <rect x="1282" y="828" width="287" height="128" rx="10" fill="#FFFFFF" stroke="#C9A05A"/>
+  <text x="1296" y="852" font-size="13.5" font-weight="700" fill="#2B2A26">ERC-20</text>
+  <text x="1296" y="870" font-size="13.5" font-weight="700" fill="#2B2A26">ステーブルコイン</text>
+  <text x="1296" y="896" font-size="11.5" fill="#55534C">・預託と支払いの通貨</text>
+  <text x="1296" y="914" font-size="11.5" fill="#55534C">・Escrow が残高を保有し、</text>
+  <text x="1296" y="932" font-size="11.5" fill="#55534C">　条件成立時にのみ送金する</text>
+
+  <rect x="70" y="968" width="1500" height="44" rx="8" fill="#FFF6E6" stroke="#E0BE80"/>
+  <text x="86" y="995" font-size="12.5" fill="#6B4A10">支払いの実行 ＝ 必要な承認（人間性の確認つき署名）がそろったときだけ、Escrow が ERC-20 を受注者へ送る。期限の到来や AI の判断では動かない。</text>
+
+  <!-- ===== Layer 5: External ===== -->
+  <rect x="40" y="1068" width="1600" height="124" rx="14" fill="#EAF1F4" stroke="#C6DCE4"/>
+  <rect x="56" y="1082" width="212" height="24" rx="6" fill="#2C6B7C"/>
+  <text x="68" y="1099" font-size="12.5" font-weight="700" fill="#FFFFFF">外部ネットワーク・サービス</text>
+
+  <rect x="70" y="1120" width="920" height="56" rx="10" fill="#FFFFFF" stroke="#4E9FB0" stroke-width="1.8"/>
+  <text x="86" y="1143" font-size="13.5" font-weight="700" fill="#2B2A26">ENS（Ethereum Name Service）— Registry / Resolver / NameWrapper</text>
+  <text x="86" y="1163" font-size="12" fill="#55534C">会社・部署・エージェント・案件に名前を付け、サブネームで名前の管理を分担する</text>
+
+  <rect x="1006" y="1120" width="564" height="56" rx="10" fill="#FFFFFF" stroke="#8CB9C7"/>
+  <text x="1022" y="1143" font-size="13.5" font-weight="700" fill="#2B2A26">ブロックチェーン RPC / インデクサ</text>
+  <text x="1022" y="1163" font-size="12" fill="#55534C">トランザクションの送信と、イベントの取得</text>
+
+  <!-- gap 4 : ENS linkage -->
+  <line x1="300" y1="1032" x2="300" y2="1114" stroke="#2C6B7C" stroke-width="2" marker-end="url(#arb)"/>
+  <text x="312" y="1046" font-size="11.5" font-weight="700" fill="#2C6B7C">案件ごとの名前</text>
+  <text x="312" y="1062" font-size="11" fill="#2C6B7C">case-042.acme.eth</text>
+
+  <path d="M819,1032 L819,1050 L470,1050 L470,1114" fill="none" stroke="#2C6B7C" stroke-width="2" marker-end="url(#arb)"/>
+  <text x="560" y="1044" font-size="11.5" font-weight="700" fill="#2C6B7C">部署・担当者・エージェントの名前（node）</text>
+
+  <line x1="1160" y1="1032" x2="1160" y2="1114" stroke="#6E6B62" stroke-width="1.8" marker-end="url(#ar)"/>
+  <text x="1172" y="1052" font-size="11.5" fill="#6E6B62">トランザクション送信・イベント取得</text>
+
+  <!-- World ID bypass -->
+  <path d="M1570,404 L1660,404 L1660,1290 L1575,1290" fill="none" stroke="#2C6B7C" stroke-width="1.8" stroke-dasharray="6 4" marker-end="url(#arb)"/>
+  <text transform="translate(1676,700) rotate(90)" font-size="11.5" fill="#2C6B7C">人間性の確認（proof の取得）</text>
+
+  <!-- ===== Layer 5b: World App ===== -->
+  <rect x="1006" y="1232" width="564" height="116" rx="10" fill="#FFFFFF" stroke="#4E9FB0"/>
+  <text x="1022" y="1258" font-size="13.5" font-weight="700" fill="#2B2A26">World App</text>
+  <text x="1022" y="1280" font-size="12" fill="#55534C">虹彩 / デバイスによる人間性の確認。</text>
+  <text x="1022" y="1300" font-size="12" fill="#55534C">proof をブラウザへ返す</text>
+  <text x="1022" y="1322" font-size="12" font-weight="700" fill="#A8382F">会社への所属や契約する権限は証明しない</text>
+
+  <!-- ===== ENS namespace band ===== -->
+  <rect x="40" y="1212" width="950" height="200" rx="14" fill="#EDF4F6" stroke="#BFDAE3"/>
+  <rect x="56" y="1226" width="288" height="24" rx="6" fill="#2C6B7C"/>
+  <text x="68" y="1243" font-size="12.5" font-weight="700" fill="#FFFFFF">ENS の名前空間と、権限・預かり箱の紐づけ</text>
+
+  <text x="70" y="1274" font-size="12" font-weight="700" fill="#1F5F70">名前の委譲 — 会社が親名を持ち、部署・エージェント・案件へサブネームを発行する</text>
+
+  <text x="82" y="1302" font-size="12" font-weight="700" fill="#2B2A26">acme.eth</text>
+  <text x="180" y="1302" font-size="12" fill="#55534C">依頼する会社（親名を保有）</text>
+  <text x="82" y="1324" font-size="12" fill="#2B2A26">├─ dev.acme.eth</text>
+  <text x="240" y="1324" font-size="12" fill="#55534C">開発部　→　検収の承認権</text>
+  <text x="82" y="1346" font-size="12" fill="#2B2A26">├─ finance.acme.eth</text>
+  <text x="240" y="1346" font-size="12" fill="#55534C">経理部　→　支払の承認権</text>
+  <text x="82" y="1368" font-size="12" fill="#2B2A26">├─ agent.acme.eth</text>
+  <text x="240" y="1368" font-size="12" fill="#55534C">仲介 AI エージェント　→　権限なし</text>
+  <text x="82" y="1390" font-size="12" fill="#2B2A26">└─ case-042.acme.eth</text>
+  <text x="240" y="1390" font-size="12" fill="#55534C">案件　→　Escrow Vault を解決</text>
+
+  <text x="560" y="1302" font-size="12" font-weight="700" fill="#2B2A26">builder.eth</text>
+  <text x="680" y="1302" font-size="12" fill="#55534C">開発する会社</text>
+  <text x="560" y="1324" font-size="12" fill="#2B2A26">└─ pay.builder.eth</text>
+  <text x="720" y="1324" font-size="12" fill="#55534C">支払いの受取先</text>
+  <text x="560" y="1362" font-size="12" font-weight="700" fill="#A8382F">名前があるだけでは</text>
+  <text x="560" y="1382" font-size="12" font-weight="700" fill="#A8382F">承認はできない（権限の付与は別）</text>
+
+  <!-- ===== Linkage rules ===== -->
+  <rect x="40" y="1432" width="1600" height="132" rx="14" fill="#F4F9FA" stroke="#C6DCE4"/>
+  <text x="64" y="1460" font-size="13.5" font-weight="700" fill="#1F5F70">紐づけの規則</text>
+  <text x="70" y="1486" font-size="12.5" fill="#44423C">・Permission Registry の鍵は namehash（node）。名前を持つことと、権限を持つことは別のまま保たれる。</text>
+  <text x="70" y="1508" font-size="12.5" fill="#44423C">・Escrow Vault は案件名（case-042.acme.eth）から引く。支払先も pay.builder.eth から解決する。</text>
+  <text x="70" y="1530" font-size="12.5" font-weight="700" fill="#A8382F">・解決した結果は承認の時点で固定して記録する。名前の所有者が後から変わっても、支払先がすり替わらない。</text>
+  <text x="70" y="1552" font-size="12.5" fill="#44423C">・サブネームの発行は委譲の入口にすぎない。発行しただけでは承認できず、権限の付与は別の操作として残る。</text>
+  <text x="880" y="1486" font-size="12.5" fill="#44423C">・監査画面は、アドレスではなく ENS 名で「誰が承認したか」を出す（逆引き）。</text>
+  <text x="880" y="1508" font-size="12.5" fill="#44423C">・Escrow を L2 に置く場合、名前はメインネットのまま、解決は CCIP-Read で行う。</text>
+
+  <!-- ===== Invariants ===== -->
+  <rect x="40" y="1584" width="1600" height="56" rx="14" fill="#FBF7EA" stroke="#E4DCC2"/>
+  <text x="64" y="1608" font-size="12.5" font-weight="700" fill="#6B5A2A">設計上の不変条件（要件定義書に明記されているもの）</text>
+  <text x="64" y="1628" font-size="12" fill="#44423C">① AI は提案だけを行う　② 期限だけでは資金は動かない　③ 差し替え前の成果物への承認は使えない　④ ENS の名前は権限ではない　⑤ World ID が示すのは人間性のみ　⑥ 重要な承認では人間性の確認と署名の両方</text>
+</svg>

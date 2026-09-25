@@ -223,3 +223,35 @@ docs/specs/, docs/database/（database-design スキルで生成）
 | 日付 | 内容 |
 |---|---|
 | 2026-09-25 | ENS 親名は `choice.eth`（Sepolia ENSv2）。Agent は `<label>.choice.eth` として発行する |
+
+## 追補 1（2026-09-25）: 会社の人員を ENS で管理し、PM Agent が Human Task を指名する
+
+### 決定事項
+
+| 項目 | 決定 |
+|---|---|
+| 人員の所属 | 受注側の会社（人材を提供する側）。発注側の社内担当者は対象外 |
+| 名前空間 | 会社が所有する独自の `.eth` の下（例 `dan.field-co.eth`）。subname の発行と record の書き込みは **会社管理者のウォレットが署名**する（API は calldata を用意するだけ） |
+| 割り当て | PM Agent が Human Task ごとに候補（ENS レコード）を見て 1 名を指名。本人が World ID で人間確認して受諾。辞退・無応答なら次の候補に再指名。候補ゼロなら従来の公開募集（Human Task Marketplace）に落とす |
+| 登録 UI | 「会社と人員」画面。会社管理者が会社（ENS 名）と人員（名前・ウォレット・役割・スキル・拠点・稼働可否）を登録 |
+
+### F9. 会社と人員の登録
+
+- 会社作成: 入力 = 会社名、ENS 名（例 `field-co.eth`）、説明。API は接続ウォレットがその名前の所有者か（ENSv2 `ETHRegistry.getState(labelhash).latestOwner`）を確認する。RPC 未設定時はモックで通す。
+- 人員追加: 入力 = 表示名、ラベル（subname）、ウォレット、役割、スキル（カンマ区切り）、拠点、稼働可否。DB に保存し `ens_status=pending`。
+- ENS 書き込み: `GET /companies/{id}/members/{mid}/ens-calldata` が `register`（会社のサブレジストリ）と `multicall(setAddr, setText...)`（会社名のリゾルバ）の calldata を返す。フロントが会社管理者のウォレットで順に送信し、tx hash を `POST .../ens-written` で報告 → `ens_status=written`。
+- 人員の text record: `person.company`、`person.role`、`person.skills`、`person.location`、`person.available`、`addr`。
+
+### F10. PM Agent による指名
+
+- 案件が `in_progress` になり Human Task が生成されたとき、API が候補（`available=true` の全人員、辞退済みを除く）を集め、Gemini に「タスク内容と候補の ENS レコード」を渡して 1 名と理由を選ばせる（モック時はスキル一致数と評価で決定的に選ぶ）。
+- `human_tasks.status = assigned`、`assignee_member_id`、`assignment_reason` を保存。指名された人には通知（ベル）と「あなたへの指名」一覧に出る。
+- 受諾: 指名された本人（ウォレット一致）だけが `POST /human-tasks/{id}/accept`（World 検証つき）を呼べる → `accepted`。
+- 辞退: `POST /human-tasks/{id}/decline` → `declined_member_ids` に追加し再指名。候補が尽きたら `open`（公開募集）。
+- 案件詳細のチーム編成パネルは、Human Task の担当に指名された人員の ENS 名を表示する。
+
+### 検証基準（追加）
+
+- [ ] V15. 会社を ENS 名つきで登録し、人員を 3 名追加すると `/companies` 画面に ENS 名（`<label>.<company>.eth`）つきで並ぶ
+- [ ] V16. 案件を入金すると Human Task が自動で 1 名に指名され、指名理由が表示される。指名された本人以外は受諾できない
+- [ ] V17. 指名された本人が辞退すると次の候補に再指名され、候補が尽きると公開募集になる

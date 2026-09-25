@@ -12,7 +12,7 @@ AI Agent（PM Agent）が案件を受け、タスク分解・チーム編成・�
 |---|---|
 | `apps/web` | Next.js 16 / wagmi + RainbowKit（SIWE ログイン）/ `@worldcoin/idkit` v4 |
 | `apps/api` | FastAPI / SQLAlchemy / Gemini（PM Agent の頭脳: タスク分解・Human Task の指名・論点整理）/ web3.py（ENSv2・Escrow）|
-| `contracts` | Foundry: `Escrow.sol`（deposit / release / resolve）と `MockUSDC.sol` |
+| `contracts` | Foundry: `Escrow.sol`（タスク単位: openCase / fundTask / submit / approve(EIP-712, 自動支払い) / dispute / resolve）と `MockUSDC.sol` |
 | `docker-compose.yml` | PostgreSQL 16（ポート 5433） |
 
 外部連携（Sepolia / ENS 書き込み / World ID / Gemini）は **未設定ならモックで動く**ので、鍵なしで全フローを試せる。ヘッダー右上に `mock: ...` と出ているものがモック。
@@ -39,7 +39,7 @@ cp .env.example .env.local
 pnpm dev
 ```
 
-MetaMask 等で Sepolia に接続 → 「Sign in」で SIWE 署名 → Marketplace から案件を作成。
+MetaMask 等で Sepolia に接続 → 「Sign in」で SIWE 署名 → Marketplace から案件を作成。ウォレットが無ければヘッダーの「デモログイン」で役割を選んで試せる。
 
 ### バックエンドの通しテスト
 
@@ -61,7 +61,7 @@ cd contracts && forge test
 2. **Escrow / MockUSDC をデプロイ**
    ```bash
    cd contracts
-   ARBITER_ADDRESS=<サーバー署名者のアドレス> forge script script/Deploy.s.sol --rpc-url $SEPOLIA_RPC_URL --broadcast --private-key $DEPLOYER_PRIVATE_KEY
+   OPS_ADDRESS=<サーバー署名者のアドレス> forge script script/Deploy.s.sol --rpc-url $SEPOLIA_RPC_URL --broadcast --private-key $DEPLOYER_PRIVATE_KEY
    ```
    出力の `Escrow` / `MockUSDC` を `.env` の `ESCROW_ADDRESS` / `USDC_ADDRESS` に。
 3. **ENSv2（Sepolia beta）**: 親名 `choice.eth` を登録し、リゾルバとサブレジストリを用意する（1 回だけ）。
@@ -79,9 +79,20 @@ cd contracts && forge test
 subname 発行と record 書き込みは会社管理者のウォレットが署名する（API は calldata を返すだけ）。
 案件の Human Task が生まれると PM Agent が候補の ENS レコードを見て 1 名を指名し、本人が World で人間確認して受諾する。辞退なら次の候補、候補ゼロなら Human Task Marketplace で公開募集になる。
 
+## 資金の流れ（アーキテクチャ設計書 ADR-001 / ADR-005 / ADR-006 準拠）
+
+1. 発注者が `Escrow.openCase` で承認者と必要承認数を固定し、USDC の引き落としを許可する
+2. チェーン連携ワーカーが工程（タスク）ごとに `fundTask` で預託する。PM 管理費も 1 工程
+3. 成果物が提出されると `submit(成果物ハッシュ, 支払先)` を送る。実体はオフチェーン、ハッシュだけがオンチェーン
+4. 承認者は World で人間確認をし、(ハッシュ, 支払先) に EIP-712 で署名する。ワーカーが `approve` を中継し、必要数がそろった工程からコントラクトが自動で支払う
+5. 差し戻しは `dispute` で保留。Jury の多数決を `resolve` で反映する
+
+Sepolia 実機の通しテスト: `cd apps/api && .venv/bin/python scripts/smoke_chain.py`
+
 ## 設計上の不変条件
 
-1. AI は提案・生成のみを行い、資金を動かさない（`Escrow.resolve` は Jury の多数決結果を arbiter が反映するだけ）
+1. AI は提案・生成のみを行い、資金を動かさない。オフチェーンから送金を指示する経路は無く、支払いはコントラクトが承認数で判定する
 2. 期限だけでは資金は動かない
-3. レビュー・Jury 投票・Human Task 受注は World ID の proof が必須。nullifier を `(action, signal)` ごとに UNIQUE 保存し、同じ人間の二重実行を拒否する
-4. ENS の名前は権限ではない（Agent の subname はプラットフォームの親名の下に発行し、書き込みはサーバー署名者のみ）
+3. 依頼開始・承認・レビュー・Jury 投票・Human Task 受注の 5 行為は World ID の proof が必須。nullifier を `(action, signal)` ごとに UNIQUE 保存し、同じ人間の二重実行を拒否する
+4. ENS の名前は権限ではない（承認できるのは openCase で固定した承認者だけ）。Agent の subname はプラットフォームの親名の下、会社の人員は会社が所有する名前の下に発行する
+5. オンチェーンと ENS への書き込みはチェーン連携ワーカーだけが行う（冪等キー・再送・投影）

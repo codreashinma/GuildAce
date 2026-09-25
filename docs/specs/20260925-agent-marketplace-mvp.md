@@ -255,3 +255,34 @@ docs/specs/, docs/database/（database-design スキルで生成）
 - [ ] V15. 会社を ENS 名つきで登録し、人員を 3 名追加すると `/companies` 画面に ENS 名（`<label>.<company>.eth`）つきで並ぶ
 - [ ] V16. 案件を入金すると Human Task が自動で 1 名に指名され、指名理由が表示される。指名された本人以外は受諾できない
 - [ ] V17. 指名された本人が辞退すると次の候補に再指名され、候補が尽きると公開募集になる
+
+## 追補 2（2026-09-25）: アーキテクチャ設計書への整合
+
+`architecture/architecture.md`（CMP-001〜017、IF-001〜023、ADR-001〜007）に合わせて次を変更した。
+
+| 設計書の要求 | 実装 |
+|---|---|
+| CON-006 契約・預託はタスク単位 | Escrow を `openCase`（承認者と必要承認数を固定）→ `fundTask`（工程ごとに預託）に変更。PM 管理費も 1 タスクとして契約 |
+| ADR-005 成果物はハッシュのみオンチェーン | `submit(caseId, taskId, keccak(成果物), 支払先)`。承認は (ハッシュ, 支払先) に紐づき、再提出で無効化 |
+| FR-012 / FR-013 承認がそろうと自動支払い、未達なら保留 | `approve` で承認者の EIP-712 署名を検証し、`approvalCount >= threshold` でコントラクトが送金。オフチェーンから送金を指示する経路は無い |
+| FR-019 裁定に基づく資金解放 | `dispute` → `resolve(pay, refund)`（合計 = 預託額）を worker が送信 |
+| ADR-006 書き込みはチェーン連携ワーカーに集約 | `chain_jobs`（冪等キー UNIQUE、再送 5 回、単一スレッド）。Escrow と ENS の全書き込みが経由。確定状態を `tasks.chain_status` に投影し、`/cases/{id}/resync` でオンチェーンから取り直せる |
+| NFR-001 5 行為の World 検証 | action を `request` / `approve` / `review` / `jury` / `human-task` の 5 つに拡張。依頼開始と各承認で proof を要求 |
+| 発注者側の承認者（アクター） | 依頼時に承認者ウォレットと必要数を指定（既定は発注者本人 1 名）。承認者だけが署名できる |
+| FR-027 プロジェクト subname | openCase 後に `project-<n>.<agent>.choice.eth` を発行し、`project.case` / `project.escrow` / `project.status` 等を record に書く（Agent ごとにサブレジストリを自動デプロイ） |
+
+### 設計書との残差（意図的に残しているもの）
+
+- 成果物ストレージ（CMP-011）は置かず、実体は DB のテキスト。ハッシュのみオンチェーン。
+- サービス層 8 コンポーネントは FastAPI 単一プロセス。ワーカーも同プロセスのスレッド（AQ-006 の選択）。
+- イベント購読（IF-017）は tx レシートの取り込みと `resync` による再読で代替。リオルグ対応は無い（AQ-007）。
+- 運用ウォレットの鍵は `.env` の平文（AQ-003）。
+- Reputation は DB で集計したうえで ENS の text record にも書く（設計書より前に出ている）。
+- Human Task の指名（会社人員の ENS 管理）は設計書に無い追加要件（追補 1）。
+
+### 検証基準（更新）
+
+- V5 は「openCase 後、worker が工程ごとに fundTask を送り、全タスクが `funded` になる」に変更
+- V8 は「承認者の署名が必要数そろった工程から自動で `paid` になり、全工程が支払われると案件が `completed` になる」に変更
+- V18. 1 人目の承認だけでは保留（`submitted` のまま）で、2 人目で自動支払いされる（`scripts/smoke_flow.py`）
+- V19. Sepolia 実機で openCase → fundTask → submit → approve → Paid までの tx が確認できる（`scripts/smoke_chain.py`）

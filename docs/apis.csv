@@ -13,7 +13,7 @@ API-13,Agent,POST,/agents/{id}/publish,要,公開。platform は worker が choi
 API-14,Agent,POST,/agents/{id}/ens-written,要,Creator 所有の Agent: ブラウザで送った tx hash を報告し published にする,入力: tx_hash。出力: AgentOut,"D1, D2",FR-026,済,,
 API-15,Agent,GET,/agents/{id},不要,Agent 詳細。ENS の text record（本体・reputation.<agent>・配下の subagent）と EAC の役割（hasRootRoles の実値）を Sepolia から読んで同梱,出力: AgentDetailOut（ens_records / ens_roles 付き）,"B2, G3","UC-011, NFR-004",済,,
 API-16,Agent,GET,/agents/{id}/reviews,不要,Agent へのレビュー一覧,出力: ReviewOut[],B2,FR-025,済,,
-API-17,Agent,PATCH,/agents/{id},要,Agent の説明・ルール・利用料を更新し ENS レコードを再書き込み,入力: description / rules / fee_bps。出力: AgentOut,D4,UC-010,未,worker に ens_update を投入する,中
+API-17,Agent,PATCH,/agents/{id},要,Agent の説明・ルール・利用料を更新し ENS レコードを再書き込み,入力: description / rules / fee_bps。出力: AgentOut,D4,UC-010,済,PATCH。platform は worker に ens_update（Owner 鍵）、creator は署名用 multicall calldata を返す。変更したキーだけ再書き込み,
 API-18,Agent,GET,/agents/{id}/earnings,要,PM 工程の Paid tx を集計した受取履歴,出力: 案件ごとの金額と tx,D3,FR-024,未,FR-024 は Won't,低
 API-20,案件,GET,/cases,要,自分の案件と承認者として関わる案件,出力: CaseOut[],"B4, A2",-,済,,
 API-21,案件,GET,/cases/pending-approvals,要,自分の署名待ち工程を横断取得,出力: PendingApprovalOut[],"C1, A2",UC-005,済,,
@@ -51,10 +51,11 @@ API-73,紛争,POST,/disputes/{id}/vote,要,Jury 投票。当事者除外・World
 API-80,運用,GET,/ops/jobs,要（運用者）,chain_jobs の一覧（状態・試行回数・エラー・tx）,出力: ChainJob[],G1,ADR-006,未,,低
 API-81,運用,POST,/ops/jobs/{id}/retry,要（運用者）,失敗ジョブの再投入,出力: ChainJob,G1,ADR-006,未,,低
 API-90,マイページ,GET,/me/summary,要,所属会社・受取履歴・World 検証済み行為をまとめて返す,出力: 集計,A4,-,未,,低
-API-100,ENS,GET,/ens/resolve?name=,不要,任意の ENS 名の所有者・レジストリ・リゾルバ・addr・text record を Sepolia から読む（scripts/ens_check.py の API 化）,入力: name。出力: owner / registry / resolver / addr / texts,"G3, B5, E1, B2","FR-026, FR-027, NFR-004",未,案件（project subname）と人員の ENS 表示に使う,中
-API-101,ENS,GET,/ens/check-owner?name=,要,入力中の名前が接続ウォレットの所有か（ENSv2 .eth レジストリの latestOwner）を事前確認,入力: name。出力: owner / is_mine / status,"D1, E1","FR-026, 追補1 F9",未,今は登録時にしか分からない,中
-API-102,ENS,GET,/ens/readiness?name=,不要,名前にサブレジストリとリゾルバが設定済みかを返す。無いと subname 発行が revert する,入力: name。出力: registered / subregistry / resolver / ready,"D1, E1","FR-026, FR-027",未,D1 の Creator 所有と E1 の人員発行の前提チェック,中
-API-103,ENS,GET,/ens/setup-calldata?name=,要,名前の所有者が自分のウォレットで署名する、リゾルバ（OwnedResolver）デプロイ・サブレジストリ（UserRegistry）デプロイ・setSubregistry の calldata を返す,入力: name。出力: txs[]（to / data / label）と予定アドレス,"D1, E1","FR-026, FR-028",未,scripts/ens_setup.py の 1・3 段階を calldata 化。Creator と会社がセルフサービスで準備できる,中
-API-104,ENS,GET,/ens/reverse?address=,不要,アドレス → ENS 名の逆引き。ENSv2 の逆引きが無ければ members / agents テーブルで代替,入力: address。出力: name / source,"B6, C1, F2, G2",NFR-010,未,承認者・Jury・レビュー投稿者を名前で表示する,低
-API-105,ENS,GET,/ens/names,不要,プラットフォームが発行した全名前（Agent・案件・人員）と tx・発行日時の一覧,出力: name / kind / owner / tx_hash / created_at の配列,G2,"FR-026, FR-027",未,ENS 賞のデモと監査向け,低
+API-100,ENS,GET,/ens/resolve?name=,不要,任意の ENS 名の所有者・レジストリ・リゾルバ・addr・text record を Sepolia から読む（scripts/ens_check.py の API 化）,入力: name。出力: owner / registry / resolver / addr / texts,"G3, B5, E1, B2, G3","FR-026, FR-027, NFR-004",済,"レジストリ直読み（registry-walk）に加え、リゾルバの ENSIP-10 resolve(bytes,bytes) でも同じ値が返るかを wildcard として同梱。60 秒キャッシュ",
+API-101,ENS,GET,/ens/check-owner?name=,要,入力中の名前が接続ウォレットの所有か（ENSv2 .eth レジストリの latestOwner）を事前確認,入力: name。出力: owner / is_mine / status,"D1, E1","FR-026, 追補1 F9",済,認証必須。/ens/resolve の owner と接続ウォレットを比較（status: ok / unregistered / unconfigured）,
+API-102,ENS,GET,/ens/readiness?name=,不要,名前にサブレジストリとリゾルバが設定済みかを返す。無いと subname 発行が revert する,入力: name。出力: registered / subregistry / resolver / ready,"D1, E1","FR-026, FR-027",済,registered / subregistry / resolver の 3 点と missing・next_steps を返す,
+API-103,ENS,GET,/ens/setup-calldata?name=,要,名前の所有者が自分のウォレットで署名する、リゾルバ（OwnedResolver）デプロイ・サブレジストリ（UserRegistry）デプロイ・setSubregistry の calldata を返す,入力: name。出力: txs[]（to / data / label）と予定アドレス,"D1, E1","FR-026, FR-028",済,所有者本人のみ。OwnedResolver / UserRegistry の deployProxy（CREATE2 予定アドレス付き）と setResolver / setSubregistry。揃っている段階はスキップ,
+API-104,ENS,GET,/ens/reverse?address=,不要,アドレス → ENS 名の逆引き。ENSv2 の逆引きが無ければ members / agents テーブルで代替,入力: address。出力: name / source,"B6, F2, G3",NFR-010,済,ENSv2 beta に逆引きが無いため members / agents（受取アドレス）/ companies（管理者）から引く。複数 address 可,
+API-105,ENS,GET,/ens/names,不要,プラットフォームが発行した全名前（Agent・案件・人員）と tx・発行日時の一覧,出力: name / kind / owner / tx_hash / created_at の配列,"G2, G3","FR-026, FR-027",済,agent・subagent・reputation・project・person を kind 付きで列挙。0xmock は mock=True,
 API-31,案件,GET,/cases/{id}/team,不要,タスクごとの担当（AI は Agent 名前空間の subname と record、人間は指名先）と、ENS に登録された人員の候補一覧（指名・辞退・稼働可否）,出力: TeamTaskOut[],"B5, B6","UC-002, FR-004, FR-005",済,record は 60 秒キャッシュ,
+API-106,ENS,GET,/ens/keys,不要,プラットフォームが使う text record キーの一覧,出力: profile / reputation / subagent / project / person,G3,FR-026,済,表示用,

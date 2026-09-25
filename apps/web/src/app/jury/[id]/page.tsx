@@ -7,6 +7,7 @@ import { api, short, usdc, type Dispute } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { Markdown } from "@/components/markdown";
 import { WorldVerifyButton } from "@/components/world-verify";
+import { AddrName } from "@/components/addr-name";
 import { Amount, BackLink, Card, ErrorBox, HumanBadge, KindTag, Mono, TxLink } from "@/components/ui";
 
 export default function DisputePage({ params }: { params: Promise<{ id: string }> }) {
@@ -64,7 +65,7 @@ export default function DisputePage({ params }: { params: Promise<{ id: string }
       <Card>
         <h2 className="flex flex-wrap items-baseline gap-x-3 font-semibold">投票 <span className="whitespace-nowrap text-sm font-normal tabular-nums text-neutral-500">{d.votes.length}/{d.required_votes}</span><span className="whitespace-nowrap text-sm font-normal tabular-nums text-neutral-500">支払い {counts.release} / 返金 {counts.refund}</span></h2>
         <ul className="mt-2 space-y-1 text-sm">
-          {d.votes.map((v) => <li key={v.id} className="flex flex-wrap items-center gap-2"><HumanBadge /><Mono>{short(v.voter.wallet_address)}</Mono><span className="whitespace-nowrap rounded-sm border border-neutral-900 px-1.5 text-xs">{v.vote === "release" ? "支払い" : "返金"}</span></li>)}
+          {d.votes.map((v) => <li key={v.id} className="flex flex-wrap items-center gap-2"><HumanBadge /><AddrName address={v.voter.wallet_address} /><span className="whitespace-nowrap rounded-sm border border-neutral-900 px-1.5 text-xs">{v.vote === "release" ? "支払い" : "返金"}</span></li>)}
         </ul>
         {d.status === "closed" ? (
           <div className="mt-3 rounded-md border border-neutral-900 p-3 text-sm">結果: <b>{d.outcome === "release" ? "支払い（工程ごとに支払先へ）" : "全額返金"}</b>。Escrow の resolve をチェーン連携ワーカーが工程ごとに送信しました。 <TxLink hash={d.resolve_tx_hash} label="resolve tx" /></div>

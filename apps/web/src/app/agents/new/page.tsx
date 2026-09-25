@@ -1,11 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { api, CATEGORY_LABEL, type Agent } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { Button, Card, ErrorBox, Field, inputCls, PageTitle } from "@/components/ui";
 import { usePublishAgent } from "@/components/publish-agent";
+import { EnsNameCheck } from "@/components/ens-records";
 
 export default function NewAgent() {
   const router = useRouter();
@@ -13,6 +14,8 @@ export default function NewAgent() {
   const [f, setF] = useState({ name: "Web開発 PM Agent", label: "", description: "", category: "web", rules: "", fee_bps: 200, payout_address: "" });
   const [mode, setMode] = useState<"platform" | "creator">("platform");
   const [ownName, setOwnName] = useState("");
+  const [ownOk, setOwnOk] = useState<{ ok: boolean; checking: boolean }>({ ok: false, checking: false });
+  const onOwnStatus = useCallback((s: { ok: boolean; checking: boolean }) => setOwnOk(s), []);
   const [err, setErr] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   const { publish: doPublish, step } = usePublishAgent();
@@ -50,7 +53,12 @@ export default function NewAgent() {
               <div className="font-medium">自分の ENS 名の下</div><div className="mt-0.5 font-mono text-xs text-neutral-600">&lt;label&gt;.&lt;your-name&gt;.eth</div><div className="mt-1 text-xs text-neutral-500">所有者を ENSv2 で確認。2 本の tx に署名</div>
             </button>
           </div>
-          {mode === "creator" && <input className={`${inputCls} mt-2`} placeholder="nakamine.eth（Sepolia ENSv2 で所有している名前）" value={ownName} onChange={(e) => setOwnName(e.target.value.toLowerCase())} />}
+          {mode === "creator" && (
+            <>
+              <input className={`${inputCls} mt-2`} placeholder="nakamine.eth（Sepolia ENSv2 で所有している名前）" value={ownName} onChange={(e) => setOwnName(e.target.value.toLowerCase())} />
+              <EnsNameCheck name={ownName} onStatus={onOwnStatus} />
+            </>
+          )}
         </Field>
         <Field label="ENS ラベル" hint={`公開先: ${ens}（英小文字・数字・ハイフン）`}>
           <input className={inputCls} placeholder="web-pm" value={f.label} onChange={(e) => set("label", e.target.value.toLowerCase())} />
@@ -75,7 +83,7 @@ export default function NewAgent() {
         <ErrorBox error={err} />
         <div className="flex justify-end gap-2">
           <Button variant="secondary" disabled={busy || !f.label} onClick={() => submit(false)}>下書き保存</Button>
-          <Button disabled={busy || !f.label || (mode === "creator" && !/^[a-z0-9-]+\.eth$/.test(ownName))} onClick={() => submit(true)}>{step ?? (busy ? "処理中…" : "ENS に公開する")}</Button>
+          <Button disabled={busy || !f.label || (mode === "creator" && (!/^[a-z0-9-]+\.eth$/.test(ownName) || !ownOk.ok))} onClick={() => submit(true)}>{step ?? (busy ? "処理中…" : "ENS に公開する")}</Button>
         </div>
       </Card>
     </div>

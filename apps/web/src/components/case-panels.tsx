@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api, type AgentDetail, type TeamCandidate, type TeamTask } from "@/lib/api";
 import { contractFor, projectSubname, reviewDeadline } from "@/lib/mock";
 import { EnsRolesTable } from "./ens-roles";
+import { EnsRecords } from "./ens-records";
 import { Amount, Badge, Card, KindTag, Mono } from "./ui";
 
 
@@ -147,6 +148,12 @@ export function EnsPanel({ c }: { c: Case }) {
         <div>&nbsp;&nbsp;&nbsp;&nbsp;└─ <span className="text-neutral-900">{c.project_ens_name ?? projectSubname(c)}</span> <span className="text-neutral-400">(この案件{c.project_ens_name ? "・発行済" : "・openCase 後に発行"})</span></div>
       </div>
     </Card>
+    {c.project_ens_name && !c.project_ens_tx_hash?.startsWith("0xmock") && (
+      <Card>
+        <h2 className="font-semibold">プロジェクト subname のレコード <span className="text-xs font-normal text-neutral-500">Sepolia の ENS から直接読み取り（Project 鍵のみ更新可）</span></h2>
+        <div className="mt-2"><EnsRecords name={c.project_ens_name} title={c.project_ens_name} /></div>
+      </Card>
+    )}
     <EnsRolesTable roles={agent?.ens_roles ?? []} subregistry={agent?.ens_subregistry} />
     </>
   );

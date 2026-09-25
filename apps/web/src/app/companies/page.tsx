@@ -1,11 +1,12 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { usePublicClient, useSendTransaction } from "wagmi";
 import { api, short, type Company, type Member } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { Badge, Button, Card, Empty, ErrorBox, Field, inputCls, Mono, PageTitle, TxLink } from "@/components/ui";
+import { EnsNameCheck, EnsRecords } from "@/components/ens-records";
 
 /** F9: 受注側の会社が、自社の .eth の下に人員を登録する。PM Agent はここから Human Task を指名する */
 export default function Companies() {
@@ -14,6 +15,8 @@ export default function Companies() {
   const { data: mine } = useQuery({ queryKey: ["companies", "mine", me?.id], queryFn: () => api<Company[]>("/companies/mine"), enabled: !!me });
   const { data: all } = useQuery({ queryKey: ["companies"], queryFn: () => api<Company[]>("/companies") });
   const [f, setF] = useState({ name: "", ens_name: "", description: "" });
+  const [ensOk, setEnsOk] = useState<{ ok: boolean; checking: boolean }>({ ok: false, checking: false });
+  const onEnsStatus = useCallback((s: { ok: boolean; checking: boolean }) => setEnsOk(s), []);
   const [err, setErr] = useState<unknown>(null);
   const create = useMutation({
     mutationFn: () => api<Company>("/companies", { method: "POST", json: f }),
@@ -32,11 +35,11 @@ export default function Companies() {
         <h2 className="font-semibold">会社を登録</h2>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="会社名"><input className={inputCls} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
-          <Field label="ENS 名（会社が所有する .eth）" hint="接続ウォレットが所有者であることを ENSv2 で確認します（RPC 未設定時はモック）"><input className={inputCls} placeholder="field-co.eth" value={f.ens_name} onChange={(e) => setF({ ...f, ens_name: e.target.value.toLowerCase() })} /></Field>
+          <Field label="ENS 名（会社が所有する .eth）" hint="接続ウォレットが所有者であることを ENSv2 で確認します（RPC 未設定時はモック）"><input className={inputCls} placeholder="field-co.eth" value={f.ens_name} onChange={(e) => setF({ ...f, ens_name: e.target.value.toLowerCase() })} /><EnsNameCheck name={f.ens_name} onStatus={onEnsStatus} /></Field>
         </div>
         <Field label="説明"><input className={inputCls} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></Field>
         <ErrorBox error={err} />
-        <div className="flex justify-end"><Button disabled={!f.name || !f.ens_name || create.isPending} onClick={() => create.mutate()}>登録</Button></div>
+        <div className="flex justify-end"><Button disabled={!f.name || !f.ens_name || !ensOk.ok || create.isPending} onClick={() => create.mutate()}>登録</Button></div>
       </Card>
 
       <div>
@@ -88,6 +91,16 @@ function CompanyCard({ c, mock }: { c: Company; mock: boolean }) {
                 <td className="text-xs">{x.skills}</td><td className="whitespace-nowrap text-xs">{x.location}</td>
                 <td><button className={`whitespace-nowrap rounded-sm border px-2 py-0.5 text-xs ${x.available ? "border-neutral-900 bg-neutral-900 text-white" : "border-neutral-300 text-neutral-500"}`} onClick={() => toggle.mutate(x)}>{x.available ? "稼働可" : "稼働不可"}</button></td>
                 <td><EnsWrite c={c} m={x} mock={mock} /></td>
+              </tr>
+            ))}
+            {c.members.filter((x) => x.ens_status === "written" && x.ens_tx_hash && !x.ens_tx_hash.startsWith("0xmock")).map((x) => (
+              <tr key={x.id + ":ens"} className="border-t border-dashed border-neutral-100">
+                <td colSpan={6} className="py-2">
+                  <details>
+                    <summary className="cursor-pointer text-xs text-neutral-600">ENS 上の値 <Mono>{x.ens_name}</Mono>（Sepolia から直接読み取り）</summary>
+                    <div className="mt-2 pl-2"><EnsRecords name={x.ens_name} compact /></div>
+                  </details>
+                </td>
               </tr>
             ))}
             {c.members.length === 0 && <tr><td colSpan={6} className="py-3 text-center text-xs text-neutral-500">人員がまだいません</td></tr>}

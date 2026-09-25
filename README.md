@@ -83,7 +83,17 @@ cd contracts && forge test
 Agent 作成時に公開先を選べる。
 
 - **プラットフォームの親名**（既定）: `<label>.choice.eth`。運用ウォレット（チェーン連携ワーカー）が subname を発行し record を書く。
-- **Creator 自身の ENS 名**: `<label>.<creator>.eth`。接続ウォレットがその名前の所有者かを ENSv2 で確認し、`register` と `multicall` の calldata を API が返す。Creator のウォレットが 2 本の tx に署名する。名前の所有者は Creator。Creator 側で名前・サブレジストリ・リゾルバを用意しておく必要がある（`docs/ens-manual-check.md` 4 章）。評価・完了数の record 更新はプラットフォームに権限が無いため DB のみ（EAC で Reputation 役割を委任するまでの暫定）。
+- **Creator 自身の ENS 名**: `<label>.<creator>.eth`。接続ウォレットがその名前の所有者かを ENSv2 で確認し、`register` と `multicall` の calldata を API が返す。Creator のウォレットが 2 本の tx に署名する。名前の所有者は Creator。名前にサブレジストリとリゾルバが無い場合は、作成画面の事前確認に「自分のウォレットでリゾルバとサブレジストリを用意する」が出る（`/ens/setup-calldata`）。Agent の編集（`/agents/[id]/edit`）は Creator が `multicall` に署名して record を更新する。評価・完了数の record 更新はプラットフォームに権限が無いため DB のみ（EAC で Reputation 役割を委任するまでの暫定）。
+
+## ENS の読み取りと確認（`/ens/*`）
+
+- `GET /ens/resolve?name=` … `.eth` レジストリ → サブレジストリ → リゾルバと辿って所有者・レジストリ・リゾルバ・addr・text record を返す。同時に、見つけたリゾルバへ ENSIP-10 の `resolve(bytes name, bytes data)` を投げ、直読みと同じ値が返るかを `wildcard` として同梱する（Sepolia の UniversalResolver `0xeEeE…EeEe` は現時点で v2 名を見つけられないため、直読みが正、ENSIP-10 は整合確認）。
+- `GET /ens/readiness?name=` / `GET /ens/check-owner?name=` … Creator 所有の Agent や会社の人員を発行する前提（登録済み・サブレジストリ・リゾルバ・所有者一致）を入力中に確認する。
+- `GET /ens/setup-calldata?name=` … 名前の所有者が自分のウォレットで OwnedResolver と UserRegistry を用意する calldata（CREATE2 の予定アドレス付き）。運用者の鍵は使わない。
+- `GET /ens/reverse?address=` … 発行済みの名前（人員 / Agent 受取 / 会社管理者）からの逆引き。承認者・Jury・レビュー投稿者を名前で表示する。
+- `GET /ens/names` … 発行した全名前（Agent・専門 subagent・reputation・案件 project・人員）と tx。画面は `/ens`。
+- 所有確認は「未登録」「RPC エラー」を拒否し、RPC 未設定（モック）のときだけ確認なしで通す。利用者が送った ENS 書き込み tx は自己申告の hash を信用せず、レシートと text record をオンチェーンで確認してから `published` / `written` にする。
+- 役割鍵（Reputation / Project）が未設定で Owner 鍵にフォールバックしているときは `/config` の `mock.ens_roles=true` になり、ヘッダーに `mock: ens_roles` と出る。
 
 ## 会社の人員と Human Task の指名
 

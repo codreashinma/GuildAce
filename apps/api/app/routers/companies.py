@@ -41,10 +41,11 @@ def my_companies(user: User = Depends(current_user), db: Session = Depends(get_d
 def create_company(body: CompanyCreateIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
     if db.query(Company).filter(Company.ens_name == body.ens_name).first():
         raise HTTPException(409, "この ENS 名は登録済みです")
-    owner = ens.name_owner(body.ens_name)
-    verified = owner is not None and owner.lower() == user.wallet_address
-    if owner is not None and not verified:
-        raise HTTPException(403, f"{body.ens_name} の所有者（{owner}）が接続中のウォレットと一致しません")
+    # 所有者を ENSv2 で確認する。未登録・RPC エラーは拒否（RPC 未設定 = モックのときだけ ens_verified=False で通す）
+    try:
+        verified = ens.require_owner(body.ens_name, user.wallet_address)
+    except ValueError as e:
+        raise HTTPException(403, str(e)) from e
     c = Company(admin_id=user.id, name=body.name, ens_name=body.ens_name, description=body.description, ens_verified=verified)
     db.add(c)
     db.commit()
@@ -106,6 +107,11 @@ def member_ens_written(company_id: str, member_id: str, body: TxIn, user: User =
     m = db.get(Member, member_id)
     if m is None or m.company_id != company_id:
         raise HTTPException(404)
+    # 自己申告の tx hash を信用せず、レシートと text record をオンチェーンで確認する
+    try:
+        ens.verify_written(name=m.ens_name, tx_hash=body.tx_hash, sender=user.wallet_address, key="codrea.person.name")
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
     m.ens_status, m.ens_tx_hash = "written", body.tx_hash
     db.commit()
     db.refresh(m)

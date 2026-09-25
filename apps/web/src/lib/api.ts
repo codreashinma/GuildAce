@@ -84,7 +84,9 @@ export type Dispute = {
 };
 export type AppConfig = {
   chain_id: number; escrow_address: string; usdc_address: string; ens_parent_name: string; ens_universal_resolver: string;
-  world_app_id: string; world_rp_id: string; mock: { chain: boolean; ens_write: boolean; world: boolean; gemini: boolean };
+  world_app_id: string; world_rp_id: string;
+  ens_roles: { owner: string | null; reputation: string | null; project: string | null; separated: boolean; reputation_resolver: string | null; project_resolver: string | null };
+  mock: { chain: boolean; ens_write: boolean; ens_roles: boolean; world: boolean; gemini: boolean };
 };
 export type RpContext = { rp_id: string; nonce: string; created_at: number; expires_at: number; signature: string };
 

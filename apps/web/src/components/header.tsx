@@ -18,6 +18,7 @@ const NAV = [
   { href: "/jury", label: "Jury" },
   { href: "/companies", label: "会社と人員" },
   { href: "/agents/mine", label: "Agent 管理" },
+  { href: "/ens", label: "ENS" },
 ];
 
 /** 開発用: DEV_LOGIN_ENABLED のとき ?dev_login=<role> で自動ログイン（スクリーンショット・動作確認用） */

@@ -6,6 +6,7 @@ ENS_WRITE_ENABLED=false のときはモック（tx hash を生成せず ens_name
 
 役割ビットマップ等は ensdomains/ens-cli の v2.ts に合わせている。"""
 
+import logging
 import secrets
 import time
 
@@ -126,6 +127,9 @@ def _w3() -> Web3:
     return Web3(Web3.HTTPProvider(get_settings().sepolia_rpc_url))
 
 
+_fallback_warned: set[str] = set()
+
+
 def _account(role: str = "owner"):
     """署名鍵。owner = 運用ウォレット（名前の所有者）、reputation / project = EAC で限定された役割鍵。
     役割鍵が未設定なら owner にフォールバックする（役割分離なしの MVP 動作）。"""
@@ -133,12 +137,27 @@ def _account(role: str = "owner"):
 
     s = get_settings()
     key = {"owner": s.server_private_key, "reputation": s.reputation_private_key or s.server_private_key, "project": s.project_private_key or s.server_private_key}[role]
+    if role != "owner" and not {"reputation": s.reputation_private_key, "project": s.project_private_key}[role] and role not in _fallback_warned:
+        _fallback_warned.add(role)
+        logging.getLogger(__name__).warning("ENS 役割鍵 %s が未設定のため Owner 鍵で署名します（EAC の役割分離なし）", role.upper())
     return Account.from_key(key)
 
 
 def role_addresses() -> dict[str, str | None]:
     s = get_settings()
     return {r: (_account(r).address if s.server_private_key else None) for r in ("owner", "reputation", "project")}
+
+
+def role_separation() -> dict:
+    """運用鍵の役割分離の状態（/config で公開）。
+    separated=False は Reputation / Project 鍵が未設定で Owner 鍵にフォールバックしている = EAC の分離がデモ上は効いていない。"""
+    s = get_settings()
+    addrs = role_addresses()
+    separated = bool(s.server_private_key and s.reputation_private_key and s.project_private_key
+                     and s.ens_reputation_resolver and s.ens_project_resolver
+                     and len({(a or "").lower() for a in addrs.values()}) == 3)
+    return {**addrs, "separated": separated,
+            "reputation_resolver": s.ens_reputation_resolver or None, "project_resolver": s.ens_project_resolver or None}
 
 
 def _send(w3: Web3, fn, role: str = "owner") -> str:
@@ -329,18 +348,66 @@ def _labelhash_int(label: str) -> int:
     return int.from_bytes(keccak(text=label), "big")
 
 
-def name_owner(name: str) -> str | None:
-    """ENSv2 の .eth 2LD の所有者。RPC 未設定・取得失敗は None。"""
+def lookup_owner(name: str) -> tuple[str | None, str]:
+    """ENSv2 の .eth 2LD の所有者を (owner, status) で返す。
+    status: ok（登録済み）/ unregistered（未登録・期限切れ）/ error（RPC 失敗）/ unconfigured（RPC 未設定 = モック）。
+    呼び出し側は unconfigured 以外で owner が None のときは「所有確認できない」として拒否する。"""
     s = get_settings()
     if not s.sepolia_rpc_url:
-        return None
+        return None, "unconfigured"
+    labels = name.lower().split(".")
+    if len(labels) != 2 or labels[1] != "eth" or not labels[0]:
+        return None, "unregistered"
     try:
         w3 = _w3()
         reg = w3.eth.contract(address=Web3.to_checksum_address(s.ensv2_eth_registry), abi=ETH_REGISTRY_ABI)
-        status, _, owner, _, _ = reg.functions.getState(_labelhash_int(name.removesuffix(".eth"))).call()
-        return owner if status == 2 else None
+        status, _, owner, _, _ = reg.functions.getState(_labelhash_int(labels[0])).call()
+        return (owner, "ok") if status == 2 else (None, "unregistered")
     except Exception:
-        return None
+        return None, "error"
+
+
+def name_owner(name: str) -> str | None:
+    """後方互換: 所有者アドレス（確認できなければ None）"""
+    return lookup_owner(name)[0]
+
+
+def require_owner(name: str, wallet: str) -> bool:
+    """名前の所有者が wallet であることを確認する。True = オンチェーンで確認済み、False = RPC 未設定で確認せず（モック）。
+    確認できない・一致しないときは ValueError（メッセージは利用者向け）。"""
+    owner, status = lookup_owner(name)
+    if status == "unconfigured":
+        return False
+    if status == "error":
+        raise ValueError(f"{name} の所有者を Sepolia から確認できませんでした（RPC エラー）。しばらくして再試行してください")
+    if owner is None:
+        raise ValueError(f"{name} は ENSv2（Sepolia）に登録されていません。先に登録してください")
+    if owner.lower() != wallet.lower():
+        raise ValueError(f"{name} の所有者（{owner}）が接続中のウォレットと一致しません")
+    return True
+
+
+def verify_written(*, name: str, tx_hash: str, sender: str, key: str) -> dict:
+    """利用者のウォレットが送った ENS 書き込み tx の事後確認。
+    レシートが成功していること、送信者が本人であること、名前の text record（key）が実際に読めることを確認する。
+    RPC 未設定（モック）のときは確認せず {"mock": True} を返す。失敗は ValueError。"""
+    s = get_settings()
+    if not s.sepolia_rpc_url:
+        return {"mock": True}
+    w3 = _w3()
+    try:
+        receipt = w3.eth.get_transaction_receipt(tx_hash)
+        tx = w3.eth.get_transaction(tx_hash)
+    except Exception as e:  # noqa: BLE001
+        raise ValueError(f"tx {tx_hash[:12]}… が見つかりません（未確定なら数秒後に再試行）: {type(e).__name__}") from e
+    if receipt["status"] != 1:
+        raise ValueError(f"tx {tx_hash[:12]}… は失敗（reverted）しています")
+    if tx["from"].lower() != sender.lower():
+        raise ValueError("tx の送信者が接続中のウォレットではありません")
+    texts = read_texts(name, [key], ttl=0)
+    if not texts.get(key):
+        raise ValueError(f"{name} の text record（{key}）がまだ読めません。register と multicall の両方が確定しているか確認してください")
+    return {"mock": False, "block": receipt["blockNumber"], "value": texts[key]}
 
 
 def member_calldata(*, company_name: str, label: str, owner: str, texts: dict[str, str]) -> list[dict]:
@@ -369,6 +436,21 @@ def member_calldata(*, company_name: str, label: str, owner: str, texts: dict[st
     calls += [bytes.fromhex(resolver.encode_abi("setText", args=[node, k, v])[2:]) for k, v in texts.items()]
     txs.append({"to": resolver_addr, "data": resolver.encode_abi("multicall", args=[calls]), "label": "プロフィール（text record）を書き込み"})
     return txs
+
+
+def records_calldata_for(*, name: str, texts: dict[str, str], addr: str | None = None) -> list[dict]:
+    """名前の所有者が自分のウォレットで送る、text record（と addr）の書き込み calldata（multicall 1 本）。
+    Creator 所有の Agent の編集（D4）で使う。リゾルバは ENS から解決する。"""
+    s = get_settings()
+    if not s.sepolia_rpc_url:
+        raise RuntimeError("RPC 未設定のため calldata を生成できません")
+    w3 = _w3()
+    resolver_addr, _, _ = resolve_v2(w3, name)
+    if resolver_addr is None:
+        raise RuntimeError(f"{name} にリゾルバが設定されていません")
+    r = w3.eth.contract(address=resolver_addr, abi=RESOLVER_ABI)
+    calls = _records_calldata(w3, namehash(name), texts, addr, r)
+    return [{"to": resolver_addr, "data": r.encode_abi("multicall", args=[calls]), "label": "プロフィール（text record）を更新"}]
 
 
 # ---------------------------------------------------------------- EAC: 役割の確認
@@ -428,4 +510,79 @@ def agent_roles(name: str, label: str) -> list[dict]:
         })
     except Exception as e:  # noqa: BLE001
         out.append({"role": "error", "error": str(e)[:200]})
+    return out
+
+
+# ---------------------------------------------------------------- セルフサービス: 名前の所有者が自分でリゾルバとサブレジストリを用意する
+
+FACTORY_ABI = [{"type": "function", "name": "deployProxy", "stateMutability": "nonpayable",
+                "inputs": [{"name": "implementation", "type": "address"}, {"name": "salt", "type": "uint256"}, {"name": "data", "type": "bytes"}],
+                "outputs": [{"type": "address"}]}]
+RESOLVER_INIT_ABI = [{"type": "function", "name": "initialize", "stateMutability": "nonpayable",
+                      "inputs": [{"name": "admin", "type": "address"}, {"name": "roleBitmap", "type": "uint256"}, {"name": "setters", "type": "bytes[]"}], "outputs": []}]
+USER_REGISTRY_INIT_ABI = [{"type": "function", "name": "initialize", "stateMutability": "nonpayable",
+                           "inputs": [{"name": "rootAccount", "type": "address"}, {"name": "roleBitmap", "type": "uint256"}], "outputs": []}]
+
+
+def setup_calldata(*, name: str, owner: str) -> dict:
+    """登録済みの .eth 2LD に、所有者自身のウォレットで OwnedResolver と UserRegistry（サブレジストリ）を用意する calldata。
+    scripts/ens_setup.py の 1・3 段階を、Creator / 会社がセルフサービスで実行できるようにしたもの。
+    deployProxy は VerifiableFactory の CREATE2 なので、送信前に eth_call で予定アドレスが分かる（送信者 = owner で予測する）。
+    既に揃っている段階はスキップし、txs が空なら準備完了。"""
+    from eth_abi import encode
+
+    s = get_settings()
+    if not s.sepolia_rpc_url:
+        raise ValueError("RPC 未設定のため calldata を生成できません")
+    labels = name.lower().split(".")
+    if len(labels) != 2 or labels[1] != "eth":
+        raise ValueError("セルフサービス準備は <label>.eth（2LD）のみ対応です")
+    label = labels[0]
+    owner = Web3.to_checksum_address(owner)
+    w3 = _w3()
+    eth_registry = w3.eth.contract(address=Web3.to_checksum_address(s.ensv2_eth_registry), abi=V2_REGISTRY_ABI)
+    status, _, cur_owner, token_id, _ = eth_registry.functions.getState(_labelhash_int(label)).call()
+    if status != 2:
+        raise ValueError(f"{name} は ENSv2（Sepolia）に登録されていません。先に登録してください")
+    if cur_owner.lower() != owner.lower():
+        raise ValueError(f"{name} の所有者（{cur_owner}）が接続中のウォレットと一致しません")
+    factory = w3.eth.contract(address=Web3.to_checksum_address(s.ensv2_verifiable_factory), abi=FACTORY_ABI)
+    txs: list[dict] = []
+    out: dict = {"name": name, "owner": owner, "token_id": str(token_id)}
+
+    # 1. リゾルバ（所有者が root admin の OwnedResolver = Permissioned Resolver）
+    resolver = eth_registry.functions.getResolver(label).call()
+    if int(resolver, 16):
+        out["resolver"] = {"address": resolver, "exists": True}
+    else:
+        salt = int.from_bytes(keccak(encode(["bytes32", "address", "uint256"], [keccak(text="OwnedResolver"), owner, 0])), "big")
+        init = w3.eth.contract(abi=RESOLVER_INIT_ABI).encode_abi("initialize", args=[owner, ALL_ROLES, []])
+        fn = factory.functions.deployProxy(Web3.to_checksum_address(s.ensv2_resolver_impl), salt, bytes.fromhex(init[2:]))
+        predicted = fn.call({"from": owner})
+        deployed = w3.eth.get_code(predicted) not in (b"", b"\x00")
+        if not deployed:
+            txs.append({"to": factory.address, "data": factory.encode_abi("deployProxy", args=[Web3.to_checksum_address(s.ensv2_resolver_impl), salt, bytes.fromhex(init[2:])]),
+                        "label": f"OwnedResolver をデプロイ（admin = あなた）→ {predicted}"})
+        txs.append({"to": eth_registry.address, "data": eth_registry.encode_abi("setResolver", args=[token_id, predicted]), "label": f"{name} のリゾルバを設定"})
+        out["resolver"] = {"address": predicted, "exists": deployed}
+        resolver = predicted
+
+    # 2. サブレジストリ（所有者が root の UserRegistry）
+    sub = eth_registry.functions.getSubregistry(label).call()
+    if int(sub, 16):
+        out["subregistry"] = {"address": sub, "exists": True}
+    else:
+        salt = int.from_bytes(keccak(encode(["bytes32", "bytes32", "uint256"], [keccak(text="UserRegistry"), namehash(name), 0])), "big")
+        init = w3.eth.contract(abi=USER_REGISTRY_INIT_ABI).encode_abi("initialize", args=[owner, ALL_ROLES])
+        fn = factory.functions.deployProxy(Web3.to_checksum_address(s.ensv2_subregistry_impl), salt, bytes.fromhex(init[2:]))
+        predicted = fn.call({"from": owner})
+        deployed = w3.eth.get_code(predicted) not in (b"", b"\x00")
+        if not deployed:
+            txs.append({"to": factory.address, "data": factory.encode_abi("deployProxy", args=[Web3.to_checksum_address(s.ensv2_subregistry_impl), salt, bytes.fromhex(init[2:])]),
+                        "label": f"UserRegistry（サブレジストリ）をデプロイ（root = あなた）→ {predicted}"})
+        txs.append({"to": eth_registry.address, "data": eth_registry.encode_abi("setSubregistry", args=[token_id, predicted]), "label": f"{name} にサブレジストリを設定"})
+        out["subregistry"] = {"address": predicted, "exists": deployed}
+
+    out["txs"] = txs
+    out["ready"] = not txs
     return out

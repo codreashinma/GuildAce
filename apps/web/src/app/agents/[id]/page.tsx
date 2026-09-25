@@ -25,6 +25,7 @@ export default function AgentPage({ params }: { params: Promise<{ id: string }> 
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl font-bold">{a.name}</h1>
+              {me?.id === a.creator_id && <Link href={`/agents/${a.id}/edit`} className="text-xs text-neutral-500 underline-offset-2 hover:underline">編集</Link>}
               <Badge>{CATEGORY_LABEL[a.category] ?? a.category}</Badge>
               <Badge status={a.status} />
             </div>

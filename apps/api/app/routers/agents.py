@@ -8,7 +8,7 @@ from ..auth import current_user
 from ..config import get_settings
 from ..db import get_db
 from ..models import Agent, Review, User
-from ..schemas import AgentCreateIn, AgentDetailOut, AgentOut, ReviewOut, TxIn
+from ..schemas import AgentCreateIn, AgentDetailOut, AgentOut, AgentUpdateIn, ReviewOut, TxIn
 from ..services import ens, worker
 
 log = logging.getLogger(__name__)
@@ -67,10 +67,12 @@ def create_agent(body: AgentCreateIn, user: User = Depends(current_user), db: Se
         raise HTTPException(409, "このラベルは既に使われています")
     parent, mode = None, "platform"
     if body.parent_ens_name:
-        # D1: Creator 自身の .eth の下に公開する。所有者が接続ウォレットか ENSv2 で確認（RPC 未設定時は通す）
-        owner = ens.name_owner(body.parent_ens_name)
-        if owner is not None and owner.lower() != user.wallet_address:
-            raise HTTPException(403, f"{body.parent_ens_name} の所有者（{owner}）が接続中のウォレットと一致しません")
+        # D1: Creator 自身の .eth の下に公開する。所有者が接続ウォレットか ENSv2 で確認する。
+        # 未登録・RPC エラーは拒否（RPC 未設定 = モックのときだけ確認なしで通す）
+        try:
+            ens.require_owner(body.parent_ens_name, user.wallet_address)
+        except ValueError as e:
+            raise HTTPException(403, str(e)) from e
         parent, mode = body.parent_ens_name, "creator"
     agent = Agent(
         creator_id=user.id, name=body.name, label=body.label, description=body.description, category=body.category,
@@ -122,10 +124,60 @@ def agent_ens_written(agent_id: str, body: TxIn, user: User = Depends(current_us
     agent = db.get(Agent, agent_id)
     if agent is None or agent.creator_id != user.id or agent.owner_mode != "creator":
         raise HTTPException(400, "対象の Agent ではありません")
-    agent.ens_name, agent.ens_tx_hash, agent.status, agent.ens_error = f"{agent.label}.{agent.parent_ens_name}", body.tx_hash, "published", None
+    name = f"{agent.label}.{agent.parent_ens_name}"
+    # 自己申告の tx hash を信用せず、レシートと text record をオンチェーンで確認する
+    try:
+        ens.verify_written(name=name, tx_hash=body.tx_hash, sender=user.wallet_address, key="codrea.agent.category")
+    except ValueError as e:
+        agent.ens_error = str(e)
+        db.commit()
+        raise HTTPException(400, str(e)) from e
+    agent.ens_name, agent.ens_tx_hash, agent.status, agent.ens_error = name, body.tx_hash, "published", None
     db.commit()
     db.refresh(agent)
     return agent
+
+
+@router.patch("/{agent_id}")
+def update_agent(agent_id: str, body: AgentUpdateIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """D4: 説明・ルール・利用料などを更新し、ENS の text record を再書き込みする。
+    platform: worker に ens_update を投入（Owner 鍵）。creator: Creator が署名する multicall の calldata を返す。"""
+    agent = db.get(Agent, agent_id)
+    if agent is None:
+        raise HTTPException(404)
+    if agent.creator_id != user.id:
+        raise HTTPException(403, "作成者のみ編集できます")
+    before = profile_texts(agent)
+    changes = body.model_dump(exclude_none=True)
+    avatar = changes.pop("avatar", None)
+    for k, v in changes.items():
+        setattr(agent, k, v)
+    db.flush()
+    after = profile_texts(agent, avatar=avatar)
+    diff = {k: v for k, v in after.items() if before.get(k) != v}
+    out: dict = {"mode": agent.owner_mode, "changed_keys": sorted(diff)}
+    if agent.status == "published" and diff:
+        if agent.owner_mode == "platform":
+            if agent.ens_tx_hash and not agent.ens_tx_hash.startswith("0xmock"):
+                ens_update_job(db, agent, diff)
+                out["ens"] = "queued"
+            else:
+                out["ens"] = "mock"
+        else:
+            name = f"{agent.label}.{agent.parent_ens_name}"
+            if not get_settings().sepolia_rpc_url:
+                out["ens"], out["txs"] = "mock", []
+            else:
+                try:
+                    out["txs"] = ens.records_calldata_for(name=name, texts=diff)
+                    out["ens"] = "sign"
+                except Exception as e:  # noqa: BLE001
+                    db.rollback()
+                    raise HTTPException(400, str(e)) from e
+    db.commit()
+    db.refresh(agent)
+    out["agent"] = AgentOut.model_validate(agent)
+    return out
 
 
 @router.get("/{agent_id}", response_model=AgentDetailOut)

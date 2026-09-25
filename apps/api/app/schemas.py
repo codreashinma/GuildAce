@@ -37,6 +37,16 @@ class AgentCreateIn(BaseModel):
     parent_ens_name: str | None = Field(default=None, pattern=r"^[a-z0-9-]+\.eth$", description="Creator が所有する .eth。空ならプラットフォームの親名")
 
 
+class AgentUpdateIn(BaseModel):
+    """D4: Agent の編集。ラベル（subname）と公開先は変えられない。変更分だけ ENS の text record を再書き込みする"""
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    description: str | None = None
+    category: Literal["web", "design", "video", "wedding", "other"] | None = None
+    rules: str | None = None
+    fee_bps: int | None = Field(default=None, ge=0, le=5000)
+    avatar: str | None = None
+
+
 class AgentOut(ORM):
     id: str
     creator_id: str
@@ -346,4 +356,5 @@ class ConfigOut(BaseModel):
     ens_universal_resolver: str
     world_app_id: str
     world_rp_id: str
+    ens_roles: dict  # owner / reputation / project のアドレスと separated（役割鍵が揃っているか）
     mock: dict[str, bool]

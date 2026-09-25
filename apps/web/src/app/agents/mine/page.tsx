@@ -28,6 +28,7 @@ export default function MyAgents() {
                 {a.ens_error && <div className="mt-1 text-xs text-neutral-700">{a.ens_error}</div>}
               </div>
               <div className="whitespace-nowrap text-sm tabular-nums text-neutral-500">★{Number(a.rating_avg).toFixed(1)} ({a.rating_count}) · 実績 {a.completed_count}</div>
+              <Link href={`/agents/${a.id}/edit`}><Button variant="secondary">編集</Button></Link>
               {(a.status === "draft" || a.status === "publish_failed") && <Button onClick={() => publish.mutate(a.id)} disabled={publish.isPending}>{step ?? "ENS に公開"}</Button>}
             </Card>
           ))}

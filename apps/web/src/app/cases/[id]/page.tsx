@@ -11,6 +11,7 @@ import { Markdown } from "@/components/markdown";
 import { WorldVerifyButton } from "@/components/world-verify";
 import { ApproveButton } from "@/components/approve-button";
 import { ContractsPanel, EnsPanel, ProgressPanel, ReplanPanel, TeamPanel } from "@/components/case-panels";
+import { AddrName } from "@/components/addr-name";
 import { Amount, BackLink, Badge, Button, Card, ErrorBox, HumanBadge, inputCls, KindTag, Mono, Stars, TxLink } from "@/components/ui";
 
 const STEPS = ["planning", "awaiting_approval", "in_progress", "delivered", "completed"];
@@ -168,11 +169,11 @@ function TaskBoard({ c, canApprove, onDone }: { c: CaseDetail; canApprove: boole
           <p className="mt-1 text-sm text-neutral-600">{open.description}</p>
           <dl className="mt-2 grid gap-1 text-xs text-neutral-600 sm:grid-cols-2">
             <div>成果物ハッシュ: <span className="font-mono">{open.deliverable_hash ? open.deliverable_hash.slice(0, 18) + "…" : "未提出"}</span></div>
-            <div>支払先: <span className="font-mono">{open.payee ? short(open.payee) : "-"}</span></div>
+            <div>支払先: {open.payee ? <AddrName address={open.payee} /> : <span className="font-mono">-</span>}</div>
             <div>Escrow task: <span className="font-mono">{open.escrow_task_id?.slice(0, 18)}…</span></div>
             <div><TxLink hash={open.chain_tx_hash} label="最新 tx" /></div>
           </dl>
-          {open.approvals.length > 0 && <ul className="mt-2 text-xs">{open.approvals.map((a) => <li key={a.id} className="flex items-center gap-2"><HumanBadge /> {short(a.approver.wallet_address)} が承認（{new Date(a.created_at).toLocaleString("ja-JP")}）</li>)}</ul>}
+          {open.approvals.length > 0 && <ul className="mt-2 text-xs">{open.approvals.map((a) => <li key={a.id} className="flex items-center gap-2"><HumanBadge /> <AddrName address={a.approver.wallet_address} /> が承認（{new Date(a.created_at).toLocaleString("ja-JP")}）</li>)}</ul>}
           {open.type === "human" && open.human_task && open.human_task.status !== "done" && (
             <p className="mt-2 text-sm">Human Task として指名・公開中 → <Link href={`/tasks/${open.human_task.id}`} className="text-neutral-900 underline">タスクページ</Link></p>
           )}
@@ -226,7 +227,7 @@ function ReviewPanel({ c, reviews, meId, onDone }: { c: CaseDetail; reviews: Rev
       <p className="mt-1 text-xs text-neutral-500">案件の当事者（発注者 → PM Agent、Human Task worker → 発注者）が、World で人間確認をしてから評価します。Bot による水増しはできません。</p>
       {reviews.length > 0 && (
         <ul className="mt-3 space-y-2">
-          {reviews.map((r) => <li key={r.id} className="rounded-md border border-neutral-200 p-3 text-sm"><div className="flex flex-wrap items-center gap-2"><Stars value={r.rating} /><HumanBadge /><span className="text-xs text-neutral-500">{short(r.reviewer.wallet_address)} → {r.target_type === "agent" ? "PM Agent" : "発注者"}</span></div><p className="mt-1">{r.comment}</p></li>)}
+          {reviews.map((r) => <li key={r.id} className="rounded-md border border-neutral-200 p-3 text-sm"><div className="flex flex-wrap items-center gap-2"><Stars value={r.rating} /><HumanBadge /><span className="text-xs text-neutral-500"><AddrName address={r.reviewer.wallet_address} /> → {r.target_type === "agent" ? "PM Agent" : "発注者"}</span></div><p className="mt-1">{r.comment}</p></li>)}
         </ul>
       )}
       {(isClient || isWorker) && !mine && (

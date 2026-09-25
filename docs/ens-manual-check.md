@@ -86,6 +86,12 @@
 2. 画面「会社と人員」で会社を登録（所有者チェックが走る）→ 人員を追加 →「ENS に書き込む」。会社管理者のウォレットで 2 本の tx（`register`、`multicall`）に署名する。
 3. `ens_check.py dan.<会社名>.eth` で `text[person.skills]` などを確認する。
 
+## 5. ENSIP-10（ワイルドカード解決）の確認（2026-09-26）
+
+- Sepolia の UniversalResolver（`0xeEeE…EeEe`）に `findResolver(dnsEncode("web-pm.choice.eth"))` を投げると resolver は `0x0`、`resolve()` は `ResolverNotFound` で revert する。v2 名は現時点で UniversalResolver からは見えない。
+- 一方、v2 のリゾルバ実装（OwnedResolver / 役割リゾルバ）は `supportsInterface(0x9061b923)` = true で、`resolve(dnsEncode(name), text(node,key))` が直読みと同じ値を返す（`web-pm.choice.eth` の `codrea.agent.category` = `web`、`project-831.web-pm.choice.eth` の `codrea.project.title` も一致）。
+- 本アプリはレジストリ直読みを正としつつ、`GET /ens/resolve` の `wildcard` で ENSIP-10 経路の一致を毎回確認して表示する（画面 `/ens`）。
+
 ## トラブルシュート
 
 - `execution reverted` で register が落ちる: commit から 60 秒未満、または `approve` 額不足。`ens_setup.py` を再実行すれば登録済み判定でスキップされる。

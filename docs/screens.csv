@@ -12,11 +12,11 @@ B6,発注者,案件詳細（進行・検収）,/cases/[id],発注者・承認者
 B7,発注者,案件詳細（完了・レビュー）,/cases/[id],発注者,UC-007,支払い済み工程と tx・Agent へのレビュー投稿,済,,
 C1,承認者,承認待ち一覧,/cases（先頭セクション）,承認者（開発部・経理部）,UC-005,自分の署名待ち工程を横断表示。その場で World 確認 + EIP-712 署名,済,API `GET /cases/pending-approvals`,
 C2,承認者,工程の承認,/cases/[id]（タスクカード内）,承認者（開発部・経理部）,"FR-010, FR-011",成果物・ハッシュ・支払先・World 確認・EIP-712 署名,済,共通部品 approve-button,
-D1,Creator,Agent 作成,/agents/new,PM Agent Creator,"UC-010, FR-026",名前・公開先（choice.eth / 自分の .eth）・ラベル・説明・カテゴリ・進め方・利用料・受取アドレス,済,自分の .eth は所有者を ENSv2 で確認し Creator が 2 本の tx に署名。実機は未検証,
+D1,Creator,Agent 作成,/agents/new,PM Agent Creator,"UC-010, FR-026",名前・公開先（choice.eth / 自分の .eth）・ラベル・説明・カテゴリ・進め方・利用料・受取アドレス,済,"入力中に所有者・サブレジストリ・リゾルバを Sepolia で事前確認（/ens/check-owner, /ens/readiness）。未準備なら自分のウォレットで用意するボタン（/ens/setup-calldata）。実機は未検証",
 D2,Creator,Agent 管理一覧,/agents/mine,PM Agent Creator,UC-010,状態・ENS 名と tx・Creator 所有バッジ・評価・実績・再公開,済,,
 D3,Creator,Agent の収益,/agents/mine（拡張）,PM Agent Creator,FR-024,案件ごとの管理費（PM 工程）の受取履歴,未,FR-024 は Won't。PM 工程の Paid tx を集計すれば作れる,低
-D4,Creator,Agent 編集,/agents/[id]/edit,PM Agent Creator,UC-010,説明・ルール・利用料の更新と ENS レコードの再書き込み,未,,中
-E1,会社・人員,会社と人員,/companies,会社管理者,追補1 F9,会社登録（ENS 所有確認）・人員の追加・稼働可否・ENS 書き込み（会社管理者が署名）,済,,
+D4,Creator,Agent 編集,/agents/[id]/edit,PM Agent Creator,UC-010,説明・ルール・利用料の更新と ENS レコードの再書き込み,済,platform は worker が再書き込み、creator は自分のウォレットで multicall に署名,
+E1,会社・人員,会社と人員,/companies,会社管理者,追補1 F9,会社登録（ENS 所有確認）・人員の追加・稼働可否・ENS 書き込み（会社管理者が署名）・ENS 名の事前確認と準備（所有者 / サブレジストリ / リゾルバ）・書き込み後の実レコード表示,済,,
 E2,会社・人員,人員一覧（公開）,/companies（下部）,全員,追補1 F10,PM Agent の指名候補になる人員プールを閲覧,済,,
 E3,会社・人員,Human Task 一覧,/tasks,人員・World 検証済みの人間,UC-009,あなたへの指名・公開募集・自分が受注したタスク,済,,
 E4,会社・人員,Human Task 詳細,/tasks/[id],人員・World 検証済みの人間,UC-009,指名理由・受諾 / 辞退（World 確認）・提出・PM Agent の確認コメント,済,,
@@ -25,4 +25,4 @@ F1,Jury,紛争一覧,/jury,Human Jury,UC-008,審理中 / 終了・保留額・�
 F2,Jury,紛争詳細と投票,/jury/[id],Human Jury,UC-008,差し戻し理由・AI の論点整理・成果物・当事者除外・World 確認つき投票・結果と resolve tx,済,,
 G1,運用,チェーン連携ジョブ,/ops/jobs,運用者,ADR-006,chain_jobs の状態・失敗の再送・tx リンク,未,テーブルと再送は実装済み。画面のみ無い,低
 G2,運用,監査ビュー,/cases/[id]/audit,運用者・第三者,NFR-010,案件ごとの openCase / fund / submit / approve / pay の tx 一覧と承認者の ENS 名表示（逆引き）,未,tx hash は tasks に保持済み。逆引きは未実装,低
-G3,運用,ENS 確認,/agents/[id] ほか,全員,"FR-026, FR-027",Agent の名前空間（subagent の subname と record）・reputation subname・役割表を Agent 詳細で表示,部分,案件（project subname）と人員の record 表示は未,低
+G3,運用,ENS 確認,"/ens, /agents/[id], /cases/[id], /companies",全員,"FR-026, FR-027",発行した全名前（Agent・専門 subagent・reputation・案件 project・人員）と tx・種別・鍵。任意の名前の実レコードと ENSIP-10 resolve() の一致確認。案件詳細に project subname、会社画面に人員の実レコード,済,"GET /ens/names, /ens/resolve",

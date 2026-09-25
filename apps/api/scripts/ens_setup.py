@@ -151,6 +151,9 @@ def main() -> None:
         else:
             send(eth_registry.functions.setSubregistry(token_id, sub))
 
+    # 4. 役割ごとのリゾルバ（Reputation / Project）は scripts/ens_role_resolvers.py で用意する
+    print("4. 役割リゾルバ: scripts/ens_role_resolvers.py を実行し、ENS_REPUTATION_RESOLVER / ENS_PROJECT_RESOLVER を .env に設定してください")
+
     print("\n.env に追記してください:")
     print(f"ENS_OWNED_RESOLVER={resolver_addr}")
     print(f"ENS_PARENT_SUBREGISTRY={sub}")

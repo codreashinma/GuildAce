@@ -51,6 +51,7 @@ class AgentOut(ORM):
     ens_tx_hash: str | None
     parent_ens_name: str | None = None
     owner_mode: str = "platform"
+    ens_subregistry: str | None = None
     status: str
     rating_avg: float
     rating_count: int
@@ -62,6 +63,7 @@ class AgentOut(ORM):
 
 class AgentDetailOut(AgentOut):
     ens_records: dict[str, str] = {}
+    ens_roles: list[dict[str, Any]] = []  # EAC の役割（オンチェーンから読んだ実データ）
 
 
 class CaseCreateIn(BaseModel):

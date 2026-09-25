@@ -19,7 +19,9 @@ class Settings(BaseSettings):
     # --- chain (Sepolia) ---
     chain_id: int = 11155111
     sepolia_rpc_url: str = ""
-    server_private_key: str = ""  # ENS 書き込み + Escrow arbiter 用の署名鍵
+    server_private_key: str = ""  # 運用ウォレット（ops）: Escrow の中継、ENS の所有者としての発行・プロフィール更新
+    reputation_private_key: str = ""  # EAC: codrea.agent.rating/reviews/completed の setText だけを許された鍵
+    project_private_key: str = ""  # EAC: Agent サブレジストリへの register と codrea.project.* の setText だけを許された鍵
     escrow_address: str = ""
     usdc_address: str = ""
 
@@ -35,6 +37,8 @@ class Settings(BaseSettings):
     ensv2_subregistry_impl: str = "0x624a25d67B59D587752EbEc8DdeD8827dAe52050"
     ens_owned_resolver: str = ""  # scripts/ens_setup.py が出力
     ens_parent_subregistry: str = ""  # scripts/ens_setup.py が出力
+    ens_reputation_resolver: str = ""  # Reputation 鍵が admin の PermissionedResolver（reputation.<agent> 用）
+    ens_project_resolver: str = ""  # Project 鍵が admin の PermissionedResolver（project-*.<agent> 用）
 
     # --- World ID ---
     world_app_id: str = ""

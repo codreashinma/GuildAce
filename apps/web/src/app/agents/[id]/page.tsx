@@ -6,7 +6,7 @@ import { use } from "react";
 import { api, CATEGORY_LABEL, short, type AgentDetail, type Review } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { BackLink, Badge, Button, Card, EnsLink, HumanBadge, Mono, Stars, TxLink } from "@/components/ui";
-import { PERMISSIONS } from "@/lib/mock";
+import { EnsRolesTable } from "@/components/ens-roles";
 
 export default function AgentPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -65,14 +65,7 @@ export default function AgentPage({ params }: { params: Promise<{ id: string }> 
         </Card>
       </div>
 
-      <Card>
-        <h2 className="mb-2 font-semibold">権限管理 <span className="text-xs font-normal text-neutral-500">ENSv2 EAC で「誰がどの情報を更新できるか」を制御</span></h2>
-        <table className="w-full text-xs">
-          <thead className="text-left text-neutral-500"><tr><th className="py-1">ロール</th><th>名前</th><th>できること</th></tr></thead>
-          <tbody>{PERMISSIONS.map((p) => <tr key={p.role} className="border-t border-neutral-100 align-top"><td className="whitespace-nowrap py-1 pr-3 font-medium">{p.role}</td><td className="pr-3"><Mono className="text-neutral-900">{p.ens(a.ens_name ?? `${a.label}.choice.eth`, a.creator.display_name ?? short(a.creator.wallet_address))}</Mono></td><td>{p.can}</td></tr>)}</tbody>
-        </table>
-        <p className="mt-2 text-xs text-neutral-500">名前を持つことと権限を持つことは別。サービスが止まっても Agent の identity は ENS 上に残り、他のサービスから参照できます。</p>
-      </Card>
+      <EnsRolesTable roles={a.ens_roles} subregistry={a.ens_subregistry} />
 
       <Card>
         <h2 className="mb-3 font-semibold">Human-backed Review <span className="text-xs font-normal text-neutral-500">World で人間確認をした当事者だけが投稿できます</span></h2>

@@ -286,3 +286,16 @@ docs/specs/, docs/database/（database-design スキルで生成）
 - V8 は「承認者の署名が必要数そろった工程から自動で `paid` になり、全工程が支払われると案件が `completed` になる」に変更
 - V18. 1 人目の承認だけでは保留（`submitted` のまま）で、2 人目で自動支払いされる（`scripts/smoke_flow.py`）
 - V19. Sepolia 実機で openCase → fundTask → submit → approve → Paid までの tx が確認できる（`scripts/smoke_chain.py`）
+
+
+## 追補 3（2026-09-26）: ENSv2 EAC による役割分離（ENS プライズ整合）
+
+ETHGlobal Tokyo の ENS プライズ「Best Use of ENSv2」が挙げる階層型レジストリ・EAC・Permissioned Resolver・Agent を名前空間として扱う、の 4 点を実データで示すため、次を実装した。
+
+- **運用鍵を 3 つに分離**: Owner（プロフィールと subname 発行）、Reputation（評価 3 キーのみ）、Project Agent（project subname の発行と `codrea.project.*` のみ）。
+- **Agent を名前空間に**: 公開時に Agent 自身のサブレジストリ（UserRegistry）をデプロイし、Project 鍵にそのサブレジストリの `ROLE_REGISTRAR` だけを付与する。
+- **役割ごとの subname とリゾルバ**: `reputation.<agent>` は Reputation 鍵が所有し Reputation リゾルバを使う。`project-<n>.<agent>` は Project 鍵が登録し Project リゾルバを使う。共有リゾルバには Owner しか書けない。
+- **record キーを `codrea.` 名前空間に統一**（`codrea.agent.*` / `codrea.project.*` / `codrea.person.*`）。
+- **検証**: `scripts/ens_roles_check.py` で各鍵の許可・拒否を eth_call で確認。Agent 詳細の権限表はモックを廃し、オンチェーンの `hasRootRoles` を読んで表示する。
+
+制約: デプロイ済みの ENSv2 実装ではリソース単位の `grantRoles` が拒否されるため、キー単位の権限ではなく subname 単位で分離した。Creator 所有の Agent（自分の `.eth` の下）では、この分離は Creator 側の設定に委ねる（未実装）。

@@ -48,14 +48,6 @@ export function projectSubname(c: Case): string {
   return `project-${n}.${c.agent.label}.choice.eth`;  // API と同じ導出（openCase 後に実発行）
 }
 
-/** FR-028: ENSv2 EAC の権限（モック） */
-export const PERMISSIONS = [
-  { role: "Creator", ens: (agent: string, creator: string) => creator, can: "すべての操作（subname 発行・レコード更新・権限付与）" },
-  { role: "PM Agent", ens: (agent: string) => agent, can: "agent.endpoint / agent.status の更新" },
-  { role: "Reputation", ens: () => "reputation.choice.eth", can: "agent.rating / agent.reviews の更新のみ" },
-  { role: "Project Agent", ens: (agent: string) => `project-*.${agent}`, can: "project subname の作成のみ" },
-];
-
 /** FR-006: タスク別契約（モック）。API の task から契約条件を組み立てる */
 export function contractFor(task: Task) {
   const status = task.status === "done" ? "納品済み" : task.status === "in_progress" ? "履行中" : "締結済み";

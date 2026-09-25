@@ -12,10 +12,9 @@ from eth_utils import keccak  # noqa: E402
 from web3 import Web3  # noqa: E402
 
 from app.config import get_settings  # noqa: E402
-from app.services.ens import PROFILE_KEYS, RESOLVER_ABI, V2_REGISTRY_ABI, namehash, resolve_v2  # noqa: E402
+from app.services.ens import PERSON_KEYS, PROFILE_KEYS, PROJECT_KEYS, RESOLVER_ABI, V2_REGISTRY_ABI, namehash, resolve_v2  # noqa: E402
 
 PUBLIC_RPC = "https://ethereum-sepolia-rpc.publicnode.com"
-PERSON_KEYS = ["person.company", "person.name", "person.role", "person.skills", "person.location", "person.available"]
 
 
 def show(w3: Web3, name: str) -> None:
@@ -41,7 +40,7 @@ def show(w3: Web3, name: str) -> None:
     node = namehash(name)
     print(f"  namehash: 0x{node.hex()}")
     print(f"  addr: {r.functions.addr(node).call()}")
-    for k in PROFILE_KEYS + PERSON_KEYS:
+    for k in PROFILE_KEYS + PROJECT_KEYS + PERSON_KEYS:
         v = r.functions.text(node, k).call()
         if v:
             print(f"  text[{k}] = {v}")

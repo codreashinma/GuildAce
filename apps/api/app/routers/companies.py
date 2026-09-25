@@ -22,8 +22,8 @@ def _company(db: Session, company_id: str, user: User | None = None) -> Company:
 
 def member_texts(m: Member) -> dict[str, str]:
     return {
-        "person.company": m.company.ens_name, "person.name": m.name, "person.role": m.role, "person.skills": m.skills,
-        "person.location": m.location, "person.available": "true" if m.available else "false",
+        "codrea.person.company": m.company.ens_name, "codrea.person.name": m.name, "codrea.person.role": m.role, "codrea.person.skills": m.skills,
+        "codrea.person.location": m.location, "codrea.person.available": "true" if m.available else "false",
     }
 
 

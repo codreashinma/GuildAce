@@ -83,9 +83,7 @@ def _on_completed(db: Session, case: Case) -> None:
     db.commit()
     from .agents import ens_update_job
 
-    ens_update_job(db, agent, {"agent.completed": str(agent.completed_count)})
-    worker.enqueue(db, "ens_update", f"ens_project_status:{case.id}:completed",
-                   {"label": f"{project_label(case)}.{case.agent.label}", "texts": {"project.status": "completed"}}) if case.project_ens_name else None
+    ens_update_job(db, agent, {"codrea.agent.completed": str(agent.completed_count)})
 
 
 # ---------------------------------------------------------------- background jobs
@@ -304,8 +302,8 @@ def opened(case_id: str, body: CaseOpenedIn, bg: BackgroundTasks, user: User = D
     worker.enqueue(db, "ens_project", f"ens_project:{case.id}", {
         "case_db_id": case.id, "agent_label": case.agent.label, "project_label": project_label(case),
         "agent_mock": not case.agent.ens_tx_hash or case.agent.ens_tx_hash.startswith("0xmock") or case.agent.owner_mode == "creator",
-        "texts": {"description": case.title, "project.case": case.id, "project.escrow": s.escrow_address or "mock", "project.escrow_case_id": case.escrow_case_id,
-                  "project.client": user.wallet_address, "project.status": "in_progress", "url": f"{s.app_url}/cases/{case.id}"},
+        "texts": {"codrea.project.title": case.title, "codrea.project.case": case.id, "codrea.project.escrow": s.escrow_address or "mock", "codrea.project.escrow_case_id": case.escrow_case_id,
+                  "codrea.project.client": user.wallet_address, "codrea.project.status": "in_progress", "codrea.project.url": f"{s.app_url}/cases/{case.id}"},
     })
     bg.add_task(_execute_job, case.id)
     return _detail(db, _load(db, case.id))

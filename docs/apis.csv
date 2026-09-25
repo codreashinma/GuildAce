@@ -11,7 +11,7 @@ API-11,Agent,GET,/agents/mine,要,自分が作成した Agent 一覧,出力: Age
 API-12,Agent,POST,/agents,要,Agent 作成（下書き）。公開先が自分の .eth なら ENSv2 で所有者を確認,入力: name / label / description / category / rules / fee_bps / payout_address / parent_ens_name。出力: AgentOut,D1,"UC-010, FR-026",済,,
 API-13,Agent,POST,/agents/{id}/publish,要,公開。platform は worker が choice.eth の下に発行、creator は署名用 calldata を返す,出力: mode / txs[] / agent,"D1, D2","UC-010, FR-026",済,,
 API-14,Agent,POST,/agents/{id}/ens-written,要,Creator 所有の Agent: ブラウザで送った tx hash を報告し published にする,入力: tx_hash。出力: AgentOut,"D1, D2",FR-026,済,,
-API-15,Agent,GET,/agents/{id},不要,Agent 詳細。ENS の text record を Sepolia から直接読んで同梱,出力: AgentDetailOut（ens_records 付き）,"B2, G3","UC-011, NFR-004",済,,
+API-15,Agent,GET,/agents/{id},不要,Agent 詳細。ENS の text record（本体と reputation.<agent>）と EAC の役割（hasRootRoles の実値）を Sepolia から読んで同梱,出力: AgentDetailOut（ens_records / ens_roles 付き）,"B2, G3","UC-011, NFR-004",済,,
 API-16,Agent,GET,/agents/{id}/reviews,不要,Agent へのレビュー一覧,出力: ReviewOut[],B2,FR-025,済,,
 API-17,Agent,PATCH,/agents/{id},要,Agent の説明・ルール・利用料を更新し ENS レコードを再書き込み,入力: description / rules / fee_bps。出力: AgentOut,D4,UC-010,未,worker に ens_update を投入する,中
 API-18,Agent,GET,/agents/{id}/earnings,要,PM 工程の Paid tx を集計した受取履歴,出力: 案件ごとの金額と tx,D3,FR-024,未,FR-024 は Won't,低

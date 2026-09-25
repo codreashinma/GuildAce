@@ -50,6 +50,7 @@ class Agent(TimestampMixin, Base):
     ens_name: Mapped[str | None] = mapped_column(String(255), index=True)
     ens_tx_hash: Mapped[str | None] = mapped_column(String(66))
     parent_ens_name: Mapped[str | None] = mapped_column(String(255))  # None = プラットフォームの親名（choice.eth）
+    ens_subregistry: Mapped[str | None] = mapped_column(String(42))  # Agent 配下（project subname）のサブレジストリ
     owner_mode: Mapped[str] = mapped_column(String(10), default="platform")  # platform | creator（Creator 自身の .eth の下。Creator が署名）
     status: Mapped[str] = mapped_column(String(20), default="draft", index=True)
     rating_avg: Mapped[float] = mapped_column(Numeric(3, 1), default=0)

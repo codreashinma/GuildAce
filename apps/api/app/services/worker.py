@@ -106,7 +106,13 @@ def _resolve(p: dict) -> tuple[str, dict]:
 
 def _ens_publish(p: dict) -> tuple[str, dict]:
     name, tx = ens.publish_agent(label=p["label"], payout_address=p["payout_address"], texts=p["texts"])
-    return tx, {"ens_name": name}
+    sub = None
+    if get_settings().ens_write_enabled:
+        try:
+            sub = ens._subregistry(ens._w3()).functions.getSubregistry(p["label"]).call()
+        except Exception:  # noqa: BLE001
+            sub = None
+    return tx, {"ens_name": name, "ens_subregistry": sub}
 
 
 def _ens_update(p: dict) -> tuple[str, dict]:
@@ -147,6 +153,8 @@ def _apply(db: Session, job: ChainJob, tx: str, proj: dict) -> None:
         a = db.get(Agent, p["agent_id"])
         if a is not None:
             a.ens_name, a.ens_tx_hash, a.status, a.ens_error = proj["ens_name"], tx, "published", None
+            if proj.get("ens_subregistry"):
+                a.ens_subregistry = proj["ens_subregistry"]
             db.commit()
     elif job.kind == "ens_project":
         c = db.get(Case, p["case_db_id"])

@@ -20,18 +20,18 @@ def profile_texts(agent: Agent, avatar: str | None = None) -> dict[str, str]:
     t = {
         "description": agent.description,
         "url": f"{s.app_url}/agents/{agent.id}",
-        "agent.category": agent.category,
-        "agent.fee_bps": str(agent.fee_bps),
-        "agent.creator": agent.creator.wallet_address,
-        "agent.endpoint": f"{s.api_url}/agents/{agent.id}",
-        "agent.rating": f"{float(agent.rating_avg):.1f}",
-        "agent.reviews": str(agent.rating_count),
-        "agent.completed": str(agent.completed_count),
+        "codrea.agent.category": agent.category,
+        "codrea.agent.fee_bps": str(agent.fee_bps),
+        "codrea.agent.creator": agent.creator.wallet_address,
+        "codrea.agent.endpoint": f"{s.api_url}/agents/{agent.id}",
+        "codrea.agent.rating": f"{float(agent.rating_avg):.1f}",
+        "codrea.agent.reviews": str(agent.rating_count),
+        "codrea.agent.completed": str(agent.completed_count),
     }
     if avatar:
         t["avatar"] = avatar
     if agent.owner_mode == "creator":
-        t["agent.creator"] = agent.parent_ens_name or agent.creator.wallet_address
+        t["codrea.agent.creator"] = agent.parent_ens_name or agent.creator.wallet_address
     return t
 
 
@@ -134,7 +134,12 @@ def get_agent(agent_id: str, db: Session = Depends(get_db)):
     if agent is None:
         raise HTTPException(404)
     out = AgentDetailOut.model_validate(agent)
-    if agent.ens_name:
+    if agent.ens_name and agent.owner_mode == "platform" and agent.ens_tx_hash and not agent.ens_tx_hash.startswith("0xmock"):
+        out.ens_records = ens.read_texts(agent.ens_name)
+        rep = ens.read_texts(ens.reputation_name(agent.label), ens.REPUTATION_KEYS)
+        out.ens_records.update({f"{k} @reputation": v for k, v in rep.items()})
+        out.ens_roles = ens.agent_roles(agent.ens_name, agent.label)
+    elif agent.ens_name:
         out.ens_records = ens.read_texts(agent.ens_name)
     return out
 

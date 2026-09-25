@@ -44,10 +44,11 @@ export type User = { id: string; wallet_address: string; display_name: string | 
 export type Me = User & { human_verified_actions: string[] };
 export type Agent = {
   id: string; creator_id: string; name: string; label: string; description: string; category: string; rules: string;
-  fee_bps: number; payout_address: string; ens_name: string | null; ens_tx_hash: string | null; parent_ens_name: string | null; owner_mode: "platform" | "creator"; status: string;
+  fee_bps: number; payout_address: string; ens_name: string | null; ens_tx_hash: string | null; parent_ens_name: string | null; owner_mode: "platform" | "creator"; ens_subregistry: string | null; status: string;
   rating_avg: number; rating_count: number; completed_count: number; ens_error: string | null; created_at: string; creator: User;
 };
-export type AgentDetail = Agent & { ens_records: Record<string, string> };
+export type EnsRole = { role: string; account?: string | null; where?: string; can?: string; cannot?: string; subregistry?: string | null; verified?: boolean; checks?: Record<string, boolean | null>; error?: string };
+export type AgentDetail = Agent & { ens_records: Record<string, string>; ens_roles: EnsRole[] };
 export type MemberBrief = { id: string; name: string; ens_name: string; role: string; skills: string; location: string; wallet_address: string };
 export type Member = MemberBrief & { company_id: string; label: string; available: boolean; ens_status: string; ens_tx_hash: string | null; rating_avg: number; completed_count: number };
 export type Company = { id: string; name: string; ens_name: string; description: string; ens_verified: boolean; admin: User; members: Member[] };

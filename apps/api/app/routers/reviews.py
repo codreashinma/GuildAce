@@ -37,7 +37,7 @@ def create_review(body: ReviewCreateIn, user: User = Depends(current_user), db: 
         db.commit()
         from .agents import ens_update_job
 
-        ens_update_job(db, agent, {"agent.rating": f"{float(agent.rating_avg):.1f}", "agent.reviews": str(agent.rating_count)})
+        ens_update_job(db, agent, {"codrea.agent.rating": f"{float(agent.rating_avg):.1f}", "codrea.agent.reviews": str(agent.rating_count)})
     db.refresh(review)
     return review
 

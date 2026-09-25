@@ -2,7 +2,10 @@
 
 import { Fragment, useState } from "react";
 import { short, usdc, type Case, type Task } from "@/lib/api";
-import { candidatesFor, contractFor, memberEnsFor, PERMISSIONS, projectSubname, reviewDeadline, type Candidate } from "@/lib/mock";
+import { useQuery } from "@tanstack/react-query";
+import { api, type AgentDetail } from "@/lib/api";
+import { candidatesFor, contractFor, memberEnsFor, projectSubname, reviewDeadline, type Candidate } from "@/lib/mock";
+import { EnsRolesTable } from "./ens-roles";
 import { Amount, Badge, Card, KindTag, Mono } from "./ui";
 
 
@@ -122,8 +125,9 @@ export function ProgressPanel({ c }: { c: Case }) {
 /** FR-027 / FR-028: プロジェクト subname と ENSv2 の権限 */
 export function EnsPanel({ c }: { c: Case }) {
   const agentName = c.agent.ens_name ?? `${c.agent.label}.choice.eth`;
-  const creator = c.agent.creator.display_name ? `${c.agent.creator.display_name}（${short(c.agent.creator.wallet_address)}）` : short(c.agent.creator.wallet_address);
+  const { data: agent } = useQuery({ queryKey: ["agent", c.agent.id], queryFn: () => api<AgentDetail>(`/agents/${c.agent.id}`), staleTime: 60_000 });
   return (
+    <>
     <Card>
       <h2 className="font-semibold">ENS <span className="text-xs font-normal text-neutral-500">プロジェクトの名前と権限（ENSv2 EAC）</span></h2>
       <div className="mt-2 overflow-x-auto whitespace-nowrap rounded-md bg-neutral-100 p-3 font-mono text-xs leading-6">
@@ -131,11 +135,9 @@ export function EnsPanel({ c }: { c: Case }) {
         <div>└─ <span className="text-neutral-900">{agentName}</span> <span className="text-neutral-400">(PM Agent)</span></div>
         <div>&nbsp;&nbsp;&nbsp;&nbsp;└─ <span className="text-neutral-900">{c.project_ens_name ?? projectSubname(c)}</span> <span className="text-neutral-400">(この案件{c.project_ens_name ? "・発行済" : "・openCase 後に発行"})</span></div>
       </div>
-      <table className="mt-3 w-full text-xs">
-        <thead className="text-left text-neutral-500"><tr><th className="py-1">ロール</th><th>名前</th><th>できること</th></tr></thead>
-        <tbody>{PERMISSIONS.map((p) => <tr key={p.role} className="border-t border-neutral-100 align-top"><td className="whitespace-nowrap py-1 pr-3 font-medium">{p.role}</td><td className="pr-3"><Mono className="text-neutral-900">{p.ens(agentName, creator)}</Mono></td><td>{p.can}</td></tr>)}</tbody>
-      </table>
     </Card>
+    <EnsRolesTable roles={agent?.ens_roles ?? []} subregistry={agent?.ens_subregistry} />
+    </>
   );
 }
 

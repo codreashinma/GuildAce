@@ -54,6 +54,8 @@ UNIVERSAL_RESOLVER_ABI = [
 REPUTATION_KEYS = ["codrea.agent.rating", "codrea.agent.reviews", "codrea.agent.completed"]
 PROJECT_KEYS = ["codrea.project.title", "codrea.project.case", "codrea.project.escrow", "codrea.project.escrow_case_id", "codrea.project.client", "codrea.project.status", "codrea.project.url"]
 PROFILE_KEYS = ["description", "avatar", "url", "codrea.agent.category", "codrea.agent.fee_bps", "codrea.agent.creator", "codrea.agent.endpoint", *REPUTATION_KEYS]
+SUBAGENT_ROLES = ["designer", "frontend", "backend", "qa"]  # PM Agent 配下の専門 AI エージェント（Agent 名前空間の subname）
+SUBAGENT_KEYS = ["description", "codrea.agent.role", "codrea.agent.parent", "codrea.agent.kind"]
 PERSON_KEYS = ["codrea.person.company", "codrea.person.name", "codrea.person.role", "codrea.person.skills", "codrea.person.location", "codrea.person.available"]
 
 # EAC（EnhancedAccessControl）: PermissionedResolver / PermissionedRegistry 共通
@@ -208,6 +210,16 @@ def publish_agent(*, label: str, payout_address: str, texts: dict[str, str]) -> 
     project = _account("project").address
     if project.lower() != acct.address.lower() and not sub_eac.functions.hasRootRoles(REGISTRY_ROLE_REGISTRAR, project).call():
         _send(w3, sub_eac.functions.grantRootRoles(REGISTRY_ROLE_REGISTRAR, project))
+    # 専門 AI エージェントを Agent 名前空間の subname として発行（designer.<agent> など）。候補検索は ENS を参照する（FR-004）
+    calls: list[bytes] = []
+    for role in SUBAGENT_ROLES:
+        if int(sub_reg.functions.getResolver(role).call(), 16) == 0:
+            _send(w3, sub_reg.functions.register(role, acct.address, "0x" + "00" * 20, Web3.to_checksum_address(s.ens_owned_resolver), V2_DEFAULT_OWNER_ROLE_BITMAP, expiry))
+            calls += _records_calldata(w3, namehash(f"{role}.{name}"), {
+                "description": f"{texts.get('description', '')[:60]} の {role} 担当 AI エージェント", "codrea.agent.role": role, "codrea.agent.parent": name, "codrea.agent.kind": "ai",
+            }, None)
+    if calls:
+        _send(w3, _resolver(w3).functions.multicall(calls))
     # Reputation は別 subname + 別リゾルバ（Reputation 鍵が admin）。所有者もリゾルバも Owner から分離される
     rep = _account("reputation").address
     if rep.lower() != acct.address.lower() and s.ens_reputation_resolver:
@@ -278,11 +290,18 @@ def update_texts(label: str, texts: dict[str, str]) -> str | None:
     return _send(w3, _resolver(w3).functions.multicall(_records_calldata(w3, node, texts, None)))
 
 
-def read_texts(name: str, keys: list[str] | None = None) -> dict[str, str]:
-    """UniversalResolver で resolver を見つけ、text record を読む。失敗時は空 dict。"""
+_read_cache: dict[tuple[str, tuple[str, ...]], tuple[float, dict[str, str]]] = {}
+
+
+def read_texts(name: str, keys: list[str] | None = None, ttl: float = 60.0) -> dict[str, str]:
+    """レジストリをたどって resolver を見つけ、text record を読む（60 秒キャッシュ）。失敗時は空 dict。"""
     s = get_settings()
     if not s.sepolia_rpc_url:
         return {}
+    ck = (name, tuple(keys or PROFILE_KEYS))
+    hit = _read_cache.get(ck)
+    if hit and time.time() - hit[0] < ttl:
+        return dict(hit[1])
     try:
         w3 = _w3()
         resolver_addr, _, _ = resolve_v2(w3, name)
@@ -295,6 +314,7 @@ def read_texts(name: str, keys: list[str] | None = None) -> dict[str, str]:
             v = r.functions.text(node, k).call()
             if v:
                 out[k] = v
+        _read_cache[ck] = (time.time(), dict(out))
         return out
     except Exception:
         return {}

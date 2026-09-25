@@ -1,57 +1,66 @@
 "use client";
 
 import { Fragment, useState } from "react";
-import { short, usdc, type Case, type Task } from "@/lib/api";
+import { usdc, type Case, type Task } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
-import { api, type AgentDetail } from "@/lib/api";
-import { candidatesFor, contractFor, memberEnsFor, projectSubname, reviewDeadline, type Candidate } from "@/lib/mock";
+import { api, type AgentDetail, type TeamCandidate, type TeamTask } from "@/lib/api";
+import { contractFor, projectSubname, reviewDeadline } from "@/lib/mock";
 import { EnsRolesTable } from "./ens-roles";
 import { Amount, Badge, Card, KindTag, Mono } from "./ui";
 
 
 
-/** UC-002 / FR-004 / FR-005: ENS から候補を検索してチームを編成（UI モック） */
+/** UC-002 / FR-004 / FR-005: チーム編成。AI は Agent 名前空間の subname、人間は ENS に登録された会社の人員（API /cases/{id}/team の実データ） */
 export function TeamPanel({ c }: { c: Case }) {
-  const [openRole, setOpenRole] = useState<string | null>(null);
+  const { data: team } = useQuery({ queryKey: ["team", c.id], queryFn: () => api<TeamTask[]>(`/cases/${c.id}/team`), refetchInterval: 8000 });
+  const [openId, setOpenId] = useState<string | null>(null);
   return (
     <Card>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-semibold">チーム編成 <span className="text-xs font-normal text-neutral-500">PM Agent が ENS から候補を検索して編成</span></h2>
+        <h2 className="font-semibold">チーム編成 <span className="text-xs font-normal text-neutral-500">PM Agent が ENS の名前空間と人員レコードから編成</span></h2>
         <Mono className="text-neutral-900">{c.project_ens_name ?? projectSubname(c)}</Mono>
       </div>
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        {c.tasks.map((t) => {
-          const ht = t.human_task;
-          const ens = ht?.assignee ? ht.assignee.ens_name : ht && ht.status !== "assigned" && ht.worker ? `worker ${short(ht.worker.wallet_address)}` : memberEnsFor(t, c.agent.label);
-          const name = ht?.assignee ? `${ht.assignee.name}（${ht.assignee.role}）` : t.assignee_name;
+        {(team ?? []).map((t) => {
+          const recs = Object.entries(t.assignee_records);
           return (
-            <div key={t.id} className="rounded-md border border-neutral-200 p-3 text-sm">
+            <div key={t.task_id} className="rounded-md border border-neutral-200 p-3 text-sm">
               <div className="flex items-center justify-between gap-2">
-                <div className="flex min-w-0 items-center gap-2"><KindTag kind={t.type} /><b className="truncate">{name}</b>{ht && <Badge status={ht.status} />}</div>
-                <Amount value={usdc(t.estimated_cost)} className="font-semibold" />
+                <div className="flex min-w-0 items-center gap-2"><KindTag kind={t.kind} /><b className="truncate">{t.assignee_name ?? "未定"}</b></div>
+                <Amount value={usdc(t.amount)} className="font-semibold" />
               </div>
-              <div className="mt-1"><Mono className="text-neutral-900">{ens}</Mono></div>
+              <div className="mt-1">{t.assignee_ens ? <Mono className="text-neutral-900">{t.assignee_ens}</Mono> : <span className="text-xs text-neutral-500">指名待ち / 公開募集</span>}</div>
               <div className="mt-1 text-xs text-neutral-500">担当: {t.title}</div>
-              {ht?.assignment_reason && <div className="mt-1 rounded bg-neutral-100 px-2 py-1 text-xs text-neutral-900">PM Agent の指名理由: {ht.assignment_reason}</div>}
-              <button className="mt-2 text-xs text-neutral-600 underline" onClick={() => setOpenRole(openRole === t.id ? null : t.id)}>{openRole === t.id ? "候補を閉じる" : "ENS で探した候補を見る"}</button>
-              {openRole === t.id && <CandidateList items={candidatesFor(t.role)} chosen={ens} />}
+              {recs.length > 0 && (
+                <dl className="mt-1 space-y-0.5 text-[11px] text-neutral-600">{recs.map(([k, v]) => <div key={k} className="grid grid-cols-[9rem_1fr] gap-1"><dt className="truncate font-mono text-neutral-400" title={k}>{k}</dt><dd className="truncate" title={v}>{v}</dd></div>)}</dl>
+              )}
+              {t.assignment_reason && <div className="mt-1 rounded bg-neutral-100 px-2 py-1 text-xs text-neutral-900">PM Agent の指名理由: {t.assignment_reason}</div>}
+              {t.kind === "human" && t.candidates.length > 0 && (
+                <>
+                  <button className="mt-2 text-xs text-neutral-600 underline" onClick={() => setOpenId(openId === t.task_id ? null : t.task_id)}>{openId === t.task_id ? "候補を閉じる" : `ENS 上の人員 ${t.candidates.length} 名を見る`}</button>
+                  {openId === t.task_id && <CandidateList items={t.candidates} />}
+                </>
+              )}
             </div>
           );
         })}
+        {team && team.length === 0 && <p className="text-sm text-neutral-500">タスクがまだありません</p>}
       </div>
     </Card>
   );
 }
 
-function CandidateList({ items, chosen }: { items: Candidate[]; chosen: string }) {
+function CandidateList({ items }: { items: TeamCandidate[] }) {
   return (
     <ul className="mt-2 space-y-1 rounded-md border border-neutral-200 p-2">
       {items.map((x) => (
-        <li key={x.ens} className={`flex flex-wrap items-center gap-2 rounded-md px-2 py-1 text-xs ${x.ens === chosen ? "bg-neutral-100" : ""}`}>
-          <Mono className="text-neutral-900">{x.ens}</Mono><KindTag kind={x.kind} />
-          <span className="whitespace-nowrap tabular-nums">★{x.rating.toFixed(1)} ({x.reviews} Human)</span>
-          <span className="whitespace-nowrap text-neutral-500">実績 {x.completed}</span><span className="ml-auto whitespace-nowrap tabular-nums">{x.price} USDC〜</span>
-          {x.ens === chosen && <span className="whitespace-nowrap rounded-sm bg-neutral-900 px-1.5 text-[10px] text-white">選定</span>}
+        <li key={x.ens_name} className={`flex flex-wrap items-center gap-2 rounded-sm px-2 py-1 text-xs ${x.chosen ? "bg-neutral-900 text-white" : x.declined || !x.available ? "text-neutral-400" : ""}`}>
+          <span className="font-mono">{x.ens_name}</span><span className="whitespace-nowrap">{x.name} / {x.role}</span>
+          <span className={x.chosen ? "text-neutral-300" : "text-neutral-500"}>{x.skills}</span><span className="whitespace-nowrap">{x.location}</span>
+          {x.company && <span className={`whitespace-nowrap ${x.chosen ? "text-neutral-300" : "text-neutral-500"}`}>{x.company}</span>}
+          {x.chosen && <span className="ml-auto whitespace-nowrap rounded-sm border border-white px-1.5 text-[10px]">指名</span>}
+          {x.declined && <span className="ml-auto whitespace-nowrap">辞退</span>}
+          {!x.available && !x.declined && <span className="ml-auto whitespace-nowrap">稼働不可</span>}
         </li>
       ))}
     </ul>
@@ -61,6 +70,8 @@ function CandidateList({ items, chosen }: { items: Candidate[]; chosen: string }
 /** UC-003 / FR-006 / FR-007 / CON-006: タスク別契約と工程ごとの預託 */
 export function ContractsPanel({ c }: { c: Case }) {
   const [open, setOpen] = useState<string | null>(null);
+  const { data: team } = useQuery({ queryKey: ["team", c.id], queryFn: () => api<TeamTask[]>(`/cases/${c.id}/team`), refetchInterval: 8000 });
+  const ensOf = (taskId: string) => team?.find((t) => t.task_id === taskId)?.assignee_ens ?? "未定";
   const total = c.tasks.reduce((s, t) => s + Number(t.estimated_cost), 0);
   return (
     <Card>
@@ -75,7 +86,7 @@ export function ContractsPanel({ c }: { c: Case }) {
                 <Fragment key={t.id}>
                   <tr className="cursor-pointer border-t border-neutral-100 align-top hover:bg-neutral-50 [&>td]:pr-3 [&>td]:py-2" onClick={() => setOpen(open === t.id ? null : t.id)}>
                     <td className="whitespace-nowrap py-2 font-mono text-xs">{ct.id}</td><td className="min-w-40">{t.title}</td>
-                    <td><Mono className="text-neutral-900">{memberEnsFor(t, c.agent.label)}</Mono></td>
+                    <td><Mono className="text-neutral-900">{ensOf(t.id)}</Mono></td>
                     <td className="whitespace-nowrap text-right tabular-nums">{usdc(t.estimated_cost)}</td>
                     <td>{t.chain_status === "none" ? <span className="text-neutral-400">未</span> : <span className="whitespace-nowrap text-neutral-900">{t.chain_status === "paid" ? "支払済" : t.chain_status === "resolved" ? "裁定済" : "預託中"}</span>}</td>
                     <td><Badge status={`chain:${t.chain_status}`} /></td>
@@ -131,7 +142,7 @@ export function EnsPanel({ c }: { c: Case }) {
     <Card>
       <h2 className="font-semibold">ENS <span className="text-xs font-normal text-neutral-500">プロジェクトの名前と権限（ENSv2 EAC）</span></h2>
       <div className="mt-2 overflow-x-auto whitespace-nowrap rounded-md bg-neutral-100 p-3 font-mono text-xs leading-6">
-        <div>{c.agent.creator.display_name ?? short(c.agent.creator.wallet_address)} <span className="text-neutral-400">(Creator)</span></div>
+        <div>{c.agent.creator.display_name ?? `${c.agent.creator.wallet_address.slice(0, 6)}…${c.agent.creator.wallet_address.slice(-4)}`} <span className="text-neutral-400">(Creator)</span></div>
         <div>└─ <span className="text-neutral-900">{agentName}</span> <span className="text-neutral-400">(PM Agent)</span></div>
         <div>&nbsp;&nbsp;&nbsp;&nbsp;└─ <span className="text-neutral-900">{c.project_ens_name ?? projectSubname(c)}</span> <span className="text-neutral-400">(この案件{c.project_ens_name ? "・発行済" : "・openCase 後に発行"})</span></div>
       </div>

@@ -125,6 +125,13 @@ def main() -> None:
     ht_task = next(t for t in case["tasks"] if t["type"] == "human")
     assert ht_task["payee"] == worker.address.lower()  # Human Task の支払先は worker
     print("V7 human task done; all tasks submitted with deliverable hashes; case delivered")
+    team = client.get(f"/cases/{case['id']}/team")
+    assert len(team) == len(case["tasks"])
+    ai = [t for t in team if t["kind"] == "ai" and t["role"] != "pm"]
+    assert all(t["assignee_ens"].endswith(f".{agent['ens_name']}") for t in ai), [t["assignee_ens"] for t in ai]
+    hum = next(t for t in team if t["kind"] == "human")
+    assert hum["candidates"] and any(x["declined"] for x in hum["candidates"]) and hum["assignee_ens"].startswith("worker:")
+    print("V20 team endpoint: subagent names + real candidates (declined marked)")
 
     # --- C1/A2: 承認者の承認待ち一覧と通知
     pend = fin.get("/cases/pending-approvals")

@@ -299,3 +299,9 @@ ETHGlobal Tokyo の ENS プライズ「Best Use of ENSv2」が挙げる階層型
 - **検証**: `scripts/ens_roles_check.py` で各鍵の許可・拒否を eth_call で確認。Agent 詳細の権限表はモックを廃し、オンチェーンの `hasRootRoles` を読んで表示する。
 
 制約: デプロイ済みの ENSv2 実装ではリソース単位の `grantRoles` が拒否されるため、キー単位の権限ではなく subname 単位で分離した。Creator 所有の Agent（自分の `.eth` の下）では、この分離は Creator 側の設定に委ねる（未実装）。
+
+### 追補 3-2: モックの除去（プライズ整合 3）
+
+- 専門 AI エージェント（designer / frontend / backend / qa）を Agent 公開時に `<role>.<agent>.choice.eth` として発行し、`codrea.agent.role` / `codrea.agent.parent` / `codrea.agent.kind` を record に書く。PM Agent の「候補検索」は ENS の名前空間を参照する。
+- 案件詳細のチーム編成と契約表は `GET /cases/{id}/team` の実データ（AI は subagent の subname と record、人間は `members` の ENS 名と指名・辞退・稼働可否）に置き換え、`src/lib/mock.ts` の候補・権限・通知のモックを削除した。
+- 残るモックは、契約条件の文言（`contractFor`）、openCase 前の project subname の予測表示、検収期限の仮計算（7 日）の 3 つ。いずれも表示上の補助でオンチェーンの値ではない。

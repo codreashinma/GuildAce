@@ -7,7 +7,7 @@ B1,発注者,PM Agent Marketplace,/,発注者,UC-011,カテゴリ・評価・実
 B2,発注者,Agent 詳細,/agents/[id],発注者,UC-011,プロフィール・ENS レコード（Sepolia 直読み）・権限表・レビュー一覧・依頼ボタン,済,権限表はオンチェーンの EAC 役割（hasRootRoles）の実値,
 B3,発注者,依頼作成,/cases/new,発注者,"UC-001, FR-002",自然言語 1 文 → 承認者と必要数の設定 → World 本人確認して依頼開始,済,,
 B4,発注者,案件一覧,/cases,発注者・承認者,-,自分の案件と承認者として関わる案件。先頭に「あなたの承認待ち」,済,,
-B5,発注者,案件詳細（計画承認）,/cases/[id],発注者,"UC-002, UC-003",計画とチーム編成・ENS からの候補・契約と工程別の預託・openCase と USDC approve,済,候補一覧はモック（AI サブエージェントは ENS 上に無い）,中
+B5,発注者,案件詳細（計画承認）,/cases/[id],発注者,"UC-002, UC-003",計画とチーム編成・ENS 名前空間の subagent と ENS 上の人員候補（実データ）・契約と工程別の預託・openCase と USDC approve,済,候補は API /cases/{id}/team の実データ,
 B6,発注者,案件詳細（進行・検収）,/cases/[id],発注者・承認者,"UC-004, UC-005",進捗・タスクボード・成果物ビューア・工程ごとの承認署名・承認数・差し戻し,済,,
 B7,発注者,案件詳細（完了・レビュー）,/cases/[id],発注者,UC-007,支払い済み工程と tx・Agent へのレビュー投稿,済,,
 C1,承認者,承認待ち一覧,/cases（先頭セクション）,承認者（開発部・経理部）,UC-005,自分の署名待ち工程を横断表示。その場で World 確認 + EIP-712 署名,済,API `GET /cases/pending-approvals`,
@@ -25,4 +25,4 @@ F1,Jury,紛争一覧,/jury,Human Jury,UC-008,審理中 / 終了・保留額・�
 F2,Jury,紛争詳細と投票,/jury/[id],Human Jury,UC-008,差し戻し理由・AI の論点整理・成果物・当事者除外・World 確認つき投票・結果と resolve tx,済,,
 G1,運用,チェーン連携ジョブ,/ops/jobs,運用者,ADR-006,chain_jobs の状態・失敗の再送・tx リンク,未,テーブルと再送は実装済み。画面のみ無い,低
 G2,運用,監査ビュー,/cases/[id]/audit,運用者・第三者,NFR-010,案件ごとの openCase / fund / submit / approve / pay の tx 一覧と承認者の ENS 名表示（逆引き）,未,tx hash は tasks に保持済み。逆引きは未実装,低
-G3,運用,ENS 確認,/agents/[id] ほか,全員,"FR-026, FR-027",Agent・案件・人員の名前と record をオンチェーンから読んで表示,部分,Agent 詳細のみ。案件（project subname）と人員は未表示,中
+G3,運用,ENS 確認,/agents/[id] ほか,全員,"FR-026, FR-027",Agent の名前空間（subagent の subname と record）・reputation subname・役割表を Agent 詳細で表示,部分,案件（project subname）と人員の record 表示は未,低

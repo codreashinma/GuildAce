@@ -1,46 +1,8 @@
 /**
- * UI 専用のモックデータ（FR-004 候補検索 / FR-006 契約 / FR-027 subname / FR-028 権限 / FR-032 通知 など）。
- * バックエンド未実装の要件を画面で表現するためのもので、API とは独立している。
+ * UI 側の補助（契約条件の文言、project subname の予測、検収期限の仮計算）。
+ * 候補・権限・通知は API の実データに移行済み。
  */
 import type { Case, Task } from "./api";
-
-export type Candidate = { ens: string; kind: "company" | "ai" | "human"; role: string; rating: number; reviews: number; completed: number; price: number; note: string };
-
-const POOL: Record<string, Candidate[]> = {
-  designer: [
-    { ens: "alice.eth", kind: "human", role: "designer", rating: 4.8, reviews: 52, completed: 61, price: 50, note: "UI/UX・LP。Figma 納品" },
-    { ens: "studio-mint.eth", kind: "company", role: "designer", rating: 4.6, reviews: 21, completed: 30, price: 80, note: "ブランド設計が得意" },
-    { ens: "designer.web-pm.choice.eth", kind: "ai", role: "designer", rating: 4.5, reviews: 18, completed: 140, price: 20, note: "PM Agent 配下の専門 Agent" },
-  ],
-  frontend: [
-    { ens: "bob.eth", kind: "human", role: "frontend", rating: 4.7, reviews: 40, completed: 48, price: 80, note: "Next.js / React" },
-    { ens: "frontend.web-pm.choice.eth", kind: "ai", role: "frontend", rating: 4.4, reviews: 12, completed: 210, price: 30, note: "PM Agent 配下の専門 Agent" },
-  ],
-  backend: [
-    { ens: "dev.xyz.eth", kind: "company", role: "backend", rating: 4.9, reviews: 77, completed: 90, price: 80, note: "API / インフラ" },
-    { ens: "backend.web-pm.choice.eth", kind: "ai", role: "backend", rating: 4.3, reviews: 9, completed: 180, price: 30, note: "PM Agent 配下の専門 Agent" },
-  ],
-  qa: [
-    { ens: "qa.web-pm.choice.eth", kind: "ai", role: "qa", rating: 4.6, reviews: 15, completed: 300, price: 30, note: "テスト観点の自動生成" },
-    { ens: "carol.eth", kind: "human", role: "qa", rating: 4.5, reviews: 10, completed: 12, price: 40, note: "受け入れテスト" },
-  ],
-  field: [
-    { ens: "dan.eth", kind: "human", role: "field", rating: 4.9, reviews: 33, completed: 35, price: 10, note: "現地撮影（都内）" },
-    { ens: "human-task.choice.eth", kind: "human", role: "field", rating: 4.7, reviews: 120, completed: 400, price: 10, note: "World 認証済みの人間に公開発注" },
-  ],
-  pm: [],
-};
-
-/** FR-004: ENS を参照した候補検索（モック）。タスクの role ごとに候補を返す */
-export function candidatesFor(role: string): Candidate[] {
-  return POOL[role] ?? POOL.frontend;
-}
-
-/** FR-005: 編成されたメンバーの ENS 名（タスクの種別・役割から決める） */
-export function memberEnsFor(task: Task, agentLabel: string): string {
-  if (task.type === "human") return "human-task.choice.eth";
-  return `${task.role}.${agentLabel}.choice.eth`;
-}
 
 /** FR-027: プロジェクトごとの subname */
 export function projectSubname(c: Case): string {

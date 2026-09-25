@@ -138,6 +138,7 @@ def get_agent(agent_id: str, db: Session = Depends(get_db)):
         out.ens_records = ens.read_texts(agent.ens_name)
         out.ens_reputation_name = ens.reputation_name(agent.label)
         out.ens_reputation_records = ens.read_texts(out.ens_reputation_name, ens.REPUTATION_KEYS)
+        out.ens_subagents = {f"{r}.{agent.ens_name}": ens.read_texts(f"{r}.{agent.ens_name}", ens.SUBAGENT_KEYS) for r in ens.SUBAGENT_ROLES}
         out.ens_roles = ens.agent_roles(agent.ens_name, agent.label)
     elif agent.ens_name:
         out.ens_records = ens.read_texts(agent.ens_name)

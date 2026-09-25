@@ -12,8 +12,8 @@ from ..auth import current_user
 from ..config import get_settings
 from ..db import SessionLocal, get_db
 from ..models import Agent, Approval, Case, Dispute, HumanTask, Task, User
-from ..schemas import ApproveIn, CaseCreateIn, CaseDetailOut, CaseOpenedIn, CaseOut, NoticeOut, PendingApprovalOut, TaskOut
-from ..services import assign, chain, gemini, worker
+from ..schemas import ApproveIn, CaseCreateIn, CaseDetailOut, CaseOpenedIn, CaseOut, NoticeOut, PendingApprovalOut, TaskOut, TeamCandidateOut, TeamTaskOut
+from ..services import assign, chain, ens, gemini, worker
 from ..services.gemini import USDC
 from .world import verify_and_record
 
@@ -264,6 +264,36 @@ def create_case(body: CaseCreateIn, bg: BackgroundTasks, user: User = Depends(cu
 @router.get("/{case_id}", response_model=CaseDetailOut)
 def get_case(case_id: str, db: Session = Depends(get_db)):
     return _detail(db, _load(db, case_id))
+
+
+@router.get("/{case_id}/team", response_model=list[TeamTaskOut])
+def team(case_id: str, db: Session = Depends(get_db)):
+    """UC-002 / FR-004: タスクごとの担当（ENS 名と record）と候補。AI は Agent 名前空間の subname、人間は ENS に登録された会社の人員。"""
+    from ..models import Member
+
+    case = _load(db, case_id)
+    agent_name = case.agent.ens_name or ens.agent_ens_name(case.agent.label)
+    real = bool(case.agent.ens_tx_hash and not case.agent.ens_tx_hash.startswith("0xmock") and case.agent.owner_mode == "platform")
+    members = db.query(Member).all()
+    out = []
+    for t in case.tasks:
+        if t.type == "ai":
+            name = f"{t.role}.{agent_name}" if t.role in ens.SUBAGENT_ROLES else agent_name
+            recs = ens.read_texts(name, ens.SUBAGENT_KEYS if t.role in ens.SUBAGENT_ROLES else ["description", "codrea.agent.category"]) if real else {}
+            out.append(TeamTaskOut(task_id=t.id, title=t.title, kind="ai", role=t.role, amount=int(t.estimated_cost), assignee_ens=name, assignee_name=t.assignee_name, assignee_records=recs))
+            continue
+        ht = t.human_task
+        declined = set((ht.declined_member_ids or []) if ht else [])
+        cands = []
+        for m in members:
+            cands.append(TeamCandidateOut(ens_name=m.ens_name, kind="human", name=m.name, role=m.role, skills=m.skills, location=m.location, available=m.available,
+                                          company=m.company.name, chosen=bool(ht and ht.assignee_member_id == m.id), declined=m.id in declined,
+                                          records=ens.read_texts(m.ens_name, ens.PERSON_KEYS) if (real and m.ens_status == "written") else {}))
+        a_ens = ht.assignee.ens_name if ht and ht.assignee else (f"worker:{ht.worker.wallet_address[:10]}" if ht and ht.worker else None)
+        a_name = (f"{ht.assignee.name}（{ht.assignee.role}）" if ht and ht.assignee else (t.assignee_name if not (ht and ht.worker) else "公開募集の受注者"))
+        out.append(TeamTaskOut(task_id=t.id, title=t.title, kind="human", role=t.role, amount=int(t.estimated_cost), assignee_ens=a_ens, assignee_name=a_name,
+                               assignment_reason=ht.assignment_reason if ht else None, candidates=cands))
+    return out
 
 
 @router.post("/{case_id}/replan", response_model=CaseOut)

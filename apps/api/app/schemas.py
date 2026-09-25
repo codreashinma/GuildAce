@@ -65,6 +65,7 @@ class AgentDetailOut(AgentOut):
     ens_records: dict[str, str] = {}
     ens_reputation_name: str | None = None  # reputation.<agent>（評価 record の置き場）
     ens_reputation_records: dict[str, str] = {}
+    ens_subagents: dict[str, dict[str, str]] = {}  # designer.<agent> などの record
     ens_roles: list[dict[str, Any]] = []  # EAC の役割（オンチェーンから読んだ実データ）
 
 
@@ -308,6 +309,33 @@ class NoticeOut(BaseModel):
     body: str
     href: str
     urgent: bool = False
+
+
+class TeamCandidateOut(BaseModel):
+    ens_name: str
+    kind: str  # ai | human
+    name: str
+    role: str
+    skills: str = ""
+    location: str = ""
+    available: bool = True
+    company: str | None = None
+    chosen: bool = False
+    declined: bool = False
+    records: dict[str, str] = {}
+
+
+class TeamTaskOut(BaseModel):
+    task_id: str
+    title: str
+    kind: str
+    role: str
+    amount: int
+    assignee_ens: str | None
+    assignee_name: str | None
+    assignee_records: dict[str, str] = {}
+    assignment_reason: str | None = None
+    candidates: list[TeamCandidateOut] = []
 
 
 class ConfigOut(BaseModel):

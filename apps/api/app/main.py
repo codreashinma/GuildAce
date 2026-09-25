@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_settings
 from .db import Base, engine
-from .routers import agents, auth, cases, config, disputes, human_tasks, reviews, world
+from .routers import agents, auth, cases, companies, config, disputes, human_tasks, reviews, world
 
 logging.basicConfig(level=logging.INFO)
 
@@ -25,7 +25,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-for r in (auth, config, world, agents, cases, human_tasks, reviews, disputes):
+for r in (auth, config, world, agents, cases, companies, human_tasks, reviews, disputes):
     app.include_router(r.router)
 
 

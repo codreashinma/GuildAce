@@ -21,7 +21,7 @@ const STATUS_COLOR: Record<string, string> = {
   published: "bg-emerald-100 text-emerald-800", publishing: "bg-amber-100 text-amber-800", publish_failed: "bg-rose-100 text-rose-800", draft: "bg-slate-100 text-slate-700",
   planning: "bg-amber-100 text-amber-800", awaiting_approval: "bg-blue-100 text-blue-800", in_progress: "bg-indigo-100 text-indigo-800", delivered: "bg-violet-100 text-violet-800",
   completed: "bg-emerald-100 text-emerald-800", disputed: "bg-rose-100 text-rose-800", resolved: "bg-teal-100 text-teal-800", planning_failed: "bg-rose-100 text-rose-800",
-  open: "bg-blue-100 text-blue-800", accepted: "bg-amber-100 text-amber-800", submitted: "bg-violet-100 text-violet-800", done: "bg-emerald-100 text-emerald-800", todo: "bg-slate-100 text-slate-700",
+  assigned: "bg-amber-100 text-amber-900", open: "bg-blue-100 text-blue-800", accepted: "bg-amber-100 text-amber-800", submitted: "bg-violet-100 text-violet-800", done: "bg-emerald-100 text-emerald-800", todo: "bg-slate-100 text-slate-700",
 };
 
 export function Badge({ status, children, className = "" }: { status?: string; children?: React.ReactNode; className?: string }) {

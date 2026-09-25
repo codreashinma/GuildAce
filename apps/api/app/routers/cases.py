@@ -8,7 +8,7 @@ from ..auth import current_user
 from ..db import SessionLocal, get_db
 from ..models import Agent, Case, Dispute, HumanTask, Task, User
 from ..schemas import CaseCreateIn, CaseDetailOut, CaseOut, TxIn
-from ..services import chain, gemini, payouts
+from ..services import assign, chain, gemini, payouts
 from ..services.gemini import USDC
 from .agents import profile_texts
 from ..services import ens
@@ -71,11 +71,13 @@ def _execute_job(case_id: str) -> None:
     try:
         case = _load(db, case_id)
         for t in case.tasks:
-            if t.type == "human":
-                if t.human_task is None:
-                    db.add(HumanTask(task_id=t.id, case_id=case.id, title=t.title, description=t.description, reward=int(t.estimated_cost), status="open"))
-                    t.status = "in_progress"
-                    db.commit()
+            if t.type == "human" and t.human_task is None:
+                ht = HumanTask(task_id=t.id, case_id=case.id, title=t.title, description=t.description, reward=int(t.estimated_cost), status="open")
+                db.add(ht)
+                t.status = "in_progress"
+                db.commit()
+                db.refresh(ht)
+                assign.assign(db, ht)  # PM Agent が ENS 上の人員から指名
         for t in case.tasks:
             if t.type != "ai" or t.status == "done":
                 continue

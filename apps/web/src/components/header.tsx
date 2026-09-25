@@ -16,6 +16,7 @@ const NAV = [
   { href: "/cases", label: "案件" },
   { href: "/tasks", label: "Human Task" },
   { href: "/jury", label: "Jury" },
+  { href: "/companies", label: "会社と人員" },
   { href: "/agents/mine", label: "My Agents" },
 ];
 

@@ -165,3 +165,55 @@ def read_texts(name: str, keys: list[str] | None = None) -> dict[str, str]:
         return out
     except Exception:
         return {}
+
+
+# ---------------------------------------------------------------- 会社所有の名前（会社管理者が署名する）
+
+ETH_REGISTRY_ABI = V2_REGISTRY_ABI
+
+
+def _labelhash_int(label: str) -> int:
+    return int.from_bytes(keccak(text=label), "big")
+
+
+def name_owner(name: str) -> str | None:
+    """ENSv2 の .eth 2LD の所有者。RPC 未設定・取得失敗は None。"""
+    s = get_settings()
+    if not s.sepolia_rpc_url:
+        return None
+    try:
+        w3 = _w3()
+        reg = w3.eth.contract(address=Web3.to_checksum_address(s.ensv2_eth_registry), abi=ETH_REGISTRY_ABI)
+        status, _, owner, _, _ = reg.functions.getState(_labelhash_int(name.removesuffix(".eth"))).call()
+        return owner if status == 2 else None
+    except Exception:
+        return None
+
+
+def member_calldata(*, company_name: str, label: str, owner: str, texts: dict[str, str]) -> list[dict]:
+    """会社管理者のウォレットで送る tx（register + record 書き込み）の calldata。
+    会社名のサブレジストリとリゾルバは ENS から解決する。"""
+    s = get_settings()
+    if not s.sepolia_rpc_url:
+        raise RuntimeError("RPC 未設定のため calldata を生成できません")
+    w3 = _w3()
+    reg = w3.eth.contract(address=Web3.to_checksum_address(s.ensv2_eth_registry), abi=ETH_REGISTRY_ABI)
+    parent_label = company_name.removesuffix(".eth")
+    sub = reg.functions.getSubregistry(parent_label).call()
+    if int(sub, 16) == 0:
+        raise RuntimeError(f"{company_name} にサブレジストリがありません。`ens subregistry deploy {company_name} --chain sepolia` で作成してください")
+    ur = w3.eth.contract(address=Web3.to_checksum_address(s.ens_universal_resolver), abi=UNIVERSAL_RESOLVER_ABI)
+    resolver_addr, _, _ = ur.functions.findResolver(dns_encode(company_name)).call()
+    if int(resolver_addr, 16) == 0:
+        raise RuntimeError(f"{company_name} にリゾルバが設定されていません")
+    subreg = w3.eth.contract(address=sub, abi=V2_REGISTRY_ABI)
+    resolver = w3.eth.contract(address=resolver_addr, abi=RESOLVER_ABI)
+    expiry = int(time.time()) + ONE_YEAR
+    txs = []
+    if int(subreg.functions.getResolver(label).call(), 16) == 0:
+        txs.append({"to": sub, "data": subreg.encode_abi("register", args=[label, Web3.to_checksum_address(owner), "0x" + "00" * 20, resolver_addr, V2_DEFAULT_OWNER_ROLE_BITMAP, expiry]), "label": f"{label}.{company_name} を発行"})
+    node = namehash(f"{label}.{company_name}")
+    calls = [bytes.fromhex(resolver.encode_abi("setAddr", args=[node, Web3.to_checksum_address(owner)])[2:])]
+    calls += [bytes.fromhex(resolver.encode_abi("setText", args=[node, k, v])[2:]) for k, v in texts.items()]
+    txs.append({"to": resolver_addr, "data": resolver.encode_abi("multicall", args=[calls]), "label": "プロフィール（text record）を書き込み"})
+    return txs

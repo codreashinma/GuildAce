@@ -14,6 +14,7 @@ function List({ items }: { items: HumanTask[] }) {
           <Card className="h-full hover:bg-slate-50">
             <div className="flex items-center justify-between gap-2"><span className="font-semibold">🧑 {t.title}</span><Badge status={t.status} /></div>
             <p className="mt-1 line-clamp-2 text-sm text-slate-600">{t.description}</p>
+            {t.assignee && <p className="mt-1 text-xs text-amber-900">指名: <span className="font-mono">{t.assignee.ens_name}</span></p>}
             <div className="mt-3 text-sm">報酬 <b>{usdc(t.reward)} USDC</b></div>
           </Card>
         </Link>
@@ -26,10 +27,18 @@ export default function Tasks() {
   const { me } = useAuth();
   const { data } = useQuery({ queryKey: ["human-tasks"], queryFn: () => api<HumanTask[]>("/human-tasks"), refetchInterval: 5000 });
   const { data: mine } = useQuery({ queryKey: ["human-tasks", "mine", me?.id], queryFn: () => api<HumanTask[]>("/human-tasks/mine"), enabled: !!me });
+  const { data: assigned } = useQuery({ queryKey: ["human-tasks", "assigned", me?.id], queryFn: () => api<HumanTask[]>("/human-tasks/assigned"), enabled: !!me, refetchInterval: 5000 });
   return (
     <div className="space-y-8">
+      {assigned && assigned.length > 0 && (
+        <div>
+          <h2 className="mb-1 font-semibold">🎯 あなたへの指名</h2>
+          <p className="mb-3 text-xs text-slate-500">PM Agent が ENS 上のあなたのプロフィール（{assigned[0].assignee?.ens_name}）を見て指名しました。World で人間確認をして受諾するか、辞退してください</p>
+          <List items={assigned} />
+        </div>
+      )}
       <div>
-        <PageTitle title="Human Task Marketplace" sub="AI にはできない仕事。World で証明された人間だけが受注できます" />
+        <PageTitle title="Human Task Marketplace" sub="AI にはできない仕事。PM Agent が ENS 上の会社の人員から指名し、候補がいなければここで公開募集します。受注には World の人間確認が必要です" />
         {!data?.length ? <Empty>募集中の Human Task はありません。案件が進むと PM Agent がここに発注します</Empty> : <List items={data} />}
       </div>
       {mine && mine.length > 0 && <div><h2 className="mb-3 font-semibold">自分が受注したタスク</h2><List items={mine} /></div>}

@@ -28,6 +28,16 @@ def main() -> None:
     assert any(a["id"] == agent["id"] for a in listed)
     print("V3 marketplace lists agent")
 
+    # --- 会社と人員（受注側）を ENS 名つきで登録
+    co_admin = Client(BASE); co_admin.login()
+    co = co_admin.post("/companies", {"name": "Field Co.", "ens_name": "field-co.eth", "description": "現地撮影・実物確認"}, expect=201)
+    worker2 = Client(BASE); worker2.login()
+    m1 = co_admin.post(f"/companies/{co['id']}/members", {"label": "dan", "name": "Dan", "wallet_address": worker.address, "role": "photographer", "skills": "写真撮影,現地確認,店舗", "location": "東京"}, expect=201)
+    m2 = co_admin.post(f"/companies/{co['id']}/members", {"label": "emi", "name": "Emi", "wallet_address": worker2.address, "role": "surveyor", "skills": "アンケート,現地確認", "location": "大阪"}, expect=201)
+    assert m1["ens_name"] == "dan.field-co.eth" and m2["ens_name"] == "emi.field-co.eth"
+    client.post(f"/companies/{co['id']}/members", {"label": "x", "name": "X", "wallet_address": client.address}, expect=403)  # 管理者以外
+    print("V15 company + members:", [m["ens_name"] for m in co_admin.get(f"/companies/{co['id']}")["members"]])
+
     # --- 案件作成 → 計画
     case = client.post("/cases", {"agent_id": agent["id"], "title": "レストラン予約 Web サービス", "description": "3 日で MVP", "budget_usdc": 300}, expect=201)
     case = client.wait(f"/cases/{case['id']}", "status", {"awaiting_approval", "planning_failed"})
@@ -52,10 +62,21 @@ def main() -> None:
     assert ai_done, case["tasks"]
     print("V6 ai tasks done")
 
-    # --- Human Task
-    open_tasks = worker.get("/human-tasks")
-    ht = next(t for t in open_tasks if t["case_id"] == case["id"])
+    # --- Human Task: PM Agent が ENS 上の人員から指名 → 本人が受諾
+    ht = next(t for t in case["tasks"] if t["type"] == "human")["human_task"]
+    assert ht["status"] == "assigned" and ht["assignee"], ht
+    print("V16 assigned to", ht["assignee"]["ens_name"], "-", ht["assignment_reason"])
+    assert ht["assignee"]["ens_name"] == "dan.field-co.eth"  # スキル一致で Dan
+    assert not any(t["id"] == ht["id"] for t in worker.get("/human-tasks"))  # 指名中は公開一覧に出ない
+    assert any(t["id"] == ht["id"] for t in worker.get("/human-tasks/assigned"))
     client.post(f"/human-tasks/{ht['id']}/accept", {}, expect=403)  # 発注者は受注不可
+    worker2.post(f"/human-tasks/{ht['id']}/accept", {}, expect=403)  # 指名されていない人員は受諾不可
+    # 辞退 → 次の候補（Emi）に再指名 → Emi も辞退 → 公開募集
+    ht = worker.post(f"/human-tasks/{ht['id']}/decline", {})
+    assert ht["status"] == "assigned" and ht["assignee"]["ens_name"] == "emi.field-co.eth", ht
+    ht = worker2.post(f"/human-tasks/{ht['id']}/decline", {})
+    assert ht["status"] == "open" and ht["assignee"] is None, ht
+    print("V17 decline → reassign → open ok")
     ht = worker.post(f"/human-tasks/{ht['id']}/accept", {"idkit_response": None})
     assert ht["status"] == "accepted"
     ht = worker.post(f"/human-tasks/{ht['id']}/submit", {"submission": "https://example.com/photo1.jpg 外観 3 枚"})
@@ -91,7 +112,7 @@ def main() -> None:
         if all(t["status"] == "done" for t in c2["tasks"] if t["type"] == "ai"):
             break
         time.sleep(0.5)
-    ht2 = next(t for t in worker.get("/human-tasks") if t["case_id"] == case2["id"])
+    ht2 = next(t for t in worker.get("/human-tasks/assigned") if t["case_id"] == case2["id"])
     worker.post(f"/human-tasks/{ht2['id']}/accept", {})
     worker.post(f"/human-tasks/{ht2['id']}/submit", {"submission": "写真です"})
     client.wait(f"/cases/{case2['id']}", "status", {"delivered"})

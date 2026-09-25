@@ -3,6 +3,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     DateTime,
     ForeignKey,
     Integer,
@@ -97,6 +98,42 @@ class Task(TimestampMixin, Base):
     human_task: Mapped["HumanTask | None"] = relationship(back_populates="task", uselist=False)
 
 
+class Company(TimestampMixin, Base):
+    """受注側の会社。独自の .eth を所有し、その下に人員の subname を発行する"""
+    __tablename__ = "companies"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    admin_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    ens_name: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    description: Mapped[str] = mapped_column(Text, default="")
+    ens_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    admin: Mapped[User] = relationship()
+    members: Mapped[list["Member"]] = relationship(back_populates="company", order_by="Member.created_at")
+
+
+class Member(TimestampMixin, Base):
+    """会社の人員。ENS 名 = <label>.<company ens>。record は DB にキャッシュ"""
+    __tablename__ = "members"
+    __table_args__ = (UniqueConstraint("company_id", "label", name="uq_members_company_label"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    company_id: Mapped[str] = mapped_column(ForeignKey("companies.id"), index=True)
+    label: Mapped[str] = mapped_column(String(63))
+    name: Mapped[str] = mapped_column(String(120))
+    wallet_address: Mapped[str] = mapped_column(String(42), index=True)
+    ens_name: Mapped[str] = mapped_column(String(255), index=True)
+    role: Mapped[str] = mapped_column(String(60), default="")
+    skills: Mapped[str] = mapped_column(Text, default="")  # カンマ区切り
+    location: Mapped[str] = mapped_column(String(120), default="")
+    available: Mapped[bool] = mapped_column(Boolean, default=True)
+    ens_status: Mapped[str] = mapped_column(String(20), default="pending")  # pending | written
+    ens_tx_hash: Mapped[str | None] = mapped_column(String(66))
+    rating_avg: Mapped[float] = mapped_column(Numeric(3, 1), default=0)
+    completed_count: Mapped[int] = mapped_column(Integer, default=0)
+
+    company: Mapped[Company] = relationship(back_populates="members")
+
+
 class HumanTask(TimestampMixin, Base):
     __tablename__ = "human_tasks"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
@@ -105,14 +142,18 @@ class HumanTask(TimestampMixin, Base):
     title: Mapped[str] = mapped_column(String(200))
     description: Mapped[str] = mapped_column(Text, default="")
     reward: Mapped[int] = mapped_column(Numeric(78, 0), default=0)
-    status: Mapped[str] = mapped_column(String(20), default="open", index=True)
+    status: Mapped[str] = mapped_column(String(20), default="open", index=True)  # assigned | open | accepted | submitted | done
     worker_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
     submission: Mapped[str | None] = mapped_column(Text)
     ai_check: Mapped[str | None] = mapped_column(Text)
+    assignee_member_id: Mapped[str | None] = mapped_column(ForeignKey("members.id"))
+    assignment_reason: Mapped[str | None] = mapped_column(Text)
+    declined_member_ids: Mapped[list | None] = mapped_column(JSON, default=list)
 
     task: Mapped[Task] = relationship(back_populates="human_task")
     case: Mapped[Case] = relationship()
     worker: Mapped[User | None] = relationship()
+    assignee: Mapped[Member | None] = relationship()
 
 
 class Review(TimestampMixin, Base):

@@ -69,6 +69,66 @@ class CaseCreateIn(BaseModel):
     deadline: str | None = None
 
 
+class CompanyCreateIn(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    ens_name: str = Field(pattern=r"^[a-z0-9-]+\.eth$")
+    description: str = ""
+
+
+class MemberCreateIn(BaseModel):
+    label: str = Field(pattern=r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$")
+    name: str = Field(min_length=1, max_length=120)
+    wallet_address: str = Field(pattern=r"^0x[0-9a-fA-F]{40}$")
+    role: str = ""
+    skills: str = ""
+    location: str = ""
+    available: bool = True
+
+
+class MemberUpdateIn(BaseModel):
+    available: bool | None = None
+    role: str | None = None
+    skills: str | None = None
+    location: str | None = None
+
+
+class MemberOut(ORM):
+    id: str
+    company_id: str
+    label: str
+    name: str
+    wallet_address: str
+    ens_name: str
+    role: str
+    skills: str
+    location: str
+    available: bool
+    ens_status: str
+    ens_tx_hash: str | None
+    rating_avg: float
+    completed_count: int
+
+
+class CompanyOut(ORM):
+    id: str
+    name: str
+    ens_name: str
+    description: str
+    ens_verified: bool
+    admin: UserOut
+    members: list[MemberOut] = []
+
+
+class MemberBrief(ORM):
+    id: str
+    name: str
+    ens_name: str
+    role: str
+    skills: str
+    location: str
+    wallet_address: str
+
+
 class HumanTaskOut(ORM):
     id: str
     task_id: str
@@ -80,6 +140,8 @@ class HumanTaskOut(ORM):
     worker: UserOut | None
     submission: str | None
     ai_check: str | None
+    assignee: MemberBrief | None = None
+    assignment_reason: str | None = None
     created_at: datetime
 
 

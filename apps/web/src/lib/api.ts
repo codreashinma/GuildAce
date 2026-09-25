@@ -48,9 +48,12 @@ export type Agent = {
   rating_avg: number; rating_count: number; completed_count: number; ens_error: string | null; created_at: string; creator: User;
 };
 export type AgentDetail = Agent & { ens_records: Record<string, string> };
+export type MemberBrief = { id: string; name: string; ens_name: string; role: string; skills: string; location: string; wallet_address: string };
+export type Member = MemberBrief & { company_id: string; label: string; available: boolean; ens_status: string; ens_tx_hash: string | null; rating_avg: number; completed_count: number };
+export type Company = { id: string; name: string; ens_name: string; description: string; ens_verified: boolean; admin: User; members: Member[] };
 export type HumanTask = {
   id: string; task_id: string; case_id: string; title: string; description: string; reward: number; status: string;
-  worker: User | null; submission: string | null; ai_check: string | null; created_at: string;
+  worker: User | null; submission: string | null; ai_check: string | null; assignee: MemberBrief | null; assignment_reason: string | null; created_at: string;
 };
 export type Task = {
   id: string; order_no: number; title: string; description: string; type: "ai" | "human"; role: string; estimated_cost: number;
@@ -86,5 +89,5 @@ export const STATUS_LABEL: Record<string, string> = {
   draft: "下書き", planning: "計画中", planning_failed: "計画失敗", awaiting_approval: "承認待ち", funded: "入金済み", in_progress: "進行中",
   delivered: "納品済み（検収待ち）", completed: "完了", disputed: "紛争中", resolved: "仲裁で解決",
   publishing: "ENS に公開中", published: "公開中", publish_failed: "公開失敗",
-  open: "募集中", accepted: "受注済み", submitted: "提出済み", done: "完了", todo: "未着手",
+  assigned: "指名中", open: "募集中", accepted: "受注済み", submitted: "提出済み", done: "完了", todo: "未着手",
 };

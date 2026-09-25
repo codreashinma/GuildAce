@@ -200,3 +200,40 @@ def summarize_dispute(*, case_title: str, case_description: str, plan_summary: s
     r = _generate(system, prompt, DisputeSummary)
     assert isinstance(r, DisputeSummary)
     return r
+
+
+# ---------------------------------------------------------------- human task assignment
+
+
+class Assignment(BaseModel):
+    ens_name: str = Field(description="選んだ人員の ENS 名。候補の中から選ぶ")
+    reason: str = Field(description="選んだ理由（日本語・1〜2 文）")
+
+
+def assign_human_task(*, agent_name: str, agent_rules: str, task_title: str, task_description: str, candidates: list[dict]) -> Assignment | None:
+    """候補（ENS レコード）から 1 名を指名する。候補が無ければ None。"""
+    if not candidates:
+        return None
+    s = get_settings()
+    if not s.gemini_enabled:
+        words = {w for w in (task_title + " " + task_description).lower().replace("、", " ").split() if len(w) > 1}
+        def score(c: dict) -> tuple[int, float]:
+            skills = [x.strip().lower() for x in c.get("skills", "").split(",") if x.strip()]
+            hit = sum(1 for sk in skills if any(sk in w or w in sk for w in words))
+            return (hit, float(c.get("rating", 0)))
+        best = max(candidates, key=score)
+        hit, _ = score(best)
+        why = f"スキル「{best.get('skills')}」が{'タスク内容に合致し、' if hit else ''}拠点 {best.get('location') or '未設定'}・稼働可能のため（モック判定）"
+        return Assignment(ens_name=best["ens_name"], reason=why)
+    system = (
+        f"あなたは PM Agent「{agent_name}」です。進め方・ルール:\n{agent_rules}\n"
+        "人間にしかできないタスクを、ENS に登録された会社の人員の中から 1 名に指名します。"
+        "スキル・拠点・役割・評価を根拠に選び、必ず候補の ENS 名をそのまま返してください。"
+    )
+    lines = "\n".join(f"- {c['ens_name']} | 会社: {c['company']} | 役割: {c['role']} | スキル: {c['skills']} | 拠点: {c['location']} | 評価: {c['rating']} ({c['completed']} 件)" for c in candidates)
+    prompt = f"タスク: {task_title}\n{task_description}\n\n候補:\n{lines}\n\n1 名を指名し、理由を日本語で書いてください。"
+    r = _generate(system, prompt, Assignment)
+    assert isinstance(r, Assignment)
+    if r.ens_name not in {c["ens_name"] for c in candidates}:
+        r.ens_name = candidates[0]["ens_name"]
+    return r

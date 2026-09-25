@@ -4,6 +4,8 @@
 
 import sys
 
+import httpx
+
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 from _client import Client, fake_tx  # noqa: E402
 
@@ -29,6 +31,34 @@ def main() -> None:
     print("creator:", creator.address, creator.acct.key.to_0x_hex())
     print("client: ", client.address, client.acct.key.to_0x_hex())
     print("worker: ", worker.address, worker.acct.key.to_0x_hex())
+
+    # デモログイン（DEV_LOGIN_ENABLED）が有効なら、「Human Task worker」ロールの固定アドレスを Dan にする
+    try:
+        r = httpx.post(f"{BASE}/auth/dev-login", json={"role": "worker"}, timeout=30)
+        if r.status_code == 200:
+            dan_address = r.json()["user"]["wallet_address"]
+            worker.http.headers["Authorization"] = f"Bearer {r.json()['token']}"  # 以降 worker はデモログインの worker として操作
+        else:
+            dan_address = worker.address
+    except Exception:  # noqa: BLE001
+        dan_address = worker.address
+    if dan_address != worker.address:
+        print("dan = デモログイン worker:", dan_address)
+
+    # 受注側の会社と人員（ENS: <label>.field-co.eth）
+    co_admin = Client(BASE); co_admin.login()
+    print("company admin:", co_admin.address, co_admin.acct.key.to_0x_hex())
+    try:
+        co = co_admin.post("/companies", {"name": "Field Co.", "ens_name": "field-co.eth", "description": "現地撮影・実物確認・イベント取材の専門会社"}, expect=201)
+        for m in [
+            {"label": "dan", "name": "Dan", "wallet_address": dan_address, "role": "photographer", "skills": "写真撮影,現地確認,店舗,外観", "location": "東京"},
+            {"label": "emi", "name": "Emi", "wallet_address": Client(BASE).address, "role": "surveyor", "skills": "アンケート,現地確認,インタビュー", "location": "大阪"},
+            {"label": "ken", "name": "Ken", "wallet_address": Client(BASE).address, "role": "reporter", "skills": "イベント取材,動画撮影", "location": "福岡", "available": False},
+        ]:
+            co_admin.post(f"/companies/{co['id']}/members", m, expect=201)
+        print("company:", co["ens_name"], "members: dan/emi/ken")
+    except AssertionError:
+        print("company exists")
 
     agents = []
     for a in AGENTS:
@@ -59,7 +89,7 @@ def main() -> None:
             if all(t["status"] == "done" for t in c["tasks"] if t["type"] == "ai"):
                 break
             time.sleep(1)
-        for ht in worker.get("/human-tasks"):
+        for ht in worker.get("/human-tasks/assigned") + worker.get("/human-tasks"):
             if ht["case_id"] == case["id"]:
                 worker.post(f"/human-tasks/{ht['id']}/accept", {})
                 worker.post(f"/human-tasks/{ht['id']}/submit", {"submission": "https://example.com/photos/store-1.jpg ほか 3 枚を撮影しました。"})

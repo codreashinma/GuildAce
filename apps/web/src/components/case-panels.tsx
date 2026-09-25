@@ -18,15 +18,18 @@ export function TeamPanel({ c }: { c: Case }) {
       </div>
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         {c.tasks.map((t) => {
-          const ens = memberEnsFor(t, c.agent.label);
+          const ht = t.human_task;
+          const ens = ht?.assignee ? ht.assignee.ens_name : ht && ht.status !== "assigned" && ht.worker ? `worker ${short(ht.worker.wallet_address)}` : memberEnsFor(t, c.agent.label);
+          const name = ht?.assignee ? `${ht.assignee.name}（${ht.assignee.role}）` : t.assignee_name;
           return (
             <div key={t.id} className="rounded-lg border border-slate-200 p-3 text-sm">
               <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2"><span>{t.type === "human" ? "🧑" : "🤖"}</span><b>{t.assignee_name}</b></div>
+                <div className="flex items-center gap-2"><span>{t.type === "human" ? "🧑" : "🤖"}</span><b>{name}</b>{ht && <Badge status={ht.status} />}</div>
                 <span className="font-semibold">{usdc(t.estimated_cost)} USDC</span>
               </div>
               <div className="mt-1 font-mono text-xs text-blue-700">{ens}</div>
               <div className="mt-1 text-xs text-slate-500">担当: {t.title}</div>
+              {ht?.assignment_reason && <div className="mt-1 rounded bg-amber-50 px-2 py-1 text-xs text-amber-900">🤖 PM Agent の指名理由: {ht.assignment_reason}</div>}
               <button className="mt-2 text-xs text-slate-600 underline" onClick={() => setOpenRole(openRole === t.id ? null : t.id)}>{openRole === t.id ? "候補を閉じる" : "ENS で探した候補を見る"}</button>
               {openRole === t.id && <CandidateList items={candidatesFor(t.role)} chosen={ens} />}
             </div>

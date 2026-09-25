@@ -1,0 +1,90 @@
+export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8001";
+
+export class ApiError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+  }
+}
+
+function token(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem("choice.token");
+  } catch {
+    return null;
+  }
+}
+
+export async function api<T>(path: string, init: RequestInit & { json?: unknown } = {}): Promise<T> {
+  const headers: Record<string, string> = { ...(init.headers as Record<string, string>) };
+  const t = token();
+  if (t) headers.Authorization = `Bearer ${t}`;
+  let body = init.body;
+  if (init.json !== undefined) {
+    headers["Content-Type"] = "application/json";
+    body = JSON.stringify(init.json);
+  }
+  const res = await fetch(`${API_URL}${path}`, { ...init, headers, body, cache: "no-store" });
+  if (!res.ok) {
+    let msg = res.statusText;
+    try {
+      const j = await res.json();
+      msg = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail ?? j);
+    } catch {
+      /* ignore */
+    }
+    throw new ApiError(res.status, msg);
+  }
+  if (res.status === 204) return undefined as T;
+  return (await res.json()) as T;
+}
+
+// ---- types (API の schemas.py に対応) ----
+export type User = { id: string; wallet_address: string; display_name: string | null };
+export type Me = User & { human_verified_actions: string[] };
+export type Agent = {
+  id: string; creator_id: string; name: string; label: string; description: string; category: string; rules: string;
+  fee_bps: number; payout_address: string; ens_name: string | null; ens_tx_hash: string | null; status: string;
+  rating_avg: number; rating_count: number; completed_count: number; ens_error: string | null; created_at: string; creator: User;
+};
+export type AgentDetail = Agent & { ens_records: Record<string, string> };
+export type HumanTask = {
+  id: string; task_id: string; case_id: string; title: string; description: string; reward: number; status: string;
+  worker: User | null; submission: string | null; ai_check: string | null; created_at: string;
+};
+export type Task = {
+  id: string; order_no: number; title: string; description: string; type: "ai" | "human"; role: string; estimated_cost: number;
+  status: string; assignee_name: string | null; deliverable: string | null; completed_at: string | null; human_task: HumanTask | null;
+};
+export type Case = {
+  id: string; title: string; description: string; budget: number; deadline: string | null; status: string;
+  plan_json: { summary?: string; team?: { name: string; role: string; kind: string }[] } | null;
+  escrow_case_id: string; deposit_tx_hash: string | null; release_tx_hash: string | null; error: string | null; created_at: string;
+  client: User; agent: Agent; tasks: Task[];
+};
+export type SplitItem = { address: string; amount: string; label: string };
+export type CaseDetail = Case & { split: SplitItem[]; dispute_id: string | null };
+export type Review = { id: string; case_id: string; rating: number; comment: string; target_type: string; target_id: string; created_at: string; reviewer: User };
+export type JuryVote = { id: string; vote: "release" | "refund"; created_at: string; voter: User };
+export type Dispute = {
+  id: string; case_id: string; reason: string; status: string; outcome: string | null; resolve_tx_hash: string | null; required_votes: number; created_at: string;
+  summary_json: { issues?: string[]; client_position?: string; agent_position?: string; facts_to_check?: string[]; ai_note?: string; error?: string } | null;
+  case: Case; votes: JuryVote[];
+};
+export type AppConfig = {
+  chain_id: number; escrow_address: string; usdc_address: string; ens_parent_name: string; ens_universal_resolver: string;
+  world_app_id: string; world_rp_id: string; mock: { chain: boolean; ens_write: boolean; world: boolean; gemini: boolean };
+};
+export type RpContext = { rp_id: string; nonce: string; created_at: number; expires_at: number; signature: string };
+
+export const USDC = 1_000_000;
+export const usdc = (n: number | string) => (Number(n) / USDC).toLocaleString("en-US", { maximumFractionDigits: 2 });
+export const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
+export const etherscanTx = (h: string) => (h.startsWith("0xmock") ? null : `https://sepolia.etherscan.io/tx/${h}`);
+export const CATEGORY_LABEL: Record<string, string> = { web: "Web開発", design: "デザイン", video: "動画制作", wedding: "Wedding", other: "その他" };
+export const STATUS_LABEL: Record<string, string> = {
+  draft: "下書き", planning: "計画中", planning_failed: "計画失敗", awaiting_approval: "承認待ち", funded: "入金済み", in_progress: "進行中",
+  delivered: "納品済み（検収待ち）", completed: "完了", disputed: "紛争中", resolved: "仲裁で解決",
+  publishing: "ENS に公開中", published: "公開中", publish_failed: "公開失敗",
+  open: "募集中", accepted: "受注済み", submitted: "提出済み", done: "完了", todo: "未着手",
+};

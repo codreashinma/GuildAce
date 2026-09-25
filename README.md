@@ -11,7 +11,7 @@ AI Agent（PM Agent）が案件を受け、タスク分解・チーム編成・�
 | ディレクトリ | 内容 |
 |---|---|
 | `apps/web` | Next.js 16 / wagmi + RainbowKit（SIWE ログイン）/ `@worldcoin/idkit` v4 |
-| `apps/api` | FastAPI / SQLAlchemy / Gemini（PM Agent の頭脳）/ web3.py（ENSv2・Escrow）|
+| `apps/api` | FastAPI / SQLAlchemy / Gemini（PM Agent の頭脳: タスク分解・Human Task の指名・論点整理）/ web3.py（ENSv2・Escrow）|
 | `contracts` | Foundry: `Escrow.sol`（deposit / release / resolve）と `MockUSDC.sol` |
 | `docker-compose.yml` | PostgreSQL 16（ポート 5433） |
 
@@ -44,7 +44,7 @@ MetaMask 等で Sepolia に接続 → 「Sign in」で SIWE 署名 → Marketpla
 ### バックエンドの通しテスト
 
 ```bash
-cd apps/api && .venv/bin/python scripts/smoke_flow.py
+cd apps/api && .venv/bin/python scripts/smoke_flow.py   # 空の DB（seed 前）で実行する
 ```
 
 ログイン → Agent 公開 → 案件作成 → 計画 → 入金 → AI 実行 → Human Task → 支払い → レビュー（二重投稿拒否）→ 紛争 → Jury 3 票で resolve まで自動で検証する。
@@ -72,6 +72,12 @@ cd contracts && forge test
    以降、Agent を公開すると `<label>.choice.eth` が発行され、text record（description / agent.category / agent.fee_bps / agent.rating / agent.completed …）が書かれる。
 4. **World ID**: [Developer Portal](https://developer.world.org) でアプリと RP を作り、action `review` / `jury` / `human-task` を作成。`WORLD_APP_ID` / `WORLD_RP_ID` / `WORLD_RP_SIGNING_KEY` を設定し `WORLD_VERIFY_ENABLED=true`。
 5. **Gemini**: `GEMINI_API_KEY` を設定（モデルは `GEMINI_MODEL`、既定 `gemini-2.5-flash`）。
+
+## 会社の人員と Human Task の指名
+
+受注側の会社は、自社が所有する `.eth` の下に人員を subname として登録する（例 `dan.field-co.eth`、record: `person.role` / `person.skills` / `person.location` / `person.available`）。
+subname 発行と record 書き込みは会社管理者のウォレットが署名する（API は calldata を返すだけ）。
+案件の Human Task が生まれると PM Agent が候補の ENS レコードを見て 1 名を指名し、本人が World で人間確認して受諾する。辞退なら次の候補、候補ゼロなら Human Task Marketplace で公開募集になる。
 
 ## 設計上の不変条件
 

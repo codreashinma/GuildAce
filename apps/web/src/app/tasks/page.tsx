@@ -4,18 +4,18 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { api, usdc, type HumanTask } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { Badge, Card, Empty, PageTitle } from "@/components/ui";
+import { Amount, Badge, Card, Empty, KindTag, PageTitle } from "@/components/ui";
 
 function List({ items }: { items: HumanTask[] }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       {items.map((t) => (
         <Link key={t.id} href={`/tasks/${t.id}`}>
-          <Card className="h-full hover:bg-slate-50">
-            <div className="flex items-center justify-between gap-2"><span className="font-semibold">🧑 {t.title}</span><Badge status={t.status} /></div>
-            <p className="mt-1 line-clamp-2 text-sm text-slate-600">{t.description}</p>
-            {t.assignee && <p className="mt-1 text-xs text-amber-900">指名: <span className="font-mono">{t.assignee.ens_name}</span></p>}
-            <div className="mt-3 text-sm">報酬 <b>{usdc(t.reward)} USDC</b></div>
+          <Card className="h-full transition hover:border-neutral-900">
+            <div className="flex items-center justify-between gap-2"><span className="flex min-w-0 items-center gap-2 font-semibold"><KindTag kind="human" /><span className="truncate">{t.title}</span></span><Badge status={t.status} /></div>
+            <p className="mt-1 line-clamp-2 text-sm text-neutral-600">{t.description}</p>
+            {t.assignee && <p className="mt-1 flex items-center gap-1 text-xs text-neutral-900"><span className="whitespace-nowrap">指名:</span><span className="truncate font-mono">{t.assignee.ens_name}</span></p>}
+            <div className="mt-3 text-sm">報酬 <Amount value={usdc(t.reward)} className="font-semibold" /></div>
           </Card>
         </Link>
       ))}
@@ -32,8 +32,8 @@ export default function Tasks() {
     <div className="space-y-8">
       {assigned && assigned.length > 0 && (
         <div>
-          <h2 className="mb-1 font-semibold">🎯 あなたへの指名</h2>
-          <p className="mb-3 text-xs text-slate-500">PM Agent が ENS 上のあなたのプロフィール（{assigned[0].assignee?.ens_name}）を見て指名しました。World で人間確認をして受諾するか、辞退してください</p>
+          <h2 className="mb-1 font-semibold">あなたへの指名</h2>
+          <p className="mb-3 text-xs text-neutral-500">PM Agent が ENS 上のあなたのプロフィール（<span className="font-mono">{assigned[0].assignee?.ens_name}</span>）を見て指名しました。World で人間確認をして受諾するか、辞退してください</p>
           <List items={assigned} />
         </div>
       )}

@@ -10,7 +10,7 @@ import { erc20Abi, escrowAbi } from "@/lib/contracts";
 import { Markdown } from "@/components/markdown";
 import { WorldVerifyButton } from "@/components/world-verify";
 import { ContractsPanel, EnsPanel, ProgressPanel, ReplanPanel, TeamPanel } from "@/components/case-panels";
-import { BackLink, Badge, Button, Card, ErrorBox, HumanBadge, inputCls, Stars, TxLink } from "@/components/ui";
+import { Amount, BackLink, Badge, Button, Card, ErrorBox, HumanBadge, inputCls, KindTag, Mono, Stars, TxLink } from "@/components/ui";
 
 const STEPS = ["planning", "awaiting_approval", "in_progress", "delivered", "completed"];
 
@@ -21,7 +21,7 @@ export default function CasePage({ params }: { params: Promise<{ id: string }> }
   const { data: c } = useQuery({ queryKey: ["case", id], queryFn: () => api<CaseDetail>(`/cases/${id}`), refetchInterval: 3000 });
   const { data: reviews } = useQuery({ queryKey: ["case-reviews", id], queryFn: () => api<Review[]>(`/reviews/case/${id}`) });
   const refresh = () => { qc.invalidateQueries({ queryKey: ["case", id] }); qc.invalidateQueries({ queryKey: ["case-reviews", id] }); };
-  if (!c) return <p className="text-sm text-slate-500">読み込み中…</p>;
+  if (!c) return <p className="text-sm text-neutral-500">読み込み中…</p>;
   const isClient = me?.id === c.client.id;
   const isApprover = !!me && c.approvers.map((a) => a.toLowerCase()).includes(me.wallet_address);
   const stepIdx = Math.max(STEPS.indexOf(c.status), c.status === "disputed" || c.status === "resolved" ? 3 : 0);
@@ -34,30 +34,30 @@ export default function CasePage({ params }: { params: Promise<{ id: string }> }
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="flex flex-wrap items-center gap-2"><h1 className="text-2xl font-bold">{c.title}</h1><Badge status={c.status} /></div>
-            <p className="mt-1 text-sm text-slate-500">PM Agent: <Link href={`/agents/${c.agent.id}`} className="text-blue-700 hover:underline">{c.agent.name}</Link> <span className="font-mono">{c.agent.ens_name}</span> · 発注者 {short(c.client.wallet_address)}</p>
-            {c.project_ens_name && <p className="mt-1 font-mono text-xs text-blue-700">{c.project_ens_name} <TxLink hash={c.project_ens_tx_hash} label="ENS" /></p>}
-            {c.description && <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{c.description}</p>}
+            <p className="mt-1 flex flex-wrap items-center gap-x-2 text-sm text-neutral-500"><span className="whitespace-nowrap">PM Agent: <Link href={`/agents/${c.agent.id}`} className="text-neutral-900 underline underline-offset-2">{c.agent.name}</Link></span><Mono>{c.agent.ens_name}</Mono><span className="whitespace-nowrap">発注者 <Mono>{short(c.client.wallet_address)}</Mono></span></p>
+            {c.project_ens_name && <p className="mt-1 flex flex-wrap items-center gap-2 text-xs"><Mono className="text-neutral-900">{c.project_ens_name}</Mono><TxLink hash={c.project_ens_tx_hash} label="ENS" /></p>}
+            {c.description && <p className="mt-2 whitespace-pre-wrap text-sm text-neutral-700">{c.description}</p>}
           </div>
-          <div className="text-right"><div className="text-2xl font-bold">{usdc(c.budget)} <span className="text-sm font-normal">USDC</span></div><div className="text-xs text-slate-500">Escrow case {c.escrow_case_id.slice(0, 10)}…</div><div className="text-xs text-slate-500">承認者 {c.approvers.length} 名 / 必要 {c.threshold}</div></div>
+          <div className="text-right"><div className="text-2xl font-bold"><Amount value={usdc(c.budget)} /></div><div className="whitespace-nowrap text-xs text-neutral-500">Escrow case <Mono>{c.escrow_case_id.slice(0, 10)}…</Mono></div><div className="whitespace-nowrap text-xs tabular-nums text-neutral-500">承認者 {c.approvers.length} 名 / 必要 {c.threshold}</div></div>
         </div>
         <ol className="mt-5 flex flex-wrap gap-2 text-xs">
           {STEPS.map((s, i) => (
-            <li key={s} className={`rounded-full px-3 py-1 ${i < stepIdx ? "bg-emerald-100 text-emerald-800" : i === stepIdx ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-500"}`}>{i + 1}. {STATUS_LABEL[s]}</li>
+            <li key={s} className={`whitespace-nowrap rounded-sm border px-3 py-1 tabular-nums ${i < stepIdx ? "border-neutral-900 bg-white text-neutral-900" : i === stepIdx ? "border-neutral-900 bg-neutral-900 text-white" : "border-neutral-200 text-neutral-400"}`}>{i + 1}. {STATUS_LABEL[s]}</li>
           ))}
         </ol>
         <div className="mt-3 flex flex-wrap gap-4"><TxLink hash={c.open_tx_hash} label="openCase" /></div>
         {c.error && <ErrorBox error={c.error} />}
       </Card>
 
-      {c.status === "planning" && <Card><p className="animate-pulse text-sm">🤖 {c.agent.name} がタスクを分解し、チームを編成しています…</p></Card>}
+      {c.status === "planning" && <Card><p className="animate-pulse text-sm">{c.agent.name} がタスクを分解し、チームを編成しています…</p></Card>}
       {c.status === "planning_failed" && isClient && <ReplanPanel c={c} onReplan={() => api(`/cases/${id}/replan`, { method: "POST" }).then(refresh)} />}
 
       {c.plan_json && (
         <Card>
-          <h2 className="font-semibold">計画とチーム編成 <span className="text-xs font-normal text-slate-500">PM Agent が生成</span></h2>
-          <p className="mt-1 text-sm text-slate-700">{c.plan_json.summary}</p>
+          <h2 className="font-semibold">計画とチーム編成 <span className="text-xs font-normal text-neutral-500">PM Agent が生成</span></h2>
+          <p className="mt-1 text-sm text-neutral-700">{c.plan_json.summary}</p>
           <div className="mt-3 flex flex-wrap gap-2">
-            {c.plan_json.team?.map((m) => <span key={m.name} className={`rounded-full px-3 py-1 text-xs ${m.kind === "human" ? "bg-amber-100 text-amber-900" : "bg-blue-100 text-blue-900"}`}>{m.kind === "human" ? "🧑" : "🤖"} {m.name}</span>)}
+            {c.plan_json.team?.map((m) => <span key={m.name} className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm border border-neutral-300 px-2 py-1 text-xs"><KindTag kind={m.kind} />{m.name}</span>)}
           </div>
           {c.status === "awaiting_approval" && isClient && <OpenCasePanel c={c} mock={mock} onDone={refresh} />}
         </Card>
@@ -69,8 +69,8 @@ export default function CasePage({ params }: { params: Promise<{ id: string }> }
       {c.tasks.length > 0 && <TaskBoard c={c} canApprove={isApprover && ["in_progress", "delivered"].includes(c.status)} onDone={refresh} />}
 
       {["in_progress", "delivered"].includes(c.status) && isClient && <DisputePanel c={c} onDone={refresh} />}
-      {c.status === "disputed" && <Card><p className="text-sm">⚖️ 紛争中です。未払いのタスクは Escrow に保留され、Jury の裁定でのみ動きます。 <Link className="text-blue-700 underline" href={`/jury/${c.dispute_id}`}>Jury 画面へ</Link></p></Card>}
-      {c.status === "resolved" && <Card><p className="text-sm">⚖️ Human Jury の多数決で解決しました。 <Link className="text-blue-700 underline" href={`/jury/${c.dispute_id}`}>結果を見る</Link></p></Card>}
+      {c.status === "disputed" && <Card><p className="text-sm">紛争中です。未払いのタスクは Escrow に保留され、Jury の裁定でのみ動きます。 <Link className="text-neutral-900 underline" href={`/jury/${c.dispute_id}`}>Jury 画面へ</Link></p></Card>}
+      {c.status === "resolved" && <Card><p className="text-sm">Human Jury の多数決で解決しました。 <Link className="text-neutral-900 underline" href={`/jury/${c.dispute_id}`}>結果を見る</Link></p></Card>}
 
       {c.tasks.length > 0 && <EnsPanel c={c} />}
       {(c.status === "completed" || c.status === "resolved") && me && <ReviewPanel c={c} reviews={reviews ?? []} meId={me.id} onDone={refresh} />}
@@ -125,7 +125,7 @@ function OpenCasePanel({ c, mock, onDone }: { c: CaseDetail; mock: boolean; onDo
     }
   };
   return (
-    <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4">
+    <div className="mt-4 rounded-md border border-neutral-900 p-4">
       <p className="text-sm">計画を承認すると、Escrow に案件を開き（承認者 {c.approvers.length} 名 / 必要 {c.threshold} を固定）、USDC の引き落としを許可します。そのあとチェーン連携ワーカーが<b>工程ごとに</b>資金を預けて作業が始まります。支払いは承認がそろった工程から自動で実行されます。</p>
       <div className="mt-3"><Button onClick={run} disabled={!!step}>{step ?? (mock ? "承認して Escrow を開く（モック）" : "承認して Escrow を開く")}</Button></div>
       <div className="mt-2"><ErrorBox error={err} /></div>
@@ -140,7 +140,7 @@ function ApproveButton({ c, t, onDone }: { c: CaseDetail; t: Task; onDone: () =>
   const [err, setErr] = useState<unknown>(null);
   const mine = t.approvals.some((a) => a.approver.id === me?.id && a.deliverable_hash === t.deliverable_hash);
   if (t.chain_status !== "submitted") return null;
-  if (mine) return <span className="text-xs text-emerald-700">✓ あなたは承認済み（{t.approval_count}/{c.threshold}）</span>;
+  if (mine) return <span className="text-xs text-neutral-900">✓ あなたは承認済み（{t.approval_count}/{c.threshold}）</span>;
   return (
     <div className="flex flex-col gap-1">
       <WorldVerifyButton action="approve" signal={`${t.id}:${t.deliverable_hash}`} label={`World で人間確認して承認（${t.approval_count}/${c.threshold}）`} variant="primary"
@@ -175,14 +175,14 @@ function TaskBoard({ c, canApprove, onDone }: { c: CaseDetail; canApprove: boole
     <div>
       <div className="grid gap-3 md:grid-cols-3">
         {cols.map(([k, label, list]) => (
-          <div key={k} className="rounded-xl bg-slate-100 p-3">
-            <div className="mb-2 text-xs font-semibold text-slate-600">{label} ({list.length})</div>
+          <div key={k} className="rounded-md border border-neutral-200 bg-neutral-100 p-3">
+            <div className="mb-2 text-xs font-semibold text-neutral-600">{label} ({list.length})</div>
             <div className="space-y-2">
               {list.map((t) => (
-                <button key={t.id} onClick={() => setOpenId(t.id === openId ? null : t.id)} className={`w-full rounded-lg border bg-white p-3 text-left text-sm shadow-sm hover:border-blue-400 ${openId === t.id ? "border-blue-500" : "border-slate-200"}`}>
-                  <div className="flex items-center gap-2"><span>{t.type === "human" ? "🧑" : "🤖"}</span><span className="font-medium">{t.title}</span></div>
-                  <div className="mt-1 flex justify-between text-xs text-slate-500"><span>{t.assignee_name}</span><span>{usdc(t.estimated_cost)} USDC</span></div>
-                  <div className="mt-1 flex flex-wrap gap-1"><Badge status={`chain:${t.chain_status}`} />{t.type === "human" && t.human_task && <Badge status={t.human_task.status} />}{t.chain_status === "submitted" && <span className="text-[11px] text-slate-500">承認 {t.approval_count}/{c.threshold}</span>}</div>
+                <button key={t.id} onClick={() => setOpenId(t.id === openId ? null : t.id)} className={`w-full rounded-md border bg-white p-3 text-left text-sm hover:border-neutral-900 ${openId === t.id ? "border-neutral-900 shadow-[2px_2px_0_0_#171717]" : "border-neutral-200"}`}>
+                  <div className="flex min-w-0 items-center gap-2"><KindTag kind={t.type} /><span className="truncate font-medium">{t.title}</span></div>
+                  <div className="mt-1 flex justify-between gap-2 text-xs text-neutral-500"><span className="truncate">{t.assignee_name}</span><Amount value={usdc(t.estimated_cost)} /></div>
+                  <div className="mt-1 flex flex-wrap gap-1"><Badge status={`chain:${t.chain_status}`} />{t.type === "human" && t.human_task && <Badge status={t.human_task.status} />}{t.chain_status === "submitted" && <span className="whitespace-nowrap text-[11px] tabular-nums text-neutral-500">承認 {t.approval_count}/{c.threshold}</span>}</div>
                 </button>
               ))}
             </div>
@@ -191,9 +191,9 @@ function TaskBoard({ c, canApprove, onDone }: { c: CaseDetail; canApprove: boole
       </div>
       {open && (
         <Card className="mt-3">
-          <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">{open.type === "human" ? "🧑" : "🤖"} {open.title}</h3><div className="flex gap-2"><Badge status={open.status} /><Badge status={`chain:${open.chain_status}`} /></div></div>
-          <p className="mt-1 text-sm text-slate-600">{open.description}</p>
-          <dl className="mt-2 grid gap-1 text-xs text-slate-600 sm:grid-cols-2">
+          <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="flex min-w-0 items-center gap-2 font-semibold"><KindTag kind={open.type} /><span>{open.title}</span></h3><div className="flex gap-2"><Badge status={open.status} /><Badge status={`chain:${open.chain_status}`} /></div></div>
+          <p className="mt-1 text-sm text-neutral-600">{open.description}</p>
+          <dl className="mt-2 grid gap-1 text-xs text-neutral-600 sm:grid-cols-2">
             <div>成果物ハッシュ: <span className="font-mono">{open.deliverable_hash ? open.deliverable_hash.slice(0, 18) + "…" : "未提出"}</span></div>
             <div>支払先: <span className="font-mono">{open.payee ? short(open.payee) : "-"}</span></div>
             <div>Escrow task: <span className="font-mono">{open.escrow_task_id?.slice(0, 18)}…</span></div>
@@ -201,14 +201,14 @@ function TaskBoard({ c, canApprove, onDone }: { c: CaseDetail; canApprove: boole
           </dl>
           {open.approvals.length > 0 && <ul className="mt-2 text-xs">{open.approvals.map((a) => <li key={a.id} className="flex items-center gap-2"><HumanBadge /> {short(a.approver.wallet_address)} が承認（{new Date(a.created_at).toLocaleString("ja-JP")}）</li>)}</ul>}
           {open.type === "human" && open.human_task && open.human_task.status !== "done" && (
-            <p className="mt-2 text-sm">Human Task として指名・公開中 → <Link href={`/tasks/${open.human_task.id}`} className="text-blue-700 underline">タスクページ</Link></p>
+            <p className="mt-2 text-sm">Human Task として指名・公開中 → <Link href={`/tasks/${open.human_task.id}`} className="text-neutral-900 underline">タスクページ</Link></p>
           )}
-          {open.deliverable && <div className="mt-3 rounded-lg bg-slate-50 p-3"><Markdown>{open.deliverable}</Markdown></div>}
+          {open.deliverable && <div className="mt-3 rounded-md border border-neutral-200 p-3"><Markdown>{open.deliverable}</Markdown></div>}
           {canApprove && <div className="mt-3"><ApproveButton c={c} t={open} onDone={onDone} /></div>}
         </Card>
       )}
       {canApprove && tasks.some((t) => t.chain_status === "submitted") && (
-        <p className="mt-2 text-xs text-slate-500">承認者はカードを開いて各工程を承認します。必要数（{c.threshold}）がそろった工程から Escrow が自動で支払います。差し替えられた成果物への古い承認は無効になります。</p>
+        <p className="mt-2 text-xs text-neutral-500">承認者はカードを開いて各工程を承認します。必要数（{c.threshold}）がそろった工程から Escrow が自動で支払います。差し替えられた成果物への古い承認は無効になります。</p>
       )}
     </div>
   );
@@ -226,7 +226,7 @@ function DisputePanel({ c, onDone }: { c: CaseDetail; onDone: () => void }) {
   return (
     <Card>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div><h2 className="font-semibold">納得できないとき</h2><p className="text-xs text-slate-500">差し戻すと未払いの工程は Escrow に保留され、AI が論点を整理したうえで World で確認された第三者 3 名（Human Jury）の多数決で支払い / 返金が決まります。</p></div>
+        <div><h2 className="font-semibold">納得できないとき</h2><p className="text-xs text-neutral-500">差し戻すと未払いの工程は Escrow に保留され、AI が論点を整理したうえで World で確認された第三者 3 名（Human Jury）の多数決で支払い / 返金が決まります。</p></div>
         <Button variant="danger" onClick={() => setShow((v) => !v)}>差し戻す</Button>
       </div>
       {show && (
@@ -250,15 +250,15 @@ function ReviewPanel({ c, reviews, meId, onDone }: { c: CaseDetail; reviews: Rev
   return (
     <Card>
       <h2 className="font-semibold">Human-backed Review</h2>
-      <p className="mt-1 text-xs text-slate-500">案件の当事者（発注者 → PM Agent、Human Task worker → 発注者）が、World で人間確認をしてから評価します。Bot による水増しはできません。</p>
+      <p className="mt-1 text-xs text-neutral-500">案件の当事者（発注者 → PM Agent、Human Task worker → 発注者）が、World で人間確認をしてから評価します。Bot による水増しはできません。</p>
       {reviews.length > 0 && (
         <ul className="mt-3 space-y-2">
-          {reviews.map((r) => <li key={r.id} className="rounded-lg bg-slate-50 p-3 text-sm"><div className="flex flex-wrap items-center gap-2"><Stars value={r.rating} /><HumanBadge /><span className="text-xs text-slate-500">{short(r.reviewer.wallet_address)} → {r.target_type === "agent" ? "PM Agent" : "発注者"}</span></div><p className="mt-1">{r.comment}</p></li>)}
+          {reviews.map((r) => <li key={r.id} className="rounded-md border border-neutral-200 p-3 text-sm"><div className="flex flex-wrap items-center gap-2"><Stars value={r.rating} /><HumanBadge /><span className="text-xs text-neutral-500">{short(r.reviewer.wallet_address)} → {r.target_type === "agent" ? "PM Agent" : "発注者"}</span></div><p className="mt-1">{r.comment}</p></li>)}
         </ul>
       )}
       {(isClient || isWorker) && !mine && (
         <div className="mt-4 space-y-2">
-          <div className="flex items-center gap-2 text-2xl">{[1, 2, 3, 4, 5].map((n) => <button key={n} onClick={() => setRating(n)} className={n <= rating ? "text-amber-500" : "text-slate-300"}>★</button>)}</div>
+          <div className="flex items-center gap-2 text-2xl">{[1, 2, 3, 4, 5].map((n) => <button key={n} onClick={() => setRating(n)} className={n <= rating ? "text-neutral-700" : "text-neutral-300"}>★</button>)}</div>
           <textarea className={inputCls} rows={2} placeholder="良いコミュニケーションでした！" value={comment} onChange={(e) => setComment(e.target.value)} />
           <WorldVerifyButton action="review" signal={c.id} label="World で人間確認してレビューを投稿" onVerified={async (p) => { setErr(null); try { await api("/reviews", { method: "POST", json: { case_id: c.id, rating, comment, idkit_response: p } }); onDone(); } catch (e) { setErr(e); throw e; } }} />
           <ErrorBox error={err} />

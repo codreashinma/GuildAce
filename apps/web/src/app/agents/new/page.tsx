@@ -28,7 +28,7 @@ export default function NewAgent() {
     }
   };
 
-  if (!me) return <p className="text-sm text-slate-500">ウォレットを接続して Sign in してください。</p>;
+  if (!me) return <p className="text-sm text-neutral-500">ウォレットを接続して Sign in してください。</p>;
   const ens = `${f.label || "<label>"}.${config?.ens_parent_name ?? "choice.eth"}`;
 
   return (

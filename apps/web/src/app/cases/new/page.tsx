@@ -6,13 +6,13 @@ import { Suspense, useMemo, useState } from "react";
 import { api, type Agent, type Case } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { WorldVerifyButton } from "@/components/world-verify";
-import { Button, Card, ErrorBox, Field, inputCls, PageTitle } from "@/components/ui";
+import { Button, Card, ErrorBox, Field, inputCls, PageTitle, selectCls } from "@/components/ui";
 
 function Steps({ step }: { step: number }) {
   return (
     <ol className="mb-6 flex flex-wrap gap-2 text-xs">
       {["依頼を書く", "承認者を決める", "World で本人確認して依頼"].map((s, i) => (
-        <li key={s} className={`rounded-full px-3 py-1 ${step === i + 1 ? "bg-slate-900 text-white" : step > i + 1 ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-500"}`}>{i + 1}. {s}</li>
+        <li key={s} className={`whitespace-nowrap rounded-sm border px-3 py-1 tabular-nums ${step === i + 1 ? "border-neutral-900 bg-neutral-900 text-white" : step > i + 1 ? "border-neutral-900 text-neutral-900" : "border-neutral-200 text-neutral-400"}`}>{i + 1}. {s}</li>
       ))}
     </ol>
   );
@@ -60,7 +60,7 @@ function Form() {
     }
   };
 
-  if (!me) return <p className="text-sm text-slate-500">Sign in してください。</p>;
+  if (!me) return <p className="text-sm text-neutral-500">Sign in してください。</p>;
   return (
     <div className="mx-auto max-w-2xl">
       <PageTitle title="依頼を始める" sub="作りたいこと・納期・予算を 1 つの文章で書くだけ。PM Agent がタスクに分解し、ENS から候補を探してチームを編成します" />
@@ -70,10 +70,10 @@ function Form() {
           <Field label="依頼文（自然言語）" hint="例: 「Web サービスを 3 日で作って、予算 12 USDC で！」">
             <textarea className={`${inputCls} text-base`} rows={4} value={prompt} onChange={(e) => setPrompt(e.target.value)} />
           </Field>
-          <div className="grid gap-2 rounded-lg bg-slate-50 p-3 text-sm sm:grid-cols-3">
-            <div><div className="text-xs text-slate-500">読み取った件名</div><div className="font-medium">{parsed.title}</div></div>
-            <div><div className="text-xs text-slate-500">予算</div><div className="font-medium">{parsed.budget.toLocaleString()} USDC</div></div>
-            <div><div className="text-xs text-slate-500">納期</div><div className="font-medium">{parsed.days ? `${parsed.days} 日後` : "未指定"}</div></div>
+          <div className="grid gap-3 rounded-md border border-neutral-200 p-3 text-sm sm:grid-cols-3">
+            <div><div className="text-xs text-neutral-500">読み取った件名</div><div className="font-medium">{parsed.title}</div></div>
+            <div><div className="text-xs text-neutral-500">予算</div><div className="whitespace-nowrap font-medium tabular-nums">{parsed.budget.toLocaleString()} USDC</div></div>
+            <div><div className="text-xs text-neutral-500">納期</div><div className="font-medium">{parsed.days ? `${parsed.days} 日後` : "未指定"}</div></div>
           </div>
           <Field label="利用する PM Agent">
             <select className={inputCls} value={agentId} onChange={(e) => setF({ ...f, agent_id: e.target.value })}>
@@ -86,12 +86,12 @@ function Form() {
       {step === 2 && (
         <Card className="space-y-4">
           <h2 className="font-semibold">承認者を決める</h2>
-          <p className="text-sm text-slate-600">成果物の検収を承認できるウォレットと、支払いに必要な承認数です。Escrow の openCase で固定され、必要数がそろった時点でコントラクトが自動で支払います。名前ではなく、ここで登録した権限だけが承認できます。</p>
+          <p className="text-sm text-neutral-600">成果物の検収を承認できるウォレットと、支払いに必要な承認数です。Escrow の openCase で固定され、必要数がそろった時点でコントラクトが自動で支払います。名前ではなく、ここで登録した権限だけが承認できます。</p>
           <ul className="space-y-1 text-sm">
             {approvers.map((a, i) => (
-              <li key={a} className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 font-mono text-xs">
-                <span className="rounded bg-slate-200 px-1.5 text-[10px]">{i === 0 ? "開発部（検収）" : i === 1 ? "経理部（支払）" : `承認者 ${i + 1}`}</span>{a}
-                {approvers.length > 1 && <button className="ml-auto text-rose-600" onClick={() => setApprovers(approvers.filter((x) => x !== a))}>削除</button>}
+              <li key={a} className="flex items-center gap-2 rounded-md border border-neutral-200 px-3 py-2 text-xs">
+                <span className="shrink-0 whitespace-nowrap rounded-sm border border-neutral-900 px-1.5 text-[10px]">{i === 0 ? "開発部（検収）" : i === 1 ? "経理部（支払）" : `承認者 ${i + 1}`}</span><span className="truncate font-mono">{a}</span>
+                {approvers.length > 1 && <button className="ml-auto whitespace-nowrap underline underline-offset-2" onClick={() => setApprovers(approvers.filter((x) => x !== a))}>削除</button>}
               </li>
             ))}
           </ul>
@@ -100,7 +100,7 @@ function Form() {
             <Button variant="secondary" disabled={!/^0x[0-9a-fA-F]{40}$/.test(extra)} onClick={() => { setApprovers([...approvers, extra.toLowerCase()]); setExtra(""); }}>追加</Button>
           </div>
           <Field label="必要承認数">
-            <select className={`${inputCls} w-auto`} value={threshold} onChange={(e) => setThreshold(Number(e.target.value))}>
+            <select className={selectCls} value={threshold} onChange={(e) => setThreshold(Number(e.target.value))}>
               {approvers.map((_, i) => <option key={i} value={i + 1}>{i + 1} / {approvers.length}</option>)}
             </select>
           </Field>
@@ -116,10 +116,10 @@ function Form() {
             <Field label="予算（USDC）"><input className={inputCls} type="number" min={1} value={f.budget_usdc} onChange={(e) => setF({ ...f, budget_usdc: Number(e.target.value) })} /></Field>
             <Field label="納期"><input className={inputCls} type="date" value={f.deadline} onChange={(e) => setF({ ...f, deadline: e.target.value })} /></Field>
           </div>
-          <div className="rounded-lg bg-blue-50 p-3 text-sm">
-            <div>PM Agent: <b>{agent?.name}</b> <span className="font-mono text-xs">{agent?.ens_name}</span> · 手数料 {agent ? agent.fee_bps / 100 : "-"}%</div>
-            <div>承認者 {approvers.length} 名 / 必要 {threshold}</div>
-            <div className="mt-1 text-xs text-slate-600">依頼の開始は「重要な行為」なので、World ID で実在する人間であることを確認します（FR-002）。World は人間性だけを証明し、会社への所属や契約権限は証明しません。</div>
+          <div className="rounded-md border border-neutral-200 p-3 text-sm">
+            <div className="flex flex-wrap items-center gap-x-2"><span className="whitespace-nowrap">PM Agent: <b>{agent?.name}</b></span><span className="font-mono text-xs">{agent?.ens_name}</span><span className="whitespace-nowrap tabular-nums">手数料 {agent ? agent.fee_bps / 100 : "-"}%</span></div>
+            <div className="whitespace-nowrap tabular-nums">承認者 {approvers.length} 名 / 必要 {threshold}</div>
+            <div className="mt-1 text-xs text-neutral-600">依頼の開始は「重要な行為」なので、World ID で実在する人間であることを確認します（FR-002）。World は人間性だけを証明し、会社への所属や契約権限は証明しません。</div>
           </div>
           <ErrorBox error={err} />
           <div className="flex justify-between">

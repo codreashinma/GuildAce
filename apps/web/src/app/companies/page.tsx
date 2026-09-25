@@ -5,7 +5,7 @@ import { useState } from "react";
 import { usePublicClient, useSendTransaction } from "wagmi";
 import { api, short, type Company, type Member } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { Badge, Button, Card, Empty, ErrorBox, Field, inputCls, PageTitle, TxLink } from "@/components/ui";
+import { Badge, Button, Card, Empty, ErrorBox, Field, inputCls, Mono, PageTitle, TxLink } from "@/components/ui";
 
 /** F9: 受注側の会社が、自社の .eth の下に人員を登録する。PM Agent はここから Human Task を指名する */
 export default function Companies() {
@@ -20,7 +20,7 @@ export default function Companies() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["companies"] }); setF({ name: "", ens_name: "", description: "" }); setErr(null); },
     onError: setErr,
   });
-  if (!me) return <p className="text-sm text-slate-500">Sign in してください。</p>;
+  if (!me) return <p className="text-sm text-neutral-500">Sign in してください。</p>;
 
   return (
     <div className="space-y-8">
@@ -40,14 +40,14 @@ export default function Companies() {
       </Card>
 
       <div>
-        <h2 className="mb-3 font-semibold">登録されている会社 <span className="text-xs font-normal text-slate-500">PM Agent の指名候補になる人員プール</span></h2>
+        <h2 className="mb-3 font-semibold">登録されている会社 <span className="text-xs font-normal text-neutral-500">PM Agent の指名候補になる人員プール</span></h2>
         {!all?.length ? <Empty>まだ会社がありません</Empty> : (
           <div className="grid gap-3 sm:grid-cols-2">
             {all.map((c) => (
               <Card key={c.id}>
-                <div className="flex items-center gap-2"><b>{c.name}</b><span className="font-mono text-xs text-blue-700">{c.ens_name}</span>{c.ens_verified && <Badge status="published">所有確認済</Badge>}</div>
-                <p className="mt-1 text-xs text-slate-500">{c.description}</p>
-                <ul className="mt-2 space-y-1 text-xs">{c.members.map((m) => <li key={m.id} className="flex flex-wrap gap-2"><span className="font-mono text-blue-700">{m.ens_name}</span><span>{m.role}</span><span className="text-slate-500">{m.skills}</span><span className="text-slate-500">{m.location}</span>{!m.available && <span className="text-rose-600">稼働不可</span>}</li>)}</ul>
+                <div className="flex flex-wrap items-center gap-2"><b className="whitespace-nowrap">{c.name}</b><Mono className="text-neutral-900">{c.ens_name}</Mono>{c.ens_verified && <Badge status="published">所有確認済</Badge>}</div>
+                <p className="mt-1 text-xs text-neutral-500">{c.description}</p>
+                <ul className="mt-2 space-y-1 text-xs">{c.members.map((m) => <li key={m.id} className="flex flex-wrap items-center gap-x-2 gap-y-0.5"><Mono className="text-neutral-900">{m.ens_name}</Mono><span className="whitespace-nowrap">{m.role}</span><span className="text-neutral-500">{m.skills}</span><span className="whitespace-nowrap text-neutral-500">{m.location}</span>{!m.available && <Badge>稼働不可</Badge>}</li>)}</ul>
               </Card>
             ))}
           </div>
@@ -73,28 +73,28 @@ function CompanyCard({ c, mock }: { c: Company; mock: boolean }) {
   return (
     <Card className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="font-semibold">{c.name}</h2><span className="font-mono text-sm text-blue-700">{c.ens_name}</span>
+        <h2 className="whitespace-nowrap font-semibold">{c.name}</h2><Mono className="text-sm text-neutral-900">{c.ens_name}</Mono>
         <Badge status={c.ens_verified ? "published" : "draft"}>{c.ens_verified ? "ENS 所有確認済" : "所有未確認（モック）"}</Badge>
-        <span className="text-xs text-slate-500">管理者 {short(c.admin.wallet_address)}</span>
+        <span className="whitespace-nowrap text-xs text-neutral-500">管理者 <Mono>{short(c.admin.wallet_address)}</Mono></span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="text-left text-xs text-slate-500"><tr><th className="py-1">ENS 名</th><th>名前 / 役割</th><th>スキル</th><th>拠点</th><th>稼働</th><th>ENS 書き込み</th></tr></thead>
+          <thead className="whitespace-nowrap text-left text-xs text-neutral-500"><tr><th className="py-1 pr-3">ENS 名</th><th className="pr-3">名前 / 役割</th><th className="pr-3">スキル</th><th className="pr-3">拠点</th><th className="pr-3">稼働</th><th>ENS 書き込み</th></tr></thead>
           <tbody>
             {c.members.map((x) => (
-              <tr key={x.id} className="border-t border-slate-100">
-                <td className="py-2 font-mono text-xs text-blue-700">{x.ens_name}</td>
-                <td>{x.name} <span className="text-xs text-slate-500">{x.role}</span></td>
-                <td className="text-xs">{x.skills}</td><td className="text-xs">{x.location}</td>
-                <td><button className={`rounded-full px-2 py-0.5 text-xs ${x.available ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-500"}`} onClick={() => toggle.mutate(x)}>{x.available ? "可" : "不可"}</button></td>
+              <tr key={x.id} className="border-t border-neutral-100 align-middle [&>td]:py-2 [&>td]:pr-3">
+                <td><Mono className="text-neutral-900">{x.ens_name}</Mono></td>
+                <td className="whitespace-nowrap">{x.name} <span className="text-xs text-neutral-500">{x.role}</span></td>
+                <td className="text-xs">{x.skills}</td><td className="whitespace-nowrap text-xs">{x.location}</td>
+                <td><button className={`whitespace-nowrap rounded-sm border px-2 py-0.5 text-xs ${x.available ? "border-neutral-900 bg-neutral-900 text-white" : "border-neutral-300 text-neutral-500"}`} onClick={() => toggle.mutate(x)}>{x.available ? "稼働可" : "稼働不可"}</button></td>
                 <td><EnsWrite c={c} m={x} mock={mock} /></td>
               </tr>
             ))}
-            {c.members.length === 0 && <tr><td colSpan={6} className="py-3 text-center text-xs text-slate-500">人員がまだいません</td></tr>}
+            {c.members.length === 0 && <tr><td colSpan={6} className="py-3 text-center text-xs text-neutral-500">人員がまだいません</td></tr>}
           </tbody>
         </table>
       </div>
-      <div className="rounded-lg bg-slate-50 p-3">
+      <div className="rounded-md border border-dashed border-neutral-300 p-3">
         <div className="mb-2 text-sm font-medium">人員を追加</div>
         <div className="grid gap-2 sm:grid-cols-3">
           <input className={inputCls} placeholder={`ラベル（例 dan → dan.${c.ens_name}）`} value={m.label} onChange={(e) => setM({ ...m, label: e.target.value.toLowerCase() })} />
@@ -139,11 +139,11 @@ function EnsWrite({ c, m, mock }: { c: Company; m: Member; mock: boolean }) {
       setBusy(null);
     }
   };
-  if (m.ens_status === "written") return <span className="text-xs text-emerald-700">✓ 書き込み済 <TxLink hash={m.ens_tx_hash} /></span>;
+  if (m.ens_status === "written") return <span className="inline-flex flex-wrap items-center gap-2 whitespace-nowrap text-xs text-neutral-900">書き込み済 <TxLink hash={m.ens_tx_hash} /></span>;
   return (
     <div className="flex flex-col gap-1">
       <Button variant="secondary" className="px-2 py-1 text-xs" disabled={!!busy} onClick={run}>{busy ?? (mock ? "ENS に書き込む（モック）" : "ENS に書き込む")}</Button>
-      {err && <span className="max-w-xs text-[11px] text-rose-600">{err}</span>}
+      {err && <span className="max-w-xs text-[11px] text-neutral-700">{err}</span>}
     </div>
   );
 }

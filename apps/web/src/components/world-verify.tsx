@@ -44,9 +44,9 @@ export function WorldVerifyButton({ action, signal, label, onVerified, disabled,
   return (
     <div className="inline-flex flex-col gap-1">
       <Button variant={variant} onClick={start} disabled={disabled || busy}>
-        <span className="mr-1">◎</span>{busy ? "処理中…" : label}
+        <span aria-hidden>◎</span><span>{busy ? "処理中…" : label}</span>
       </Button>
-      {err && <span className="max-w-xs text-xs text-rose-600">{err}</span>}
+      {err && <span className="max-w-xs text-xs text-neutral-900">{err}</span>}
       {config && !config.mock.world && rp && (
         <IDKitRequestWidget
           open={open}

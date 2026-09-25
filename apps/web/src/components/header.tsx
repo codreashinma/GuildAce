@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount } from "wagmi";
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { Button } from "./ui";
 
@@ -19,7 +21,8 @@ const NAV = [
 export function Header() {
   const path = usePathname();
   const { isConnected } = useAccount();
-  const { me, signIn, signOut, config } = useAuth();
+  const { me, signIn, devLogin, signOut, config } = useAuth();
+  const { data: devUsers } = useQuery({ queryKey: ["dev-users"], queryFn: () => api<{ role: string; label: string }[]>("/auth/dev-users"), staleTime: Infinity });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -58,6 +61,13 @@ export function Header() {
           {isConnected && !me && (
             <Button onClick={doSignIn} disabled={busy}>{busy ? "署名待ち…" : "Sign in"}</Button>
           )}
+          {!me && devUsers && devUsers.length > 0 && (
+            <select className="rounded-lg border border-dashed border-amber-400 bg-amber-50 px-2 py-2 text-xs text-amber-900" value="" onChange={(e) => { if (e.target.value) void devLogin(e.target.value).catch((er) => setErr(String(er))); }} title="ウォレット不要のデモログイン（DEV_LOGIN_ENABLED）">
+              <option value="">デモログイン…</option>
+              {devUsers.map((u) => <option key={u.role} value={u.role}>{u.label}</option>)}
+            </select>
+          )}
+          {me && <span className="hidden text-xs text-slate-500 sm:inline">{me.display_name ?? me.wallet_address.slice(0, 8)}</span>}
           {me && <Button variant="ghost" onClick={signOut} title={me.wallet_address}>Sign out</Button>}
         </div>
       </div>

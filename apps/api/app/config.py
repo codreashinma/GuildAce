@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000"
     app_url: str = "http://localhost:3000"
     api_url: str = "http://localhost:8001"
+    dev_login_enabled: bool = False  # true で /auth/dev-login（ウォレット不要のデモログイン）を有効化
 
     # --- chain (Sepolia) ---
     chain_id: int = 11155111

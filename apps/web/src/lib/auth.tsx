@@ -11,11 +11,12 @@ type Auth = {
   config: AppConfig | null;
   loading: boolean;
   signIn: () => Promise<void>;
+  devLogin: (role: string) => Promise<void>;
   signOut: () => void;
   refresh: () => Promise<void>;
 };
 
-const Ctx = createContext<Auth>({ me: null, config: null, loading: true, signIn: async () => {}, signOut: () => {}, refresh: async () => {} });
+const Ctx = createContext<Auth>({ me: null, config: null, loading: true, signIn: async () => {}, devLogin: async () => {}, signOut: () => {}, refresh: async () => {} });
 
 function readToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -37,7 +38,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // 別のウォレットに切り替わっていたらログイン状態を無効化する
   const me = useMemo(() => {
     if (!token || !fetched) return null;
-    if (address && fetched.wallet_address !== address.toLowerCase()) return null;
+    let dev = false;
+    try { dev = localStorage.getItem("choice.dev") === "1"; } catch { /* ignore */ }
+    if (!dev && address && fetched.wallet_address !== address.toLowerCase()) return null;
     return fetched;
   }, [token, fetched, address]);
 
@@ -53,16 +56,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const message = msg.prepareMessage();
     const signature = await signMessageAsync({ message });
     const r = await api<{ token: string }>("/auth/verify", { method: "POST", json: { message, signature } });
-    try { localStorage.setItem("choice.token", r.token); } catch { /* ignore */ }
+    try { localStorage.setItem("choice.token", r.token); localStorage.removeItem("choice.dev"); } catch { /* ignore */ }
     setToken(r.token);
   }, [address, chainId, signMessageAsync]);
 
+  const devLogin = useCallback(async (role: string) => {
+    const r = await api<{ token: string }>("/auth/dev-login", { method: "POST", json: { role } });
+    try { localStorage.setItem("choice.token", r.token); localStorage.setItem("choice.dev", "1"); } catch { /* ignore */ }
+    setToken(r.token);
+  }, []);
+
   const signOut = useCallback(() => {
-    try { localStorage.removeItem("choice.token"); } catch { /* ignore */ }
+    try { localStorage.removeItem("choice.token"); localStorage.removeItem("choice.dev"); } catch { /* ignore */ }
     setToken(null);
   }, []);
 
-  const value = useMemo(() => ({ me, config: config ?? null, loading: !!token && isLoading, signIn, signOut, refresh }), [me, config, token, isLoading, signIn, signOut, refresh]);
+  const value = useMemo(() => ({ me, config: config ?? null, loading: !!token && isLoading, signIn, devLogin, signOut, refresh }), [me, config, token, isLoading, signIn, devLogin, signOut, refresh]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

@@ -1,6 +1,9 @@
 """TOOL-002 search_agents_by_ens（参照のみ。WP-013 / agent-orchestration 6-3・CG-008・context-templates AG-003「参照データの選び方」）。
 AG-003 に渡す候補を返す。候補の出どころは DEC-009 (a):
 - 索引は DB。公開済みで ENS に実在する Agent（routers.agents.agent_on_ens）と、ENS に書き込み済みで受付中の人員（members）
+- 加えて、案件の PM Agent 配下の専門エージェント（<role>.<PM の ENS 名>）。DB に行が無く ENS だけで管理されるため、
+  名前は agent_subagents の役割から組み立て、ENS の codrea.agent.parent が PM の名前・codrea.agent.kind が ai のものだけを採る。
+  PM Agent 自身のチームなので、発注者自身を除く条件はかけない
 - 属性は ENS の構造化された text record だけを、キーを指定して読む（read_texts）。description などの自由文は読まない（CG-008）
 - reputation_score は DB の rating_avg（DEC-009）。評価が無ければ null
 並びは reputation_score 降順 → human_review_count 降順 → ens_name 昇順で固定（同点でも順序が決まる）。
@@ -11,12 +14,13 @@ from sqlalchemy.orm import Session
 
 from ..config import get_settings
 from ..models import Agent, Case, Company, Member, User
-from ..routers.agents import agent_on_ens
+from ..routers.agents import agent_on_ens, agent_subagents
 from ..services import ens
 from .tools import ToolContext, ToolError, register
 
 AGENT_KEYS = ["codrea.agent.category"]  # 構造化された値だけ（description・url などは読まない）
 PERSON_KEYS = ["codrea.person.role", "codrea.person.company"]
+SUBAGENT_KEYS = ["codrea.agent.role", "codrea.agent.parent", "codrea.agent.kind"]
 MAX_VALUE = 60  # ENS の値の長さの上限（構造化された値として扱える長さに切る）
 
 
@@ -52,6 +56,26 @@ def _agent_candidates(db: Session, client: User) -> list[Candidate]:
     return out
 
 
+def _subagent_candidates(pm: Agent | None) -> list[Candidate]:
+    if pm is None or not (pm.ens_name and agent_on_ens(pm)):
+        return []
+    names = [f"{x['role']}.{pm.ens_name}" for x in agent_subagents(pm)]
+    got = ens.read_texts_many([(n, SUBAGENT_KEYS) for n in names])
+    out = []
+    for n in names:
+        texts = got.get(n, {})
+        role = _value(texts, "codrea.agent.role")
+        if not role or _value(texts, "codrea.agent.parent") != pm.ens_name or _value(texts, "codrea.agent.kind") != "ai":
+            continue
+        out.append(Candidate(ens_name=n, domain=role, creator_ens_name=pm.ens_name, reputation_score=None, human_review_count=None))
+    return out
+
+
+def is_pm_subagent(pm: Agent | None, ens_name: str) -> bool:
+    """PM Agent 配下の専門エージェントの名前か（担当の種類を決める用。ENS での確認は TOOL-002 の候補に入っていることで済ませる）"""
+    return bool(pm and pm.ens_name) and ens_name.endswith("." + pm.ens_name)
+
+
 def _member_candidates(db: Session, client: User) -> list[Candidate]:
     out = []
     q = db.query(Member).join(Company).filter(Member.ens_status == "written", Member.available.is_(True))
@@ -77,7 +101,8 @@ def search_candidates(db: Session, case_id: str) -> SearchResult:
     if case is None:
         raise ToolError("案件がありません")
     client = db.get(User, case.client_id)
-    found = sorted(_agent_candidates(db, client) + _member_candidates(db, client), key=sort_key)
+    pm = db.get(Agent, case.agent_id)
+    found = sorted(_agent_candidates(db, client) + _subagent_candidates(pm) + _member_candidates(db, client), key=sort_key)
     cap = get_settings().agent_max_candidates
     return SearchResult(candidates=found[:cap], truncated=len(found) > cap)
 

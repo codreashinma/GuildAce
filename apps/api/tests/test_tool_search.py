@@ -22,7 +22,11 @@ def ens_records(monkeypatch):
         asked.append((name, list(keys or [])))
         return {k: v for k, v in records.get(name, {}).items() if keys is None or k in keys}
 
+    def read_texts_many(items, ttl=60.0):
+        return {name: read_texts(name, keys) for name, keys in items}
+
     monkeypatch.setattr(tool_search.ens, "read_texts", read_texts)
+    monkeypatch.setattr(tool_search.ens, "read_texts_many", read_texts_many)
     return records, asked
 
 
@@ -101,7 +105,8 @@ def test_cg008_no_free_text_is_read_or_returned(db, world, ens_records):
     for word in (INJECTION, "evil.example", "太郎", "東京都", "0x"):
         assert word not in out
     asked_keys = {k for _, keys in asked for k in keys}
-    assert asked_keys <= {"codrea.agent.category", "codrea.person.role", "codrea.person.company"}
+    assert asked_keys <= {"codrea.agent.category", "codrea.person.role", "codrea.person.company",
+                          "codrea.agent.role", "codrea.agent.parent", "codrea.agent.kind"}
     assert "description" not in asked_keys and "codrea.person.skills" not in asked_keys
 
 
@@ -140,6 +145,65 @@ def test_mock_environment_without_rpc_returns_nothing(db, world, monkeypatch):
     """RPC が無い（read_texts が空を返す）環境では、ENS で確かめられないので候補を返さない。"""
     monkeypatch.setattr(tool_search.ens, "read_texts", lambda name, keys=None, ttl=60.0: {})
     assert search_candidates(db, world.id).candidates == []
+
+
+# ---------------------------------------------------------------- PM Agent 配下の専門エージェント（ENS だけで管理）
+
+
+def _subagent_records(records, parent, roles=("designer", "frontend", "backend", "qa"), **over):
+    for r in roles:
+        records[f"{r}.{parent}"] = {"codrea.agent.role": r, "codrea.agent.parent": parent, "codrea.agent.kind": "ai",
+                                    "description": INJECTION, **over}
+
+
+def test_pm_subagents_on_ens_are_candidates(db, world, ens_records):
+    records, asked = ens_records
+    _subagent_records(records, "draft-agent.choice.eth")
+    by = {c.ens_name: c for c in search_candidates(db, world.id).candidates}
+    assert by["designer.draft-agent.choice.eth"].model_dump() == {
+        "ens_name": "designer.draft-agent.choice.eth", "domain": "designer", "creator_ens_name": "draft-agent.choice.eth",
+        "reputation_score": None, "human_review_count": None}
+    assert {"frontend.draft-agent.choice.eth", "backend.draft-agent.choice.eth", "qa.draft-agent.choice.eth"} <= set(by)
+    assert INJECTION not in repr([c.model_dump() for c in by.values()])  # CG-008: description は読まない
+    assert "description" not in {k for _, keys in asked for k in keys}
+
+
+def test_pm_subagents_even_when_pm_is_clients_own(db, world, ens_records):
+    """発注者が自分の PM Agent に依頼しても、その配下の専門エージェントは候補になる"""
+    records, _ = ens_records
+    pm = db.get(Agent, world.agent_id)
+    pm.creator_id = world.client_id
+    db.commit()
+    _subagent_records(records, pm.ens_name, roles=("designer",))
+    assert "designer.draft-agent.choice.eth" in _names(search_candidates(db, world.id))
+
+
+def test_pm_subagents_are_verified_on_ens(db, world, ens_records):
+    records, _ = ens_records
+    _subagent_records(records, "draft-agent.choice.eth", roles=("designer",), **{"codrea.agent.parent": "other.choice.eth"})
+    _subagent_records(records, "draft-agent.choice.eth", roles=("frontend",), **{"codrea.agent.kind": "human"})
+    _subagent_records(records, "draft-agent.choice.eth", roles=("backend",), **{"codrea.agent.role": ""})
+    names = _names(search_candidates(db, world.id))
+    assert not any(n.endswith(".draft-agent.choice.eth") for n in names)
+
+
+def test_pm_subagents_follow_owner_defined_roles(db, world, ens_records):
+    records, _ = ens_records
+    pm = db.get(Agent, world.agent_id)
+    pm.subagents = [{"role": "photo", "name": "Photo Agent", "description": "", "rules": ""}]
+    db.commit()
+    _subagent_records(records, pm.ens_name, roles=("photo", "designer"))
+    names = [n for n in _names(search_candidates(db, world.id)) if n.endswith(".draft-agent.choice.eth")]
+    assert names == ["photo.draft-agent.choice.eth"]
+
+
+def test_no_pm_subagents_when_pm_not_on_ens(db, world, ens_records):
+    records, _ = ens_records
+    pm = db.get(Agent, world.agent_id)
+    pm.ens_tx_hash = "0xmock1"
+    db.commit()
+    _subagent_records(records, pm.ens_name)
+    assert not any(n.endswith(".draft-agent.choice.eth") for n in _names(search_candidates(db, world.id)))
 
 
 # ---------------------------------------------------------------- ツールとして（GRD-001）

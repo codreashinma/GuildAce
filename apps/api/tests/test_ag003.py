@@ -196,3 +196,30 @@ def test_ag003_cannot_call_tool005(db, case):
     run = trace.start_run(db, "AG-003", case_id=case.id)
     assert tools.call_tool(db, run, "TOOL-005", case_id=case.id, revision=1, items=_items()["items"]).denied
     assert _team_outputs(db) == 0
+
+
+def test_pm_subagents_only_on_ens_form_team_and_save(db, monkeypatch):
+    """DB に候補が無く、PM Agent 配下の専門エージェントが ENS にだけある（発注者自身の PM Agent）→ 候補になり、ai_agent で保存される"""
+    parent = "mine.mega.eth"
+    subs = {f"{r}.{parent}": {"codrea.agent.role": r, "codrea.agent.parent": parent, "codrea.agent.kind": "ai"} for r in ("designer", "qa")}
+    monkeypatch.setattr(tool_search.ens, "read_texts", lambda name, keys=None, ttl=60.0: {})
+    monkeypatch.setattr(tool_search.ens, "read_texts_many", lambda items, ttl=60.0: {n: dict(subs.get(n, {})) for n, _ in items})
+    client = User(wallet_address="0x" + "f1" * 20)
+    db.add(client)
+    db.flush()
+    pm = Agent(creator_id=client.id, name="PM", label="mine", category="web", payout_address=client.wallet_address, status="published",
+               owner_mode="creator", parent_ens_name="mega.eth", ens_name=parent, ens_tx_hash="0x" + "ab" * 32, ens_subregistry="0x" + "9" * 40)
+    db.add(pm)
+    db.flush()
+    c = Case(client_id=client.id, agent_id=pm.id, title="自分の PM", budget=BUDGET, status="planning", escrow_case_id="0x" + "13" * 32)
+    db.add(c)
+    db.flush()
+    trace.save_output(db, "task_plan", c.id, 1, {"tasks": TASKS})
+    db.commit()
+    r = form_team(db, case_id=c.id)  # 既定のモック: 候補を順に割り当てる
+    assert r.ok, r.violations
+    ag001 = trace.start_run(db, "AG-001", case_id=c.id)
+    res = tools.call_tool(db, ag001, "TOOL-005", case_id=c.id, revision=1, items=r.proposal.model_dump()["items"])
+    assert res.ok, res.error
+    [row] = db.query(AgentOutput).filter(AgentOutput.kind == "team_proposal").all()
+    assert {i["assignee_ens_name"]: i["assignee_kind"] for i in row.payload["items"]} == {f"designer.{parent}": "ai_agent", f"qa.{parent}": "ai_agent"}

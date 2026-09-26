@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from ..models import Agent, Case, Member
 from . import trace
-from .tool_search import search_candidates
+from .tool_search import is_pm_subagent, search_candidates
 from .tools import ToolContext, ToolError, register
 
 _AMOUNT = re.compile(r"^[0-9]+$")  # 小数・負数・桁区切り・指数表記を受け付けない（PMT-007）
@@ -48,9 +48,9 @@ def usable_budget(case: Case, agent: Agent) -> int:
     return int(case.budget) * (10_000 - agent.fee_bps) // 10_000
 
 
-def assignee_kind(db: Session, ens_name: str) -> Literal["human", "ai_agent"] | None:
-    """ENS 名から担当の種類を決める（TOOL-002 の索引と同じ表）。どちらにも無ければ None。"""
-    if db.query(Agent.id).filter(Agent.ens_name == ens_name).first():
+def assignee_kind(db: Session, ens_name: str, pm: Agent | None = None) -> Literal["human", "ai_agent"] | None:
+    """ENS 名から担当の種類を決める（TOOL-002 の索引と同じ表。PM Agent 配下の専門エージェントは ai_agent）。どれにも無ければ None。"""
+    if is_pm_subagent(pm, ens_name) or db.query(Agent.id).filter(Agent.ens_name == ens_name).first():
         return "ai_agent"
     if db.query(Member.id).filter(Member.ens_name == ens_name).first():
         return "human"
@@ -86,10 +86,11 @@ def validate_proposal(proposal: TeamProposal, task_seqs: list[int], candidate_na
     return out, excess
 
 
-def to_saved(db: Session, proposal: TeamProposal) -> list[dict]:
+def to_saved(db: Session, proposal: TeamProposal, pm: Agent | None = None) -> list[dict]:
+    """担当は validate_proposal で TOOL-002 の候補の中にあることを確かめてから呼ぶ"""
     items = []
     for i in proposal.items:
-        kind = assignee_kind(db, i.assignee_ens_name)
+        kind = assignee_kind(db, i.assignee_ens_name, pm)
         if kind is None:
             raise ToolError("担当の ENS 名が索引にありません")
         items.append(SavedItem(task_seq=i.task_seq, assignee_kind=kind, assignee_user_id=None,
@@ -118,11 +119,12 @@ def save_team_proposal(ctx: ToolContext, *, case_id: str, revision: int, items: 
         proposal = TeamProposal.model_validate({"items": items})  # AG-003 の出力の items をそのまま受け取る
     except ValueError as e:
         raise ToolError(f"チーム案の形が合いません: {e}") from e
-    budget = usable_budget(case, ctx.db.get(Agent, case.agent_id))
+    pm = ctx.db.get(Agent, case.agent_id)
+    budget = usable_budget(case, pm)
     names = [c.ens_name for c in search_candidates(ctx.db, case_id).candidates]
     violations, _ = validate_proposal(proposal, latest_task_seqs(ctx.db, case_id), names, budget)
     if violations:  # 9-2・GRD-002: 検証に通らない案（予算超過を含む）は保存しない
         raise ToolError("チーム案の検証に失敗しました: " + " / ".join(violations))
-    saved = to_saved(ctx.db, proposal)
+    saved = to_saved(ctx.db, proposal, pm)
     trace.save_output(ctx.db, "team_proposal", case_id, revision, {"items": saved}, ctx.run)
     return {"case_id": case_id, "revision": revision, "item_count": len(saved), "total": str(sum(int(i["amount"]) for i in saved))}

@@ -1,0 +1,17 @@
+Goal: for the provided dispute, lay out the points at issue between the two parties.
+
+Expected form: JSON that conforms to the schema shown above.
+
+Rules:
+- Do not state a conclusion about which party is right.
+- Attach one of the records below as a reference to each issue.
+
+When you cannot decide: do not invent issues based on guesses; return an empty issue list.
+
+{{delimiter}}
+[Records of the task in question]
+{{task_record}}
+
+[Summaries of both parties' claims]
+{{claims}}
+{{delimiter}}

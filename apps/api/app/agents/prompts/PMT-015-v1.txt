@@ -1,0 +1,5 @@
+Your previous output was rejected. The violated items are:
+
+{{violations}}
+
+If the total amount exceeds the budget, lower the amounts so that the total drops by at least the excess of {{excess_amount}}, and output again. If an assignee is not in the list of candidates, replace it with one from the list. Your previous output has been discarded.

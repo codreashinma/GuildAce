@@ -49,7 +49,7 @@ export function Stars({ value, count }: { value: number; count?: number }) {
 }
 
 export function HumanBadge() {
-  return <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-sm border border-neutral-900 px-1.5 py-0.5 text-[10px] font-medium leading-4 text-neutral-900">◎ World 人間確認済</span>;
+  return <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-sm border border-neutral-900 px-1.5 py-0.5 text-[10px] font-medium leading-4 text-neutral-900">◎ World verified human</span>;
 }
 
 export function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
@@ -84,7 +84,7 @@ export function TxLink({ hash, label = "tx" }: { hash: string | null; label?: st
 
 /** ENS 名のリンク。ENSv2 beta の名前は ENS App（v1）では表示できないため、Sepolia から実レコードを読む /ens 画面へ */
 export function EnsLink({ name }: { name: string }) {
-  return <a className="whitespace-nowrap font-mono text-sm text-neutral-900 underline underline-offset-2 hover:text-neutral-600" href={`/ens?name=${encodeURIComponent(name)}`} title="ENS 上の値を見る">{name}</a>;
+  return <a className="whitespace-nowrap font-mono text-sm text-neutral-900 underline underline-offset-2 hover:text-neutral-600" href={`/ens?name=${encodeURIComponent(name)}`} title="View values on ENS">{name}</a>;
 }
 
 export function Empty({ children }: { children: React.ReactNode }) {
@@ -117,5 +117,5 @@ export function Tag({ children, className = "" }: { children: React.ReactNode; c
   return <span className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-sm border border-neutral-900 px-1 text-[10px] font-semibold leading-4 tracking-wide text-neutral-900 ${className}`}>{children}</span>;
 }
 export function KindTag({ kind }: { kind: "ai" | "human" | "company" | string }) {
-  return <Tag>{kind === "human" ? "人" : kind === "company" ? "企業" : "AI"}</Tag>;
+  return <Tag>{kind === "human" ? "Human" : kind === "company" ? "Company" : "AI"}</Tag>;
 }

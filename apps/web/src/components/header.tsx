@@ -1,26 +1,29 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { ConnectButton, useConnectModal } from "@rainbow-me/rainbowkit";
 import { useAccount } from "wagmi";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, type UserRole } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { Button } from "./ui";
 import { NotificationBell } from "./notifications";
 
+// auth: 未ログインでは「Sign in してください」しか出ないページ。未ログインのときはメニューに出さない
 const NAV = [
   { href: "/", label: "Marketplace" },
-  { href: "/cases", label: "案件" },
+  { href: "/cases", label: "Cases", auth: true },
   { href: "/tasks", label: "Human Task" },
   { href: "/jury", label: "Jury" },
-  { href: "/companies", label: "会社と人員" },
-  { href: "/agents/mine", label: "Agent 管理" },
+  { href: "/companies", label: "Companies & Members", auth: true },
+  { href: "/agents/mine", label: "My Agents", auth: true },
   { href: "/ens", label: "ENS" },
-  { href: "/me", label: "マイページ" },
+  { href: "/me", label: "My Page", auth: true },
 ];
+const OPS_NAV = { href: "/ops/jobs", label: "Ops" };
 
 /** 開発用: DEV_LOGIN_ENABLED のとき ?dev_login=<role> で自動ログイン（スクリーンショット・動作確認用） */
 function DevAutoLogin() {
@@ -37,65 +40,133 @@ function DevAutoLogin() {
   return null;
 }
 
-export function Header() {
-  const path = usePathname();
-  const { isConnected } = useAccount();
-  const { me, signIn, devLogin, signOut, config } = useAuth();
-  const { data: devUsers } = useQuery({ queryKey: ["dev-users"], queryFn: () => api<{ role: string; label: string }[]>("/auth/dev-users"), staleTime: Infinity });
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+type DevUser = { role: string; label: string; type: string };
+/** 利用者種別の一覧の先頭に出す、ウォレット不要のデモアカウント（API の種別ではない） */
+const DEMO_ROLE: UserRole = { role: "demo", label: "Demo account" };
 
-  const doSignIn = async () => {
+/** 未ログイン時の入口。先に利用者種別を選び、次に接続する。
+ * 「ウォレットで接続」は接続 → SIWE 署名まで続けて進め、選んだ種別をアカウントに保存する。
+ * 種別「デモアカウント」（DEV_LOGIN_ENABLED のときだけ）はウォレット不要の固定アカウントを選んで入る */
+function LoginMenu({ onError }: { onError: (msg: string | null) => void }) {
+  const { isConnected } = useAccount();
+  const { openConnectModal } = useConnectModal();
+  const { signIn, devLogin } = useAuth();
+  const { data: roles } = useQuery({ queryKey: ["user-roles"], queryFn: () => api<UserRole[]>("/auth/roles"), staleTime: Infinity });
+  const { data: devUsers } = useQuery({ queryKey: ["dev-users"], queryFn: () => api<DevUser[]>("/auth/dev-users"), staleTime: Infinity });
+  const [open, setOpen] = useState(false);
+  const [role, setRole] = useState<UserRole | null>(null);
+  const [busy, setBusy] = useState(false);
+  // ウォレットで接続を押した後だけ自動で署名に進む（Sign out 直後や再読み込み時に勝手に署名を求めない）。値は選んだ種別
+  const pending = useRef<string | null>(null);
+
+  const run = async (fn: () => Promise<void>) => {
     setBusy(true);
-    setErr(null);
+    onError(null);
     try {
-      await signIn();
+      await fn();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
+      onError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
   };
 
+  useEffect(() => {
+    if (pending.current && isConnected) {
+      const r = pending.current;
+      pending.current = null;
+      void run(() => signIn(r));
+    }
+  }, [isConnected, signIn]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const close = () => { setOpen(false); setRole(null); };
+
+  const withWallet = (r: string) => {
+    close();
+    if (isConnected) {
+      void run(() => signIn(r));
+    } else {
+      pending.current = r;
+      openConnectModal?.();
+    }
+  };
+
+  const demo = role?.role === DEMO_ROLE.role;
+  const item = "w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-neutral-100";
+
+  return (
+    <div className="relative">
+      <Button variant="inverse" onClick={() => (open ? close() : setOpen(true))} disabled={busy}>{busy ? "Waiting for signature…" : "Connect wallet"}</Button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={close} />
+          <div className="absolute right-0 z-20 mt-2 w-64 rounded-md border border-neutral-900 bg-white p-2 text-neutral-900 shadow-[4px_4px_0_0_#171717]">
+            {!role ? (
+              <>
+                <div className="px-2 pb-1 pt-1 text-xs font-semibold text-neutral-500">1. Choose account type</div>
+                {[...(devUsers && devUsers.length > 0 ? [DEMO_ROLE] : []), ...(roles ?? [])].map((r) => (
+                  <button key={r.role} onClick={() => setRole(r)} className={item}>{r.label}</button>
+                ))}
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-between px-2 pb-1 pt-1 text-xs font-semibold text-neutral-500">
+                  <span>{demo ? "2. Choose a demo account" : `2. Connect as ${role.label}`}</span>
+                  <button onClick={() => setRole(null)} className="font-normal underline">Change type</button>
+                </div>
+                {demo ? (devUsers ?? []).map((u) => (
+                  <button key={u.role} onClick={() => { close(); void run(() => devLogin(u.role)); }} className={item}>{u.label}</button>
+                )) : (
+                  <button onClick={() => withWallet(role.role)} className={`${item} font-medium`}>
+                    {isConnected ? "Sign in with signature" : "Connect with wallet"}
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+export function Header() {
+  const path = usePathname();
+  const { me, dev, signOut, config } = useAuth();
+  const [err, setErr] = useState<string | null>(null);
+  const nav = me ? (me.is_ops ? [...NAV, OPS_NAV] : NAV) : NAV.filter((n) => !n.auth);
+
   const mocks = config ? Object.entries(config.mock).filter(([, v]) => v).map(([k]) => k) : [];
 
   return (
-    <header className="sticky top-0 z-20 border-b border-neutral-200 bg-white/90 backdrop-blur">
+    <header className="sticky top-0 z-20 border-b border-neutral-800 bg-black text-white">
       <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
-        <Link href="/" className="flex items-center gap-2">
-          <span className="grid h-8 w-8 place-items-center rounded-md bg-neutral-900 text-sm font-bold text-white">C</span>
-          <span className="whitespace-nowrap font-semibold tracking-tight">Choice</span>
-          <span className="hidden whitespace-nowrap text-xs text-neutral-400 xl:inline">AI Agent × World × ENS</span>
+        <Link href="/" className="flex shrink-0 items-center">
+          {/* 白抜き・透過のロゴ（黒いヘッダー用）。6KB の PNG なので画像最適化（/_next/image）を通さずそのまま配信する */}
+          <Image src="/logo.png" alt="GuildAce" width={514} height={145} priority unoptimized className="h-auto w-[100px]" />
         </Link>
-        <nav className="hidden min-w-0 items-center gap-1 overflow-x-auto md:flex">
-          {NAV.map((n) => (
-            <Link key={n.href} href={n.href} className={`whitespace-nowrap border-b-2 px-2.5 py-1.5 text-sm ${path === n.href || (n.href !== "/" && path.startsWith(n.href)) ? "border-neutral-900 font-medium text-neutral-900" : "border-transparent text-neutral-500 hover:text-neutral-900"}`}>
+        <nav className="hidden min-w-0 items-center gap-0.5 overflow-x-auto md:flex">
+          {nav.map((n) => (
+            <Link key={n.href} href={n.href} className={`whitespace-nowrap border-b-2 px-1.5 py-1.5 text-sm ${path === n.href || (n.href !== "/" && path.startsWith(n.href)) ? "border-white font-medium text-white" : "border-transparent text-neutral-400 hover:text-white"}`}>
               {n.label}
             </Link>
           ))}
         </nav>
         <div className="ml-auto flex shrink-0 items-center gap-2">
-          {mocks.length > 0 && <span className="hidden whitespace-nowrap rounded-sm border border-dashed border-neutral-400 px-2 py-1 text-[11px] text-neutral-600 md:inline" title="未設定の外部連携はモックで動作">mock: {mocks.join(", ")}</span>}
+          {mocks.length > 0 && <span className="hidden whitespace-nowrap rounded-sm border border-dashed border-neutral-500 px-2 py-1 text-[11px] text-neutral-300 md:inline" title="External integrations that are not configured run as mocks">mock: {mocks.join(", ")}</span>}
           <DevAutoLogin />
           <NotificationBell />
-          <ConnectButton showBalance={false} chainStatus="icon" accountStatus="address" label="ウォレット接続" />
-          {isConnected && !me && (
-            <Button onClick={doSignIn} disabled={busy}>{busy ? "署名待ち…" : "Sign in"}</Button>
-          )}
-          {!me && devUsers && devUsers.length > 0 && (
-            <select className="h-9 rounded-md border border-dashed border-neutral-900 bg-white px-2 text-xs text-neutral-900" value="" onChange={(e) => { if (e.target.value) void devLogin(e.target.value).catch((er) => setErr(String(er))); }} title="ウォレット不要のデモログイン（DEV_LOGIN_ENABLED）">
-              <option value="">デモログイン</option>
-              {devUsers.map((u) => <option key={u.role} value={u.role}>{u.label}</option>)}
-            </select>
-          )}
-          {me && <span className="hidden max-w-32 truncate whitespace-nowrap text-xs text-neutral-500 xl:inline">{me.display_name ?? me.wallet_address.slice(0, 8)}</span>}
-          {me && <Button variant="ghost" onClick={signOut} title={me.wallet_address}>Sign out</Button>}
+          {!me && <LoginMenu onError={setErr} />}
+          {me && !dev && <ConnectButton showBalance={false} chainStatus="icon" accountStatus="address" />}
+          {me && dev && <span className="whitespace-nowrap rounded-sm border border-dashed border-neutral-500 px-2 py-1 text-xs text-neutral-300" title="Demo account that needs no wallet (cannot sign on-chain transactions)">Demo: {me.display_name}</span>}
+          {/* ウォレットのログインは切断 = サインアウト（lib/auth）なので、Sign out はウォレットを使わないデモアカウントだけに出す */}
+          {me && dev && <Button variant="outline-inverse" onClick={signOut}>Sign out</Button>}
         </div>
       </div>
-      {err && <div className="mx-auto max-w-6xl px-4 pb-2 text-xs text-neutral-700">{err}</div>}
+      {err && <div className="mx-auto max-w-6xl px-4 pb-2 text-xs text-neutral-300">{err}</div>}
       <nav className="flex gap-1 overflow-x-auto px-4 pb-2 md:hidden">
-        {NAV.map((n) => (
-          <Link key={n.href} href={n.href} className={`whitespace-nowrap rounded-sm border px-3 py-1 text-xs ${path === n.href || (n.href !== "/" && path.startsWith(n.href)) ? "border-neutral-900 bg-neutral-900 text-white" : "border-neutral-300 text-neutral-700"}`}>{n.label}</Link>
+        {nav.map((n) => (
+          <Link key={n.href} href={n.href} className={`whitespace-nowrap rounded-sm border px-3 py-1 text-xs ${path === n.href || (n.href !== "/" && path.startsWith(n.href)) ? "border-white bg-white text-neutral-900" : "border-neutral-700 text-neutral-300"}`}>{n.label}</Link>
         ))}
       </nav>
     </header>

@@ -33,7 +33,7 @@ def send(w3, acct, fn, value=0):
 
 def main() -> None:
     s = get_settings()
-    assert s.chain_enabled, "chain が有効ではありません（.env の SEPOLIA_RPC_URL / ESCROW_ADDRESS / USDC_ADDRESS）"
+    assert s.chain_enabled, "Chain is not enabled (SEPOLIA_RPC_URL / ESCROW_ADDRESS / USDC_ADDRESS in .env)"
     w3 = Web3(Web3.HTTPProvider(s.sepolia_rpc_url, request_kwargs={"timeout": 60}))
     ops = Account.from_key(s.server_private_key)
     client = Client(BASE)
@@ -48,8 +48,8 @@ def main() -> None:
 
     agents = client.get("/agents")
     agent = next((a for a in agents if a["status"] == "published"), None)
-    assert agent, "公開済み Agent がありません（seed を実行）"
-    case = client.post("/cases", {"agent_id": agent["id"], "title": "Sepolia 実機テスト案件", "description": "小さな LP", "budget_usdc": 12, "idkit_response": None}, expect=201)
+    assert agent, "No published Agent (run the seed)"
+    case = client.post("/cases", {"agent_id": agent["id"], "title": "Sepolia live test case", "description": "A small landing page", "budget_usdc": 12, "idkit_response": None}, expect=201)
     case = client.wait(f"/cases/{case['id']}", "status", {"awaiting_approval"}, timeout=180)
     print("plan:", len(case["tasks"]), "tasks; escrow case", case["escrow_case_id"][:12])
 
@@ -69,7 +69,7 @@ def main() -> None:
             break
         time.sleep(3)
     print("funded:", [t["chain_status"] for t in case["tasks"]])
-    assert usdc.functions.balanceOf(escrow.address).call() >= budget, "Escrow に資金が入っていません"
+    assert usdc.functions.balanceOf(escrow.address).call() >= budget, "Escrow has not been funded"
 
     # Human Task があれば発注者以外が受注・提出する
     worker = Client(BASE); worker.login()
@@ -82,7 +82,7 @@ def main() -> None:
         if t["type"] == "human" and t["human_task"] and t["human_task"]["status"] in ("open", "assigned"):
             ht = t["human_task"]
             if ht["status"] == "assigned":
-                print("  human task assigned to", ht["assignee"]["ens_name"], "- 実機テストでは公開募集に切り替えるため辞退はスキップし、指名先が受諾できない場合は手動対応")
+                print("  human task assigned to", ht["assignee"]["ens_name"], "- in live tests, skip declining (which would switch to an open call); handle manually if the assignee cannot accept")
                 continue
             worker.post(f"/human-tasks/{ht['id']}/accept", {})
             worker.post(f"/human-tasks/{ht['id']}/submit", {"submission": "https://example.com/photo.jpg"})

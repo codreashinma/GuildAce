@@ -17,11 +17,11 @@ export function ApproveButton({ caseId, taskId, deliverableHash, approvalCount, 
   const ensureSepolia = useEnsureSepolia();
   const [err, setErr] = useState<unknown>(null);
   if (!me) return null;
-  if (dev) return <span className="max-w-xs text-xs text-neutral-700">デモログイン中は承認できません（EIP-712 署名にはウォレットが必要です）。承認者のウォレットで Sign in してください。</span>;
-  if (alreadyApproved) return <span className="whitespace-nowrap text-xs text-neutral-900">承認済み（{approvalCount}/{threshold}）</span>;
+  if (dev) return <span className="max-w-xs text-xs text-neutral-700">You cannot approve while signed in with a demo account (EIP-712 signing requires a wallet). Please sign in with the Approver&apos;s wallet.</span>;
+  if (alreadyApproved) return <span className="whitespace-nowrap text-xs text-neutral-900">Approved ({approvalCount}/{threshold})</span>;
   return (
     <div className="flex flex-col gap-1">
-      <WorldVerifyButton action="approve" signal={`${taskId}:${deliverableHash}`} label={`World で人間確認して承認（${approvalCount}/${threshold}）`}
+      <WorldVerifyButton action="approve" signal={`${taskId}:${deliverableHash}`} label={`Verify with World and approve (${approvalCount}/${threshold})`}
         onVerified={async (proof) => {
           setErr(null);
           try {

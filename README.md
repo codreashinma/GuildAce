@@ -5,6 +5,7 @@ AI Agent（PM Agent）が案件を受け、タスク分解・チーム編成・�
 
 - 仕様書: [`docs/specs/20260925-agent-marketplace-mvp.md`](docs/specs/20260925-agent-marketplace-mvp.md)
 - DB 設計: [`docs/database/`](docs/database/)
+- AI 利用開示（提出用）: [`docs/ai-disclosure.md`](docs/ai-disclosure.md) / 主要プロンプト: [`docs/ai-prompts.md`](docs/ai-prompts.md)
 
 ## 構成
 
@@ -54,6 +55,15 @@ DATABASE_URL=postgresql+psycopg://choice:choice@localhost:5433/choice_test ESCRO
 
 ログイン → Agent 公開 → 案件作成 → 計画 → 入金 → AI 実行 → Human Task → 支払い → レビュー（二重投稿拒否）→ 紛争 → Jury 3 票で resolve まで自動で検証する。
 
+### デモ用データ（モックモード）
+
+`scripts/seed.py` は Agent 3 件と、Web PM Agent の案件を 3 件（支払い済み・Jury で返金・進行中）作る。デモログインが有効なら Agent の作成者は「Agent 作成者」ロールになるので、デモログイン → 「Agent 管理」→「収益」で受取済・預託中・返金（受取 0）の並びが見られる。運用画面（`/ops/jobs`）用の失敗ジョブと再送待ちジョブは、API と同じ `DATABASE_URL` を渡して `scripts/seed_ops.py` を実行すると作れる（冪等。`[demo]` 付きのエラー文で見分ける）。
+
+```bash
+.venv/bin/python scripts/seed.py http://localhost:8001
+DATABASE_URL=postgresql+psycopg://choice:choice@localhost:5433/choice .venv/bin/python scripts/seed_ops.py
+```
+
 ### コントラクトのテスト
 
 ```bash
@@ -75,7 +85,7 @@ cd contracts && forge test
    ```
    出力された `ENS_OWNED_RESOLVER` / `ENS_PARENT_SUBREGISTRY` を `.env` に書き、`ENS_WRITE_ENABLED=true`。
    以降、Agent を公開すると `<label>.choice.eth` が発行され、text record（description / agent.category / agent.fee_bps / agent.rating / agent.completed …）が書かれる。
-4. **World ID**: [Developer Portal](https://developer.world.org) でアプリと RP を作り、action `review` / `jury` / `human-task` を作成。`WORLD_APP_ID` / `WORLD_RP_ID` / `WORLD_RP_SIGNING_KEY` を設定し `WORLD_VERIFY_ENABLED=true`。
+4. **World ID**: [Developer Portal](https://developer.world.org) でアプリを作り World ID 4.0 を有効化（`app_id` / `rp_id` / signing key が発行される）。`WORLD_APP_ID` / `WORLD_RP_ID` / `WORLD_RP_SIGNING_KEY` を設定し `WORLD_VERIFY_ENABLED=true`。Portal に action を作る必要はない（session proof 方式のため。下記「設計上の不変条件」3）。
 5. **Gemini**: `GEMINI_API_KEY` を設定（モデルは `GEMINI_MODEL`、既定 `gemini-2.5-flash`）。
 
 ## Agent の公開先（ENS）
@@ -141,11 +151,12 @@ Sepolia 実機の通しテスト: `cd apps/api && .venv/bin/python scripts/smoke
 - `GEMINI_API_KEY` を設定する。空だと固定の計画と「（モック）」入りの成果物になる
 - 公開 URL に出すなら `NEXT_PUBLIC_API_URL`（https）、API の `CORS_ORIGINS` / `APP_URL` / `API_URL` に公開 origin を入れる。ENS の `url` / `codrea.agent.endpoint` / `codrea.project.url` に書かれるため、変更後は `scripts/ens_rewrite_urls.py` で既存 Agent の record を書き直す（`docs/ens-manual-check.md` 8 章）
 - ウォレットが Sepolia 以外に接続されている場合は、書き込み・署名の前に自動で切替を促す
+- 運用者のウォレットを `OPS_ADDRESSES`（カンマ区切り）に入れると、ナビに「運用」が出て `/ops/jobs` でチェーン連携ジョブ（Escrow / ENS への全書き込み）の状態確認と、5 回失敗したジョブの再投入ができる。未設定のときは `DEV_LOGIN_ENABLED=true` のローカルでのみ全員に開放
 
 ## 設計上の不変条件
 
 1. AI は提案・生成のみを行い、資金を動かさない。オフチェーンから送金を指示する経路は無く、支払いはコントラクトが承認数で判定する
 2. 期限だけでは資金は動かない
-3. 依頼開始・承認・レビュー・Jury 投票・Human Task 受注の 5 行為は World ID の proof が必須。nullifier を `(action, signal)` ごとに UNIQUE 保存し、同じ人間の二重実行を拒否する
+3. 依頼開始・承認・レビュー・Jury 投票・Human Task 受注の 5 行為は World ID の proof が必須。World ID 4.0 の **session proof** を使い（uniqueness proof は 1 人 1 action 1 回で 2 件目が World App に拒否されるため）、初回の人間確認で `session_id` をアカウントに保存（1 World ID = 1 アカウント）、以降は同じセッションの proof を要求する。`(action, signal, session_id)` を UNIQUE 保存して同じ人間の二重実行を拒否し、proof ごとの `session_nullifier` を UNIQUE 保存してリプレイを拒否する
 4. ENS の名前は権限ではない（承認できるのは openCase で固定した承認者だけ）。Agent の subname はプラットフォームの親名の下、会社の人員は会社が所有する名前の下に発行する
 5. オンチェーンと ENS への書き込みはチェーン連携ワーカーだけが行う（冪等キー・再送・投影）

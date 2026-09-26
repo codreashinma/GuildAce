@@ -104,8 +104,12 @@ def _resolve(p: dict) -> tuple[str, dict]:
     return tx, {"chain_status": "resolved"}
 
 
+def _ens_subagents(p: dict) -> tuple[str, dict]:
+    return ens.sync_subagents(label=p["label"], subagents=p["subagents"]), {}
+
+
 def _ens_publish(p: dict) -> tuple[str, dict]:
-    name, tx = ens.publish_agent(label=p["label"], payout_address=p["payout_address"], texts=p["texts"])
+    name, tx = ens.publish_agent(label=p["label"], payout_address=p["payout_address"], texts=p["texts"], subagents=p.get("subagents"))
     sub = None
     if get_settings().ens_write_enabled:
         try:
@@ -129,7 +133,7 @@ def _ens_project(p: dict) -> tuple[str, dict]:
 
 
 HANDLERS = {"fund_task": _fund_task, "submit": _submit, "approve": _approve, "dispute": _dispute, "resolve": _resolve,
-            "ens_publish": _ens_publish, "ens_update": _ens_update, "ens_project": _ens_project}
+            "ens_publish": _ens_publish, "ens_update": _ens_update, "ens_project": _ens_project, "ens_subagents": _ens_subagents}
 
 
 # ------------------------------------------------------------------ projection
@@ -222,17 +226,31 @@ def recover_stale(db: Session) -> int:
     そのままだと二度と拾われず、Agent が publishing のまま止まる。"""
     stale = db.query(ChainJob).filter(ChainJob.status == "running").all()
     for j in stale:
-        j.status, j.next_attempt_at, j.error = "retry", None, (j.error or "") + " [前回のプロセス終了時に処理中だったため再実行]"
+        j.status, j.next_attempt_at, j.error = "retry", None, (j.error or "") + " [re-run because it was still running when the previous process exited]"
     if stale:
         db.commit()
         log.warning("chain worker: 処理中のまま残っていたジョブ %d 件を再実行します", len(stale))
     return len(stale)
 
 
+_thread: threading.Thread | None = None
+
+
+def wake() -> None:
+    """待ち時間を飛ばしてワーカーを起こす（運用者の再投入用）"""
+    _wake.set()
+
+
+def is_alive() -> bool:
+    return _thread is not None and _thread.is_alive()
+
+
 def start() -> None:
+    global _thread
     db = SessionLocal()
     try:
         recover_stale(db)
     finally:
         db.close()
-    threading.Thread(target=_loop, name="chain-worker", daemon=True).start()
+    _thread = threading.Thread(target=_loop, name="chain-worker", daemon=True)
+    _thread.start()

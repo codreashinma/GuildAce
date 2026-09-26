@@ -28,10 +28,10 @@ export function useEnsResolve(name: string | null | undefined, enabled = true) {
 /** 任意の ENS 名の record を「ENS 上の値」として表示する。Agent 詳細・案件の project subname・人員で共用 */
 export function EnsRecords({ name, keys, compact = false, title }: { name: string; keys?: string[]; compact?: boolean; title?: string }) {
   const { data, isLoading, error } = useEnsResolve(name);
-  if (isLoading) return <p className="text-xs text-neutral-500">Sepolia から読み取り中…</p>;
-  if (error) return <p className="text-xs text-neutral-700">ENS の読み取りに失敗しました</p>;
-  if (!data || !data.configured) return <p className="text-xs text-neutral-500">RPC 未設定（モック）のため ENS の値は表示できません</p>;
-  if (!data.registered) return <p className="text-xs text-neutral-500"><Mono>{name}</Mono> はまだ ENSv2（Sepolia）に登録されていません</p>;
+  if (isLoading) return <p className="text-xs text-neutral-500">Reading from Sepolia…</p>;
+  if (error) return <p className="text-xs text-neutral-700">Reading ENS failed</p>;
+  if (!data || !data.configured) return <p className="text-xs text-neutral-500">ENS values can&apos;t be shown because RPC is not configured (Mock)</p>;
+  if (!data.registered) return <p className="text-xs text-neutral-500"><Mono>{name}</Mono> is not registered on ENSv2 (Sepolia) yet</p>;
   const entries = Object.entries(data.texts ?? {}).filter(([k]) => !keys || keys.includes(k));
   return (
     <div className={compact ? "text-xs" : "text-sm"}>
@@ -44,7 +44,7 @@ export function EnsRecords({ name, keys, compact = false, title }: { name: strin
         {entries.map(([k, v]) => (
           <div key={k} className="grid grid-cols-[7rem_1fr] gap-2 sm:grid-cols-[11rem_1fr]"><dt className="truncate font-mono text-xs leading-5 text-neutral-500" title={k}>{k}</dt><dd className="min-w-0 [overflow-wrap:anywhere]">{v}</dd></div>
         ))}
-        {entries.length === 0 && <dd className="text-xs text-neutral-500">text record はまだありません</dd>}
+        {entries.length === 0 && <dd className="text-xs text-neutral-500">No text records yet</dd>}
       </dl>
     </div>
   );
@@ -73,16 +73,16 @@ export function EnsNameCheck({ name, onStatus }: { name: string; onStatus?: (s: 
   const ok = !!valid && !checking && (unconfigured || (!!owner.data?.is_mine && !!ready.data?.ready));
   useEffect(() => { onStatus?.({ ok, checking }); }, [ok, checking, onStatus]);
   if (!name) return null;
-  if (!valid) return <p className="mt-1 text-xs text-neutral-500">形式: &lt;label&gt;.eth（英小文字・数字・ハイフン）</p>;
-  if (checking) return <p className="mt-1 text-xs text-neutral-500">Sepolia で確認中…</p>;
-  if (owner.error || ready.error) return <p className="mt-1 text-xs text-neutral-700">確認に失敗しました（{String((owner.error ?? ready.error as Error)?.message ?? "")}）</p>;
-  if (unconfigured) return <p className="mt-1 text-xs text-neutral-500">RPC 未設定（モック）のため所有確認は行いません</p>;
+  if (!valid) return <p className="mt-1 text-xs text-neutral-500">Format: &lt;label&gt;.eth (lowercase letters, digits, hyphens)</p>;
+  if (checking) return <p className="mt-1 text-xs text-neutral-500">Checking on Sepolia…</p>;
+  if (owner.error || ready.error) return <p className="mt-1 text-xs text-neutral-700">Check failed ({String((owner.error ?? ready.error as Error)?.message ?? "")})</p>;
+  if (unconfigured) return <p className="mt-1 text-xs text-neutral-500">Owner check skipped because RPC is not configured (Mock)</p>;
   const o = owner.data!; const r = ready.data!;
   return (
     <ul className="mt-1 space-y-0.5 text-xs">
-      <li className={o.status === "ok" ? "text-neutral-900" : "text-neutral-700"}>{o.status === "unregistered" ? "✕ ENSv2（Sepolia）に未登録です" : o.is_mine ? "✓ 接続中のウォレットが所有者です" : <>✕ 所有者が違います（<Mono>{o.owner}</Mono>）</>}</li>
-      <li className={r.subregistry ? "text-neutral-900" : "text-neutral-700"}>{r.subregistry ? <>✓ サブレジストリ <Mono>{r.subregistry}</Mono></> : "✕ サブレジストリ未設定（subname を発行できません）"}</li>
-      <li className={r.resolver ? "text-neutral-900" : "text-neutral-700"}>{r.resolver ? <>✓ リゾルバ <Mono>{r.resolver}</Mono></> : "✕ リゾルバ未設定（record を書けません）"}</li>
+      <li className={o.status === "ok" ? "text-neutral-900" : "text-neutral-700"}>{o.status === "unregistered" ? "✕ Not registered on ENSv2 (Sepolia)" : o.is_mine ? "✓ The connected Wallet is the Owner" : <>✕ Owned by a different address (<Mono>{o.owner}</Mono>)</>}</li>
+      <li className={r.subregistry ? "text-neutral-900" : "text-neutral-700"}>{r.subregistry ? <>✓ Subregistry <Mono>{r.subregistry}</Mono></> : "✕ Subregistry not configured (cannot Issue subnames)"}</li>
+      <li className={r.resolver ? "text-neutral-900" : "text-neutral-700"}>{r.resolver ? <>✓ Resolver <Mono>{r.resolver}</Mono></> : "✕ Resolver not configured (cannot write Records)"}</li>
       {r.next_steps?.map((s) => <li key={s} className="text-neutral-500">→ {s}</li>)}
       {o.is_mine && !r.ready && r.registered && <li className="pt-1"><EnsSetupButton name={debounced} /></li>}
       {o.status === "unregistered" && <li className="pt-1"><EnsRegisterButton name={debounced} /></li>}
@@ -103,13 +103,13 @@ export function EnsSetupButton({ name, onDone }: { name: string; onDone?: () => 
   const run = async () => {
     setErr(null);
     try {
-      setBusy("準備内容を取得中…");
+      setBusy("Fetching setup steps…");
       const r = await api<SetupCalldata>(`/ens/setup-calldata?name=${encodeURIComponent(name)}`);
       if (r.txs.length) await ensureSepolia();
       for (const tx of r.txs) {
-        setBusy(`${tx.label} に署名…`);
+        setBusy(`Sign ${tx.label}…`);
         const h = await sendTransactionAsync({ to: tx.to as `0x${string}`, data: tx.data as `0x${string}` });
-        setBusy("トランザクション確認中…");
+        setBusy("Confirming transaction…");
         await pc!.waitForTransactionReceipt({ hash: h });
       }
       await qc.invalidateQueries({ queryKey: ["ens-readiness", name] });
@@ -123,7 +123,7 @@ export function EnsSetupButton({ name, onDone }: { name: string; onDone?: () => 
   };
   return (
     <span className="inline-flex flex-col gap-1">
-      <Button variant="secondary" className="px-2 py-1 text-xs" disabled={!!busy} onClick={run}>{busy ?? "自分のウォレットでリゾルバとサブレジストリを用意する"}</Button>
+      <Button variant="secondary" className="px-2 py-1 text-xs" disabled={!!busy} onClick={run}>{busy ?? "Set up Resolver and Subregistry with my Wallet"}</Button>
       {err && <span className="max-w-md text-[11px] text-neutral-700 [overflow-wrap:anywhere]">{err}</span>}
     </span>
   );
@@ -143,9 +143,9 @@ export function EnsRegisterButton({ name }: { name: string }) {
   const [err, setErr] = useState<string | null>(null);
   const sendAll = async (txs: { to: string; data: string; label: string }[], prefix: string) => {
     for (const tx of txs) {
-      setBusy(`${prefix}${tx.label.replace(/ →.*$/, "")} に署名…`);
+      setBusy(`${prefix}Sign ${tx.label.replace(/ →.*$/, "")}…`);
       const h = await sendTransactionAsync({ to: tx.to as `0x${string}`, data: tx.data as `0x${string}` });
-      setBusy(`${prefix}トランザクション確認中…`);
+      setBusy(`${prefix}Confirming transaction…`);
       await pc!.waitForTransactionReceipt({ hash: h });
     }
   };
@@ -153,15 +153,15 @@ export function EnsRegisterButton({ name }: { name: string }) {
     setErr(null);
     try {
       await ensureSepolia();
-      setBusy("登録内容を取得中…");
+      setBusy("Fetching registration details…");
       const c = await api<RegisterCalldata>(`/ens/register-calldata?name=${encodeURIComponent(name)}&phase=commit`);
       if (c.mock) { setBusy(null); return; }
       await sendAll(c.txs, "1/3 ");
       const wait = (c.min_commitment_age ?? 60) + 10;
-      for (let i = wait; i > 0; i--) { setBusy(`2/3 先取り防止の待機中… ${i} 秒（ページを閉じないでください）`); await new Promise((r) => setTimeout(r, 1000)); }
+      for (let i = wait; i > 0; i--) { setBusy(`2/3 Waiting to prevent front-running… ${i}s (don't close this page)`); await new Promise((r) => setTimeout(r, 1000)); }
       const r = await api<RegisterCalldata>(`/ens/register-calldata?name=${encodeURIComponent(name)}&phase=register&secret=${c.secret}`);
       await sendAll(r.txs, "2/3 ");
-      setBusy("3/3 リゾルバとサブレジストリを準備中…");
+      setBusy("3/3 Setting up Resolver and Subregistry…");
       const su = await api<SetupCalldata>(`/ens/setup-calldata?name=${encodeURIComponent(name)}`);
       await sendAll(su.txs, "3/3 ");
       await qc.invalidateQueries({ queryKey: ["ens-check-owner", name] });
@@ -175,7 +175,7 @@ export function EnsRegisterButton({ name }: { name: string }) {
   };
   return (
     <span className="inline-flex flex-col gap-1">
-      <Button variant="secondary" className="px-2 py-1 text-xs" disabled={!!busy} onClick={run}>{busy ?? `${name} を自分のウォレットで登録する（テスト用トークン・約 8 tx・60 秒待ち）`}</Button>
+      <Button variant="secondary" className="px-2 py-1 text-xs" disabled={!!busy} onClick={run}>{busy ?? `Register ${name} with my Wallet (test tokens, ~8 txs, 60s wait)`}</Button>
       {err && <span className="max-w-md text-[11px] text-neutral-700 [overflow-wrap:anywhere]">{err}</span>}
     </span>
   );

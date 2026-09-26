@@ -9,7 +9,7 @@ export function useEnsureSepolia() {
   const { chainId, isConnected } = useAccount();
   const { switchChainAsync } = useSwitchChain();
   return useCallback(async () => {
-    if (!isConnected) throw new Error("先にウォレットを接続してください");
+    if (!isConnected) throw new Error("Please connect your wallet first");
     if (chainId !== sepolia.id) await switchChainAsync({ chainId: sepolia.id });
   }, [chainId, isConnected, switchChainAsync]);
 }

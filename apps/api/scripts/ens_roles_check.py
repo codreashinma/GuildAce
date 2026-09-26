@@ -32,19 +32,19 @@ def simulate(role: str, fn, what: str, expect_ok: bool) -> None:
     except Exception:  # noqa: BLE001
         ok = False
     mark = "OK" if ok == expect_ok else "NG"
-    print(f"  [{mark}] {role:10} {what:52} -> {'許可' if ok else '拒否'}（期待: {'許可' if expect_ok else '拒否'}）")
+    print(f"  [{mark}] {role:10} {what:52} -> {'allow' if ok else 'deny'} (expected: {'allow' if expect_ok else 'deny'})")
 
 
-print("\n[共有リゾルバ（Owner）]")
+print("\n[Shared resolver (Owner)]")
 simulate("owner", main.functions.setText(node, "description", "x"), "setText(agent, description)", True)
 simulate("reputation", main.functions.setText(node, "description", "hacked"), "setText(agent, description)", False)
 simulate("reputation", main.functions.setText(node, "codrea.agent.rating", "5.0"), "setText(agent, codrea.agent.rating)", False)
 simulate("project", main.functions.setText(node, "codrea.project.status", "x"), "setText(agent, codrea.project.status)", False)
-print("[Reputation リゾルバ（reputation.<agent>）]")
+print("[Reputation resolver (reputation.<agent>)]")
 simulate("reputation", rep_res.functions.setText(rep_node, "codrea.agent.rating", "4.9"), "setText(reputation.agent, codrea.agent.rating)", True)
 simulate("owner", rep_res.functions.setText(rep_node, "codrea.agent.rating", "5.0"), "setText(reputation.agent, codrea.agent.rating)", False)
 simulate("project", rep_res.functions.setText(rep_node, "codrea.agent.rating", "5.0"), "setText(reputation.agent, codrea.agent.rating)", False)
-print("[Agent サブレジストリ]")
+print("[Agent subregistry]")
 sub = ens._subregistry(w3).functions.getSubregistry(label).call()
 print("  subregistry:", sub)
 if int(sub, 16):
@@ -55,7 +55,7 @@ if int(sub, 16):
     st = reg.functions.getState(int.from_bytes(ens.keccak(text="reputation"), "big")).call()
     simulate("project", reg.functions.setResolver(st[3], addrs["project"]), "setResolver(reputation subname)", False)
 parent = ens._subregistry(w3)
-simulate("project", parent.functions.register("hijack", addrs["project"], "0x" + "00" * 20, proj_res.address, ens.V2_DEFAULT_OWNER_ROLE_BITMAP, int(time.time()) + 3600), "register(hijack.choice.eth)", False)
-print("\n[API 用の役割表]")
+simulate("project", parent.functions.register("hijack", addrs["project"], "0x" + "00" * 20, proj_res.address, ens.V2_DEFAULT_OWNER_ROLE_BITMAP, int(time.time()) + 3600), "register(hijack.guildace.eth)", False)
+print("\n[Role table for the API]")
 for r in ens.agent_roles(name, label):
     print(" ", r.get("role"), "verified =", r.get("verified"), r.get("checks", r.get("error")))

@@ -1,0 +1,21 @@
+Goal: for the provided task list, propose an assignee and an amount for each task.
+
+Budget (the total amount of all tasks must not exceed this): {{budget_amount}}
+Human role requirements: {{human_roles}}
+
+Expected form: JSON that conforms to the schema shown above.
+
+Rules:
+- Choose assignees only from the list of candidates below.
+- Each task has exactly one assignee.
+- The total amount of all tasks must not exceed the budget above.
+
+When you cannot decide: do not invent candidates; return the sequence numbers of the tasks you could not assign.
+
+{{delimiter}}
+[Task list]
+{{tasks}}
+
+[Candidates]
+{{candidates}}
+{{delimiter}}

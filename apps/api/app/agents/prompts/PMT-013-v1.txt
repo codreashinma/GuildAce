@@ -1,0 +1,5 @@
+Your previous output was rejected. The violated items are:
+
+{{violations}}
+
+Fix only the items above and output again in the same format. Your previous output has been discarded.

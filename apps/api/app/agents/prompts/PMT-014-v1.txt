@@ -1,0 +1,5 @@
+Your previous output was rejected. The violated items are:
+
+{{violations}}
+
+Fix missing sequence numbers, incorrect step keys, and too many tasks, and output again in the same format. Your previous output has been discarded.

@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session, selectinload
 
+from ..agents import run_queue
 from ..auth import current_user
 from ..config import get_settings
 from ..db import SessionLocal, get_db
@@ -19,6 +20,8 @@ from .world import verify_and_record
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/cases", tags=["cases"])
+# PM 管理費の工程（Creator の収益）。計画（Gemini）にも role=pm のタスクが混ざりうるので、管理費はこのタイトルで識別する
+PM_FEE_TITLE = "PM management (task breakdown, team building, progress tracking)"
 
 
 def _load(db: Session, case_id: str) -> Case:
@@ -35,7 +38,7 @@ def _load(db: Session, case_id: str) -> Case:
         .one_or_none()
     )
     if case is None:
-        raise HTTPException(404, "案件が見つかりません")
+        raise HTTPException(404, "Case not found")
     return case
 
 
@@ -89,14 +92,27 @@ def _on_completed(db: Session, case: Case) -> None:
 # ---------------------------------------------------------------- background jobs
 
 
+def _request_plan(db: Session, case: Case, bg: BackgroundTasks) -> None:
+    """依頼の計画を始める。既定は AG-001 経由（WP-018。ランナーの実行 → apply_plan で tasks に写して awaiting_approval）。
+    AGENT_PIPELINE=legacy なら旧経路（_plan_job。plan_case を BackgroundTasks で実行）。"""
+    if get_settings().agent_pipeline == "legacy":
+        bg.add_task(_plan_job, case.id)
+    else:
+        run_queue.request_planning(db, case.id, input_text=case.title)
+
+
 def _plan_job(case_id: str) -> None:
+    """旧経路（AGENT_PIPELINE=legacy のときだけ使う）"""
     db = SessionLocal()
     try:
         case = _load(db, case_id)
         try:
+            from .agents import agent_subagents
+
             plan = gemini.plan_case(
                 agent_name=case.agent.name, agent_rules=case.agent.rules, fee_bps=case.agent.fee_bps,
                 title=case.title, description=case.description, budget_usdc=int(case.budget) // USDC, deadline=case.deadline,
+                subagents=agent_subagents(case.agent),
             )
         except Exception as e:  # noqa: BLE001
             log.exception("planning failed")
@@ -106,14 +122,15 @@ def _plan_job(case_id: str) -> None:
         case.plan_json = plan.model_dump()
         total = 0
         for i, t in enumerate(plan.tasks):
-            member = next((m.name for m in plan.team if m.role == t.role), None) or (f"{t.role.title()} Agent" if t.type == "ai" else "Human Task Worker")
+            sub = next((x for x in agent_subagents(case.agent) if x["role"] == t.role), None)
+            member = (sub["name"] if sub else None) or next((m.name for m in plan.team if m.role == t.role), None) or (f"{t.role.title()} Agent" if t.type == "ai" else "Human Task Worker")
             task = Task(case_id=case.id, order_no=i, title=t.title, description=t.description, type=t.type, role=t.role,
                         estimated_cost=t.estimated_cost * USDC, assignee_name=member)
             db.add(task)
             total += t.estimated_cost * USDC
         # PM 管理費もタスク（工程）として契約する（CON-006、Creator の収益）
         fee = int(case.budget) - total
-        db.add(Task(case_id=case.id, order_no=len(plan.tasks), title="PM 管理（タスク分解・チーム編成・進捗管理）", description=plan.summary,
+        db.add(Task(case_id=case.id, order_no=len(plan.tasks), title=PM_FEE_TITLE, description=plan.summary,
                     type="ai", role="pm", estimated_cost=fee, assignee_name=case.agent.name))
         db.flush()
         for t in db.query(Task).filter(Task.case_id == case.id):
@@ -146,6 +163,8 @@ def _execute_job(case_id: str) -> None:
                 db.commit()
                 db.refresh(ht)
                 assign.assign(db, ht)  # PM Agent が ENS 上の人員から指名（FR-004/FR-020）
+        from .agents import agent_subagents
+
         for t in case.tasks:
             if t.type != "ai" or t.status == "done":
                 continue
@@ -153,15 +172,17 @@ def _execute_job(case_id: str) -> None:
             db.commit()
             try:
                 if t.role == "pm":
-                    t.deliverable = f"# PM 管理レポート\n\n{(case.plan_json or {}).get('summary', '')}\n\n" + "\n".join(f"- {x.title}（{x.assignee_name}）" for x in case.tasks if x.role != "pm")
+                    t.deliverable = f"# PM management report\n\n{(case.plan_json or {}).get('summary', '')}\n\n" + "\n".join(f"- {x.title} ({x.assignee_name})" for x in case.tasks if x.role != "pm")
                 else:
                     t.deliverable = gemini.execute_ai_task(
                         agent_name=case.agent.name, agent_rules=case.agent.rules, case_title=case.title, case_description=case.description,
                         task_title=t.title, task_description=t.description, role=t.role,
+                        role_rules=next((x.get("rules", "") for x in agent_subagents(case.agent) if x["role"] == t.role), ""),
+                        role_name=next((x.get("name", "") for x in agent_subagents(case.agent) if x["role"] == t.role), ""),
                     )
             except Exception as e:  # noqa: BLE001
                 log.exception("task execution failed")
-                t.deliverable = f"（生成に失敗しました: {e}）"
+                t.deliverable = f"(Generation failed: {e})"
             t.status, t.completed_at = "done", datetime.now(UTC)
             db.commit()
             _submit_task(db, case, t, case.agent.payout_address)
@@ -219,25 +240,25 @@ def notifications(user: User = Depends(current_user), db: Session = Depends(get_
     out: list[NoticeOut] = []
     for p in pending_approvals(user, db):
         out.append(NoticeOut(id=f"approve:{p.task_id}:{p.deliverable_hash}", kind="approve", urgent=True,
-                             title=f"承認をお願いします（{p.approval_count}/{p.threshold}）", body=f"{p.case_title} / {p.task_title}", href=f"/cases/{p.case_id}"))
+                             title=f"Approval requested ({p.approval_count}/{p.threshold})", body=f"{p.case_title} / {p.task_title}", href=f"/cases/{p.case_id}"))
     member_ids = [m.id for m in db.query(Member).filter(Member.wallet_address == user.wallet_address)]
     if member_ids:
         for ht in db.query(HumanTask).filter(HumanTask.status == "assigned", HumanTask.assignee_member_id.in_(member_ids)):
-            out.append(NoticeOut(id=f"assigned:{ht.id}", kind="assigned", urgent=True, title="PM Agent から指名されました", body=ht.title, href=f"/tasks/{ht.id}"))
+            out.append(NoticeOut(id=f"assigned:{ht.id}", kind="assigned", urgent=True, title="You were assigned by a PM Agent", body=ht.title, href=f"/tasks/{ht.id}"))
     for c in db.query(Case).filter(Case.client_id == user.id).order_by(Case.created_at.desc()).limit(20):
         if c.status == "awaiting_approval":
-            out.append(NoticeOut(id=f"open:{c.id}", kind="approve", urgent=True, title="計画の承認と Escrow の開設をお願いします", body=c.title, href=f"/cases/{c.id}"))
+            out.append(NoticeOut(id=f"open:{c.id}", kind="approve", urgent=True, title="Please approve the plan and open the Escrow", body=c.title, href=f"/cases/{c.id}"))
         elif c.status == "disputed":
-            out.append(NoticeOut(id=f"dispute:{c.id}", kind="dispute", urgent=True, title="紛争が発生しました。Jury の裁定待ちです", body=c.title, href=f"/cases/{c.id}"))
+            out.append(NoticeOut(id=f"dispute:{c.id}", kind="dispute", urgent=True, title="A dispute was raised. Awaiting the Jury ruling", body=c.title, href=f"/cases/{c.id}"))
         elif c.status == "completed":
-            out.append(NoticeOut(id=f"paid:{c.id}", kind="pay", title="全工程の支払いが Escrow から実行されました", body=c.title, href=f"/cases/{c.id}"))
+            out.append(NoticeOut(id=f"paid:{c.id}", kind="pay", title="Payment for all Steps was made from the Escrow", body=c.title, href=f"/cases/{c.id}"))
         elif c.status in ("in_progress", "delivered"):
             paid = sum(1 for t in c.tasks if t.chain_status == "paid")
             sub = sum(1 for t in c.tasks if t.chain_status == "submitted")
             if sub:
-                out.append(NoticeOut(id=f"deliver:{c.id}:{sub}", kind="deliver", title=f"{sub} 工程の成果物が提出されています", body=c.title, href=f"/cases/{c.id}"))
+                out.append(NoticeOut(id=f"deliver:{c.id}:{sub}", kind="deliver", title=f"Deliverables submitted for {sub} Step(s)", body=c.title, href=f"/cases/{c.id}"))
             if paid:
-                out.append(NoticeOut(id=f"paid:{c.id}:{paid}", kind="pay", title=f"{paid} 工程の支払いが実行されました", body=c.title, href=f"/cases/{c.id}"))
+                out.append(NoticeOut(id=f"paid:{c.id}:{paid}", kind="pay", title=f"Payment made for {paid} Step(s)", body=c.title, href=f"/cases/{c.id}"))
     return out
 
 
@@ -245,19 +266,20 @@ def notifications(user: User = Depends(current_user), db: Session = Depends(get_
 def create_case(body: CaseCreateIn, bg: BackgroundTasks, user: User = Depends(current_user), db: Session = Depends(get_db)):
     agent = db.get(Agent, body.agent_id)
     if agent is None or agent.status != "published":
-        raise HTTPException(400, "公開済みの PM Agent を選んでください")
+        raise HTTPException(400, "Select a published PM Agent")
     case_id = str(uuid.uuid4())
-    # FR-002: 依頼の開始は World で人間性を確認する（signal = 依頼ごとの ID）
-    nullifier = verify_and_record(db, user, action="request", signal=case_id, idkit_response=body.idkit_response)
+    # 入力の検証は World の検証より前に行う。World 側は action ごとの検証回数を数えるので、こちらの 400 で proof を消費させない
     approvers = [a.lower() for a in body.approvers] or [user.wallet_address]
     if body.threshold > len(approvers):
-        raise HTTPException(400, "必要承認数が承認者数を超えています")
+        raise HTTPException(400, "Required approvals exceed the number of Approvers")
+    # FR-002: 依頼の開始は World で人間性を確認する（signal = 依頼ごとの ID。案件 ID は採番前なので、クライアントが rp-context 取得時に使った ID を受け取る）
+    nullifier = verify_and_record(db, user, action="request", signal=body.world_signal or case_id, idkit_response=body.idkit_response)
     case = Case(id=case_id, client_id=user.id, agent_id=agent.id, title=body.title, description=body.description,
                 budget=body.budget_usdc * USDC, deadline=body.deadline, status="planning", escrow_case_id=chain.escrow_case_id(case_id),
                 approvers=approvers, threshold=body.threshold, request_nullifier=nullifier)
     db.add(case)
     db.commit()
-    bg.add_task(_plan_job, case.id)
+    _request_plan(db, case, bg)
     return _load(db, case.id)
 
 
@@ -273,15 +295,16 @@ def team(case_id: str, db: Session = Depends(get_db)):
 
     case = _load(db, case_id)
     agent_name = case.agent.ens_name or ens.agent_ens_name(case.agent.label)
-    from .agents import agent_on_ens
+    from .agents import agent_on_ens, agent_subagents
 
     real = agent_on_ens(case.agent)
+    sub_roles = {x["role"] for x in agent_subagents(case.agent)}
     members = db.query(Member).all()
     out = []
     for t in case.tasks:
         if t.type == "ai":
-            name = f"{t.role}.{agent_name}" if t.role in ens.SUBAGENT_ROLES else agent_name
-            recs = ens.read_texts(name, ens.SUBAGENT_KEYS if t.role in ens.SUBAGENT_ROLES else ["description", "codrea.agent.category"]) if real else {}
+            name = f"{t.role}.{agent_name}" if t.role in sub_roles else agent_name
+            recs = ens.read_texts(name, ens.SUBAGENT_KEYS if t.role in sub_roles else ["description", "codrea.agent.category"]) if real else {}
             out.append(TeamTaskOut(task_id=t.id, title=t.title, kind="ai", role=t.role, amount=int(t.estimated_cost), assignee_ens=name, assignee_name=t.assignee_name, assignee_records=recs))
             continue
         ht = t.human_task
@@ -292,7 +315,7 @@ def team(case_id: str, db: Session = Depends(get_db)):
                                           company=m.company.name, chosen=bool(ht and ht.assignee_member_id == m.id), declined=m.id in declined,
                                           records=ens.read_texts(m.ens_name, ens.PERSON_KEYS) if (real and m.ens_status == "written") else {}))
         a_ens = ht.assignee.ens_name if ht and ht.assignee else (f"worker:{ht.worker.wallet_address[:10]}" if ht and ht.worker else None)
-        a_name = (f"{ht.assignee.name}（{ht.assignee.role}）" if ht and ht.assignee else (t.assignee_name if not (ht and ht.worker) else "公開募集の受注者"))
+        a_name = (f"{ht.assignee.name} ({ht.assignee.role})" if ht and ht.assignee else (t.assignee_name if not (ht and ht.worker) else "Open-call Assignee"))
         out.append(TeamTaskOut(task_id=t.id, title=t.title, kind="human", role=t.role, amount=int(t.estimated_cost), assignee_ens=a_ens, assignee_name=a_name,
                                assignment_reason=ht.assignment_reason if ht else None, candidates=cands))
     return out
@@ -304,12 +327,12 @@ def replan(case_id: str, bg: BackgroundTasks, user: User = Depends(current_user)
     if case.client_id != user.id:
         raise HTTPException(403)
     if case.status not in ("planning_failed", "awaiting_approval"):
-        raise HTTPException(400, "この状態では再計画できません")
+        raise HTTPException(400, "Cannot replan in this status")
     for t in case.tasks:
         db.delete(t)
     case.status, case.error, case.plan_json = "planning", None, None
     db.commit()
-    bg.add_task(_plan_job, case.id)
+    _request_plan(db, case, bg)
     return _load(db, case.id)
 
 
@@ -320,11 +343,11 @@ def opened(case_id: str, body: CaseOpenedIn, bg: BackgroundTasks, user: User = D
     if case.client_id != user.id:
         raise HTTPException(403)
     if case.status != "awaiting_approval":
-        raise HTTPException(400, "承認待ちの案件ではありません")
+        raise HTTPException(400, "This Case is not awaiting approval")
     try:
         chain.verify_case_opened(body.tx_hash, case.escrow_case_id, user.wallet_address, case.approvers or [], case.threshold)
     except Exception as e:  # noqa: BLE001
-        raise HTTPException(400, f"openCase を確認できません: {e}") from e
+        raise HTTPException(400, f"Could not verify openCase: {e}") from e
     case.open_tx_hash = body.tx_hash
     case.status = "in_progress"
     db.commit()
@@ -348,7 +371,7 @@ def approval_typed_data(case_id: str, task_id: str, user: User = Depends(current
     case = _load(db, case_id)
     t = next((x for x in case.tasks if x.id == task_id), None)
     if t is None or not t.deliverable_hash or not t.payee:
-        raise HTTPException(400, "このタスクはまだ提出されていません")
+        raise HTTPException(400, "This Task has not been submitted yet")
     return chain.approval_typed_data(case.escrow_case_id, t.escrow_task_id, t.deliverable_hash, t.payee)
 
 
@@ -360,16 +383,16 @@ def approve_task(case_id: str, task_id: str, body: ApproveIn, user: User = Depen
     if t is None:
         raise HTTPException(404)
     if user.wallet_address not in [a.lower() for a in (case.approvers or [])]:
-        raise HTTPException(403, "この案件の承認者ではありません")
+        raise HTTPException(403, "You are not an Approver of this Case")
     if t.status != "done" or not t.deliverable_hash or not t.payee:
-        raise HTTPException(400, "成果物が提出されていません")
+        raise HTTPException(400, "No Deliverable has been submitted")
     if t.chain_status not in ("submitted", "funded"):
-        raise HTTPException(400, f"この状態では承認できません（{t.chain_status}）")
+        raise HTTPException(400, f"Cannot approve in this status ({t.chain_status})")
     if any(a.approver_id == user.id and a.deliverable_hash == t.deliverable_hash for a in t.approvals):
-        raise HTTPException(409, "この成果物は承認済みです")
+        raise HTTPException(409, "This Deliverable is already approved")
     typed = chain.approval_typed_data(case.escrow_case_id, t.escrow_task_id, t.deliverable_hash, t.payee)
     if chain.recover_approval_signer(typed, body.signature).lower() != user.wallet_address:
-        raise HTTPException(400, "署名が承認者のものではありません")
+        raise HTTPException(400, "The signature does not belong to the Approver")
     nullifier = verify_and_record(db, user, action="approve", signal=f"{t.id}:{t.deliverable_hash}", idkit_response=body.idkit_response)
     db.add(Approval(task_id=t.id, approver_id=user.id, deliverable_hash=t.deliverable_hash, signature=body.signature, nullifier=nullifier))
     db.commit()

@@ -19,11 +19,11 @@ router = APIRouter(prefix="/reviews", tags=["reviews"])
 def create_review(body: ReviewCreateIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
     case = _load(db, body.case_id)
     if case.status not in ("completed", "resolved"):
-        raise HTTPException(400, "完了した案件のみレビューできます")
+        raise HTTPException(400, "Only completed Cases can be reviewed")
     is_client = case.client_id == user.id
     is_worker = any(t.human_task and t.human_task.worker_id == user.id for t in case.tasks)
     if not (is_client or is_worker):
-        raise HTTPException(403, "案件の当事者のみレビューできます")
+        raise HTTPException(403, "Only parties to the Case can leave a review")
     # 発注者 → PM Agent、Human Task worker → 発注者
     target_type, target_id = ("agent", case.agent_id) if is_client else ("user", case.client_id)
     nullifier = verify_and_record(db, user, action="review", signal=case.id, idkit_response=body.idkit_response)

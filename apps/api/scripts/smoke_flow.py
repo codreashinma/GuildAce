@@ -18,12 +18,12 @@ def main() -> None:
 
     # --- Agent 作成・公開
     label = "web-pm-" + creator.address[-6:].lower()
-    agent = creator.post("/agents", {"name": "Web開発 PM Agent", "label": label, "description": "Web サービスを 3 日で作る", "category": "web",
-                                     "rules": "タスクは小さく分解し、現地確認は人間に任せる", "fee_bps": 200}, expect=201)
+    agent = creator.post("/agents", {"name": "Web Dev PM Agent", "label": label, "description": "Builds a web service in 3 days", "category": "web",
+                                     "rules": "Break tasks down into small pieces and leave on-site checks to humans", "fee_bps": 200}, expect=201)
     agent = creator.post(f"/agents/{agent['id']}/publish")["agent"]
     agent = creator.wait(f"/agents/{agent['id']}", "status", {"published", "publish_failed"})
     assert agent["status"] == "published", agent
-    assert agent["ens_name"] == f"{label}.choice.eth"
+    assert agent["ens_name"] == f"{label}.guildace.eth"
     print("V2 agent published:", agent["ens_name"], agent["ens_tx_hash"][:12])
     # D1: Creator 自身の .eth の下に公開（モックでは所有者チェックと tx を省略）
     own = creator.post("/agents", {"name": "Own-name PM", "label": label, "category": "web", "parent_ens_name": "smokecreator.eth"}, expect=201)  # 同じラベルでも親が違えば OK
@@ -39,10 +39,10 @@ def main() -> None:
     # --- 会社と人員（受注側）を ENS 名つきで登録
     co_admin = Client(BASE); co_admin.login()
     co_ens = "smoke-" + co_admin.address[-6:].lower() + ".eth"
-    co = co_admin.post("/companies", {"name": "Smoke Co.", "ens_name": co_ens, "description": "現地撮影・実物確認"}, expect=201)
+    co = co_admin.post("/companies", {"name": "Smoke Co.", "ens_name": co_ens, "description": "On-site photography, in-person checks"}, expect=201)
     worker2 = Client(BASE); worker2.login()
-    m1 = co_admin.post(f"/companies/{co['id']}/members", {"label": "dan", "name": "Dan", "wallet_address": worker.address, "role": "photographer", "skills": "写真撮影,現地確認,店舗,外観,URL", "location": "東京"}, expect=201)
-    m2 = co_admin.post(f"/companies/{co['id']}/members", {"label": "emi", "name": "Emi", "wallet_address": worker2.address, "role": "surveyor", "skills": "アンケート,現地確認", "location": "大阪"}, expect=201)
+    m1 = co_admin.post(f"/companies/{co['id']}/members", {"label": "dan", "name": "Dan", "wallet_address": worker.address, "role": "photographer", "skills": "photography,on-site check,stores,exteriors,URL", "location": "Tokyo"}, expect=201)
+    m2 = co_admin.post(f"/companies/{co['id']}/members", {"label": "emi", "name": "Emi", "wallet_address": worker2.address, "role": "surveyor", "skills": "surveys,on-site check", "location": "Osaka"}, expect=201)
     assert m1["ens_name"] == f"dan.{co_ens}" and m2["ens_name"] == f"emi.{co_ens}"
     client.post(f"/companies/{co['id']}/members", {"label": "x", "name": "X", "wallet_address": client.address}, expect=403)  # 管理者以外
     print("V15 company + members:", [m["ens_name"] for m in co_admin.get(f"/companies/{co['id']}")["members"]])
@@ -50,7 +50,7 @@ def main() -> None:
     # --- 案件作成 → 計画
     # 依頼開始は World 検証つき（FR-002）。承認者は開発部(client 本人)と経理部(fin) の 2 名・必要 2
     fin = Client(BASE); fin.login()
-    case = client.post("/cases", {"agent_id": agent["id"], "title": "レストラン予約 Web サービス", "description": "3 日で MVP", "budget_usdc": 300,
+    case = client.post("/cases", {"agent_id": agent["id"], "title": "Restaurant reservation web service", "description": "MVP in 3 days", "budget_usdc": 300,
                                   "approvers": [client.address, fin.address], "threshold": 2, "idkit_response": None}, expect=201)
     case = client.wait(f"/cases/{case['id']}", "status", {"awaiting_approval", "planning_failed"})
     assert case["status"] == "awaiting_approval", case
@@ -115,7 +115,7 @@ def main() -> None:
     assert ht["status"] == "open" and ht["assignee"] is None, ht
     ht = worker.post(f"/human-tasks/{ht['id']}/accept", {"idkit_response": None})
     assert ht["status"] == "accepted"
-    ht = worker.post(f"/human-tasks/{ht['id']}/submit", {"submission": "https://example.com/photo1.jpg 外観 3 枚"})
+    ht = worker.post(f"/human-tasks/{ht['id']}/submit", {"submission": "https://example.com/photo1.jpg 3 exterior photos"})
     assert ht["status"] == "done"
     case = client.wait(f"/cases/{case['id']}", "status", {"delivered"})
     for _ in range(60):
@@ -153,7 +153,7 @@ def main() -> None:
     client.post(f"/cases/{case['id']}/tasks/{t0['id']}/approve", {"signature": sign_typed(client, typed), "idkit_response": None}, expect=409)  # 二重承認
     time.sleep(2)
     case = client.get(f"/cases/{case['id']}")
-    assert all(t["approval_count"] == 1 and t["chain_status"] == "submitted" for t in case["tasks"]), "1/2 で保留のはず（FR-013）"
+    assert all(t["approval_count"] == 1 and t["chain_status"] == "submitted" for t in case["tasks"]), "Should be on hold at 1/2 (FR-013)"
     assert case["status"] == "delivered"
     assert client.get("/cases/pending-approvals") == []  # 自分の分は承認済みなので消える
     for t in case["tasks"]:
@@ -165,18 +165,18 @@ def main() -> None:
     print("V8 2/2 approvals → auto-paid per task (FR-012), case completed")
 
     # --- レビュー（World 検証: モック）
-    rv = client.post("/reviews", {"case_id": case["id"], "rating": 5, "comment": "良いコミュニケーションでした！", "idkit_response": None}, expect=201)
+    rv = client.post("/reviews", {"case_id": case["id"], "rating": 5, "comment": "Great communication!", "idkit_response": None}, expect=201)
     assert rv["target_type"] == "agent"
     a = client.get(f"/agents/{agent['id']}")
     assert a["rating_count"] == 1 and float(a["rating_avg"]) == 5.0
-    client.post("/reviews", {"case_id": case["id"], "rating": 1, "comment": "二重投稿", "idkit_response": None}, expect=409)
+    client.post("/reviews", {"case_id": case["id"], "rating": 1, "comment": "Duplicate post", "idkit_response": None}, expect=409)
     j1.post("/reviews", {"case_id": case["id"], "rating": 5, "idkit_response": None}, expect=403)  # 当事者以外
-    wr = worker.post("/reviews", {"case_id": case["id"], "rating": 4, "comment": "納品が丁寧で助かりました", "idkit_response": None}, expect=201)
+    wr = worker.post("/reviews", {"case_id": case["id"], "rating": 4, "comment": "Careful delivery, very helpful", "idkit_response": None}, expect=201)
     assert wr["target_type"] == "user"
     print("V9/V10 reviews ok, duplicate rejected")
 
     # --- 紛争 → Jury
-    case2 = client.post("/cases", {"agent_id": agent["id"], "title": "紛争テスト案件", "description": "", "budget_usdc": 100, "idkit_response": None}, expect=201)
+    case2 = client.post("/cases", {"agent_id": agent["id"], "title": "Dispute test case", "description": "", "budget_usdc": 100, "idkit_response": None}, expect=201)
     case2 = client.wait(f"/cases/{case2['id']}", "status", {"awaiting_approval"})
     client.post(f"/cases/{case2['id']}/opened", {"tx_hash": fake_tx()})
     for _ in range(60):
@@ -186,9 +186,9 @@ def main() -> None:
         time.sleep(0.5)
     ht2 = next(t for t in worker.get("/human-tasks/assigned") if t["case_id"] == case2["id"])
     worker.post(f"/human-tasks/{ht2['id']}/accept", {})
-    worker.post(f"/human-tasks/{ht2['id']}/submit", {"submission": "写真です"})
+    worker.post(f"/human-tasks/{ht2['id']}/submit", {"submission": "Here are the photos"})
     client.wait(f"/cases/{case2['id']}", "status", {"delivered"})
-    d = client.post(f"/cases/{case2['id']}/dispute", {"reason": "約束した機能が足りない"}, expect=201)
+    d = client.post(f"/cases/{case2['id']}/dispute", {"reason": "Promised features are missing"}, expect=201)
     for _ in range(60):
         d = client.get(f"/disputes/{d['id']}")
         if d["summary_json"]:

@@ -41,12 +41,26 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown 
 
 // ---- types (API の schemas.py に対応) ----
 export type User = { id: string; wallet_address: string; display_name: string | null };
-export type Me = User & { human_verified_actions: string[] };
+export type Me = User & { human_verified_actions: string[]; is_ops?: boolean; role?: string | null };
+/** ウォレット接続の前に選ぶ利用者種別（/auth/roles）。表示とメニュー用で、権限は付かない */
+export type UserRole = { role: string; label: string };
 export type Agent = {
   id: string; creator_id: string; name: string; label: string; description: string; category: string; rules: string;
   fee_bps: number; payout_address: string; ens_name: string | null; ens_tx_hash: string | null; parent_ens_name: string | null; owner_mode: "platform" | "creator"; ens_subregistry: string | null; status: string;
-  rating_avg: number; rating_count: number; completed_count: number; ens_error: string | null; created_at: string; creator: User;
+  rating_avg: number; rating_count: number; completed_count: number; ens_error: string | null; subagents: Subagent[]; created_at: string; creator: User;
+  policy: Policy | null; effective_policy: Policy; // policy = 保存された値（無ければ null）、effective_policy = 無ければ既定（WP-009）
 };
+/** PM Agent の進め方（codrea.agent.policy のスキーマ。GRD-006: 変えられるのは工程と人間の使い方だけ） */
+export type HumanRole = { role: "approver" | "reviewer" | "juror"; world_verified: boolean; min_count: number };
+export type Policy = { version: 1; domain: string; workflow: { phases: { key: string; title: string }[] }; human_roles: HumanRole[] };
+export type Subagent = { role: string; name: string; description: string; rules: string };
+/** 既定の専門エージェント（API の DEFAULT_SUBAGENTS と同じ）。所有者が追加・削除・編集できる */
+export const DEFAULT_SUBAGENTS: Subagent[] = [
+  { role: "designer", name: "Designer Agent", description: "Screen layout, wireframes and design direction", rules: "" },
+  { role: "frontend", name: "Frontend Agent", description: "UI implementation approach and component design", rules: "" },
+  { role: "backend", name: "Backend Agent", description: "API design and data model", rules: "" },
+  { role: "qa", name: "QA Agent", description: "Acceptance test criteria and results", rules: "" },
+];
 export type EnsRole = { role: string; account?: string | null; where?: string; can?: string; cannot?: string; subregistry?: string | null; verified?: boolean; checks?: Record<string, boolean | null>; error?: string };
 export type TeamCandidate = { ens_name: string; kind: "ai" | "human"; name: string; role: string; skills: string; location: string; available: boolean; company: string | null; chosen: boolean; declined: boolean; records: Record<string, string> };
 export type TeamTask = { task_id: string; title: string; kind: "ai" | "human"; role: string; amount: number; assignee_ens: string | null; assignee_name: string | null; assignee_records: Record<string, string>; assignment_reason: string | null; candidates: TeamCandidate[] };
@@ -79,9 +93,15 @@ export type Review = { id: string; case_id: string; rating: number; comment: str
 export type JuryVote = { id: string; vote: "release" | "refund"; created_at: string; voter: User };
 export type Dispute = {
   id: string; case_id: string; reason: string; status: string; outcome: string | null; resolve_tx_hash: string | null; required_votes: number; created_at: string;
-  summary_json: { issues?: string[]; client_position?: string; agent_position?: string; facts_to_check?: string[]; ai_note?: string; error?: string } | null;
+  summary_json: DisputeSummary | null;
   case: Case; votes: JuryVote[];
 };
+/** AG-004 の争点（agent-definitions AG-004 の「出力」）。結論の項目は持たない */
+export type DisputeIssue = { title: string; requester_position: string; provider_position: string; evidence_refs: string[] };
+/** 論点サマリー。source = "agents" は AG-001 → AG-004 経由（WP-019）、無ければ旧 summarize_dispute の形。resolve_jobs は裁定で足される */
+export type DisputeSummary =
+  | { source: "agents"; version: number | null; issues: DisputeIssue[]; no_issues: boolean; no_issues_reason: string | null; ref_labels: Record<string, string>; resolve_jobs?: string[] }
+  | { source?: undefined; issues?: string[]; client_position?: string; agent_position?: string; facts_to_check?: string[]; ai_note?: string; error?: string; resolve_jobs?: string[] };
 export type AuditActor = { address: string; name: string | null; source: string | null; verified: boolean; roles: string[] };
 export type AuditEvent = {
   seq: number; kind: string; label: string; task_id: string | null; task_title: string | null; actor: string | null; actor_role: string;
@@ -102,6 +122,15 @@ export type MeSummary = {
   earnings_total: string; reviews_received: { count: number; avg: number | null };
 };
 export type MeEnsName = { name: string; kind: "person" | "agent-payout" | "company-admin"; verified: boolean; tx_hash: string | null; link: string; note: string | null };
+export type EarningRow = { case_id: string; case_title: string; case_status: string; task_id: string; task_title: string; amount: string; received: string; chain_status: ChainStatus; payee: string | null; tx_hash: string | null; at: string | null; budget: string };
+export type AgentEarnings = { agent_id: string; agent_name: string; payout_address: string; fee_bps: number; paid_total: string; pending_total: string; resolved_total: string; cases: number; rows: EarningRow[] };
+export type ChainJobStatus = "queued" | "running" | "retry" | "done" | "failed";
+export type ChainJob = {
+  id: string; kind: string; label: string; idempotency_key: string; status: ChainJobStatus; attempts: number; max_attempts: number; tx_hash: string | null; error: string | null;
+  next_attempt_at: string | null; finished_at: string | null; created_at: string; updated_at: string;
+  case_id: string | null; case_title: string | null; task_id: string | null; task_title: string | null; agent_id: string | null; agent_name: string | null; amount: string | null; href: string | null; retryable: boolean;
+};
+export type OpsJobs = { counts: Record<ChainJobStatus, number>; kinds: string[]; worker_alive: boolean; jobs: ChainJob[] };
 export type AppConfig = {
   chain_id: number; escrow_address: string; usdc_address: string; ens_parent_name: string; ens_universal_resolver: string;
   world_app_id: string; world_rp_id: string;
@@ -109,16 +138,18 @@ export type AppConfig = {
   mock: { chain: boolean; ens_write: boolean; ens_roles: boolean; world: boolean; gemini: boolean };
 };
 export type RpContext = { rp_id: string; nonce: string; created_at: number; expires_at: number; signature: string };
+/** GET /world/rp-context の応答。session_id が null なら IDKit は createSession、あれば proveSession(session_id) */
+export type WorldContext = { rp_context: RpContext; session_id: `session_${string}` | null };
 
 export const USDC = 1_000_000;
 export const usdc = (n: number | string) => (Number(n) / USDC).toLocaleString("en-US", { maximumFractionDigits: 2 });
 export const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 export const etherscanTx = (h: string) => (h.startsWith("0xmock") ? null : `https://sepolia.etherscan.io/tx/${h}`);
-export const CATEGORY_LABEL: Record<string, string> = { web: "Web開発", design: "デザイン", video: "動画制作", wedding: "Wedding", other: "その他" };
+export const CATEGORY_LABEL: Record<string, string> = { web: "Web development", design: "Design", video: "Video production", wedding: "Wedding", other: "Other" };
 export const STATUS_LABEL: Record<string, string> = {
-  "chain:none": "未預託", "chain:funded": "預託済", "chain:submitted": "提出済（承認待ち）", "chain:paid": "支払済", "chain:disputed": "保留（紛争）", "chain:resolved": "裁定済",
-  draft: "下書き", planning: "計画中", planning_failed: "計画失敗", awaiting_approval: "承認待ち", funded: "入金済み", in_progress: "進行中",
-  delivered: "納品済み（検収待ち）", completed: "完了", disputed: "紛争中", resolved: "仲裁で解決",
-  publishing: "ENS に公開中", published: "公開中", publish_failed: "公開失敗",
-  assigned: "指名中", open: "募集中", accepted: "受注済み", submitted: "提出済み", done: "完了", todo: "未着手",
+  "chain:none": "Not deposited", "chain:funded": "Deposited", "chain:submitted": "Submitted (awaiting approval)", "chain:paid": "Paid", "chain:disputed": "On hold (dispute)", "chain:resolved": "Ruled",
+  draft: "Draft", planning: "Planning", planning_failed: "Planning failed", awaiting_approval: "Awaiting approval", funded: "Funded", in_progress: "In progress",
+  delivered: "Delivered (awaiting acceptance)", completed: "Completed", disputed: "In dispute", resolved: "Resolved by arbitration",
+  publishing: "Publishing to ENS", published: "Published", publish_failed: "Publish failed",
+  assigned: "Assigned", open: "Open", accepted: "Accepted", submitted: "Submitted", done: "Done", todo: "To do",
 };

@@ -14,8 +14,8 @@ function List({ items }: { items: HumanTask[] }) {
           <Card className="h-full transition hover:border-neutral-900">
             <div className="flex items-center justify-between gap-2"><span className="flex min-w-0 items-center gap-2 font-semibold"><KindTag kind="human" /><span className="truncate">{t.title}</span></span><Badge status={t.status} /></div>
             <p className="mt-1 line-clamp-2 text-sm text-neutral-600">{t.description}</p>
-            {t.assignee && <p className="mt-1 flex items-center gap-1 text-xs text-neutral-900"><span className="whitespace-nowrap">指名:</span><span className="truncate font-mono">{t.assignee.ens_name}</span></p>}
-            <div className="mt-3 text-sm">報酬 <Amount value={usdc(t.reward)} className="font-semibold" /></div>
+            {t.assignee && <p className="mt-1 flex items-center gap-1 text-xs text-neutral-900"><span className="whitespace-nowrap">Assigned:</span><span className="truncate font-mono">{t.assignee.ens_name}</span></p>}
+            <div className="mt-3 text-sm">Reward <Amount value={usdc(t.reward)} className="font-semibold" /></div>
           </Card>
         </Link>
       ))}
@@ -32,16 +32,16 @@ export default function Tasks() {
     <div className="space-y-8">
       {assigned && assigned.length > 0 && (
         <div>
-          <h2 className="mb-1 font-semibold">あなたへの指名</h2>
-          <p className="mb-3 text-xs text-neutral-500">PM Agent が ENS 上のあなたのプロフィール（<span className="font-mono">{assigned[0].assignee?.ens_name}</span>）を見て指名しました。World で人間確認をして受諾するか、辞退してください</p>
+          <h2 className="mb-1 font-semibold">Assigned to you</h2>
+          <p className="mb-3 text-xs text-neutral-500">The PM Agent assigned you based on your profile on ENS (<span className="font-mono">{assigned[0].assignee?.ens_name}</span>). Verify with World to accept, or decline.</p>
           <List items={assigned} />
         </div>
       )}
       <div>
-        <PageTitle title="Human Task Marketplace" sub="AI にはできない仕事。PM Agent が ENS 上の会社の人員から指名し、候補がいなければここで公開募集します。受注には World の人間確認が必要です" />
-        {!data?.length ? <Empty>募集中の Human Task はありません。案件が進むと PM Agent がここに発注します</Empty> : <List items={data} />}
+        <PageTitle title="Human Task Marketplace" sub="Work AI can't do. The PM Agent assigns it to company members on ENS, and posts it here publicly if no candidate is found. Accepting requires World human verification." />
+        {!data?.length ? <Empty>No open Human Tasks. The PM Agent will post tasks here as cases progress.</Empty> : <List items={data} />}
       </div>
-      {mine && mine.length > 0 && <div><h2 className="mb-3 font-semibold">自分が受注したタスク</h2><List items={mine} /></div>}
+      {mine && mine.length > 0 && <div><h2 className="mb-3 font-semibold">Tasks I accepted</h2><List items={mine} /></div>}
     </div>
   );
 }

@@ -1,0 +1,8 @@
+Return only JSON that conforms to the schema shown above.
+
+- Do not add explanations, preambles, or code fences.
+- Do not add keys that are not in the schema.
+- Write all natural-language text values in English, even if the input data is in another language.
+- Write amounts as strings of integers. Do not use decimals or thousands separators.
+
+Output that does not conform to the schema is rejected, and you will be asked again together with the items that were violated.

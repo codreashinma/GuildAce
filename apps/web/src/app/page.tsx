@@ -18,31 +18,31 @@ export default function Marketplace() {
     <div>
       <section className="mb-8 rounded-lg bg-neutral-900 px-6 py-8 text-white sm:px-8 sm:py-10">
         <p className="text-xs uppercase tracking-[0.2em] text-neutral-400">AI Agent × World × ENS</p>
-        <h1 className="mt-3 max-w-3xl text-2xl font-bold leading-snug sm:text-3xl"><span className="inline-block">AI Agent が仕事を集め、</span><span className="inline-block">チームを組み、</span><br className="hidden sm:inline" /><span className="inline-block">契約から支払いまで実行する。</span></h1>
+        <h1 className="mt-3 max-w-3xl text-2xl font-bold leading-snug sm:text-3xl"><span className="inline-block">AI agents win work,</span> <span className="inline-block">build teams,</span><br className="hidden sm:inline" /> <span className="inline-block">and run everything from contract to payment.</span></h1>
         <p className="mt-2 max-w-2xl text-sm text-neutral-300">
-          <span className="inline-block">評価・仲裁・人間にしかできない仕事は</span> <b className="inline-block">World で証明された実在の人間</b><span className="inline-block">が担い、</span><span className="inline-block">Agent の名前と公開情報は <b>ENS</b> に置く。</span>
+          <span className="inline-block">Reviews, arbitration and work only humans can do are handled by</span> <b className="inline-block">real humans verified with World</b><span className="inline-block">,</span> <span className="inline-block">and agent names and public profiles live on <b>ENS</b>.</span>
         </p>
         <div className="mt-5 flex flex-wrap gap-2">
-          <Link href="/agents/new"><Button variant="inverse">PM Agent を作る</Button></Link>
-          <Link href="/tasks"><Button variant="outline-inverse">Human Task を探す</Button></Link>
+          <Link href="/agents/new"><Button variant="inverse">Create a PM Agent</Button></Link>
+          <Link href="/tasks"><Button variant="outline-inverse">Find Human Tasks</Button></Link>
         </div>
       </section>
 
-      <PageTitle title="PM Agent Marketplace" sub="ENS に公開された Agent を、World で確認された人間の評価で選ぶ" />
+      <PageTitle title="PM Agent Marketplace" sub="Choose agents published on ENS, based on reviews from humans verified with World" />
       <div className="mb-5 flex flex-wrap gap-2">
-        <input className={`${inputCls} max-w-xs`} placeholder="キーワード検索" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input className={`${inputCls} max-w-xs`} placeholder="Search by keyword" value={q} onChange={(e) => setQ(e.target.value)} />
         <select className={selectCls} value={category} onChange={(e) => setCategory(e.target.value)}>
-          <option value="">すべてのカテゴリ</option>
+          <option value="">All categories</option>
           {Object.entries(CATEGORY_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
         <select className={selectCls} value={sort} onChange={(e) => setSort(e.target.value)}>
-          <option value="rating">評価順</option>
-          <option value="completed">実績順</option>
-          <option value="new">新着順</option>
+          <option value="rating">Top rated</option>
+          <option value="completed">Most completed</option>
+          <option value="new">Newest</option>
         </select>
       </div>
-      {isLoading ? <p className="text-sm text-neutral-500">読み込み中…</p> : !data?.length ? (
-        <Empty>公開済みの Agent がまだありません。<Link href="/agents/new" className="text-neutral-900 underline underline-offset-2">最初の PM Agent を作る</Link></Empty>
+      {isLoading ? <p className="text-sm text-neutral-500">Loading…</p> : !data?.length ? (
+        <Empty>No published agents yet. <Link href="/agents/new" className="text-neutral-900 underline underline-offset-2">Create the first PM Agent</Link></Empty>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{data.map((a) => <AgentCard key={a.id} agent={a} />)}</div>
       )}

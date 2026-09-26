@@ -1,0 +1,17 @@
+Goal: break the provided request down into a list of tasks to carry out.
+
+Available steps (use only the keys in this list):
+{{phases}}
+
+Expected form: JSON that conforms to the schema shown above.
+
+Rules:
+- Sequence numbers are consecutive integers starting from 1.
+- Use only step keys from the list above.
+- Keep the number of tasks to {{max_tasks}} or fewer.
+
+When you cannot decide: do not add tasks based on guesses; return an empty task list.
+
+{{delimiter}}
+{{requirement_text}}
+{{delimiter}}

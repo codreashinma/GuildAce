@@ -1,0 +1,5 @@
+Your previous output was rejected. The violated items are:
+
+{{violations}}
+
+If you included a conclusion, remove it; add a reference to a record to any issue that lacks one; and output again in the same format. Your previous output has been discarded.

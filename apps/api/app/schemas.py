@@ -1,7 +1,10 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
+
+from .agents import policy as agent_policy
+from .agents.policy import Policy
 
 CATEGORIES = ["web", "design", "video", "wedding", "other"]
 
@@ -17,12 +20,49 @@ class UserOut(ORM):
 
 
 class MeOut(UserOut):
+    role: str | None = None  # 最後のログインで選んだ利用者種別
     human_verified_actions: list[str] = []
+    is_ops: bool = False  # 運用者（OPS_ADDRESSES）。/ops/* と運用画面を使える
 
 
 class AuthVerifyIn(BaseModel):
     message: str
     signature: str
+    role: str | None = None  # ウォレット接続の前に選んだ利用者種別（auth.USER_ROLES のキー）
+
+
+RESERVED_SUBAGENT_ROLES = {"pm", "field", "human", "worker", "reputation", "project", "www", "eth"}
+
+
+class SubagentIn(BaseModel):
+    """専門 AI エージェント 1 件。role は ENS の subname（<role>.<agent>）になる"""
+    role: str = Field(pattern=r"^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$")
+    name: str = Field(min_length=1, max_length=60)
+    description: str = Field(default="", max_length=200)
+    rules: str = Field(default="", max_length=4000)
+
+    @field_validator("role")
+    @classmethod
+    def _v_role(cls, v):
+        if v in RESERVED_SUBAGENT_ROLES or v.startswith("project-"):
+            raise ValueError(f"Role '{v}' is reserved and cannot be used")
+        return v
+
+
+def _clean_subagents(v):
+    if v is None:
+        return None
+    if not isinstance(v, list):
+        raise ValueError("subagents must be an array of [{role, name, description, rules}]")
+    if len(v) > 12:
+        raise ValueError("Up to 12 specialist agents are allowed")
+    seen = set()
+    for x in v:
+        r = (x.get("role") if isinstance(x, dict) else getattr(x, "role", None)) or ""
+        if r in seen:
+            raise ValueError(f"Role '{r}' is duplicated")
+        seen.add(r)
+    return v
 
 
 class AgentCreateIn(BaseModel):
@@ -34,7 +74,14 @@ class AgentCreateIn(BaseModel):
     fee_bps: int = Field(default=200, ge=0, le=5000)
     payout_address: str | None = None
     avatar: str | None = None
-    parent_ens_name: str | None = Field(default=None, pattern=r"^[a-z0-9-]+\.eth$", description="Creator が所有する .eth。空ならプラットフォームの親名")
+    parent_ens_name: str | None = Field(default=None, pattern=r"^[a-z0-9-]+\.eth$", description="A .eth name owned by the Creator. If empty, the platform parent name is used")
+    subagents: list[SubagentIn] | None = Field(default=None, description="List of specialist AI agents. If omitted, the 4 defaults are used (designer / frontend / backend / qa)")
+    policy: Policy | None = None  # GRD-006: スキーマ外のキーは捨てる。None = 既定の policy
+
+    @field_validator("subagents", mode="before")
+    @classmethod
+    def _v_sub(cls, v):
+        return _clean_subagents(v)
 
 
 class AgentUpdateIn(BaseModel):
@@ -45,6 +92,13 @@ class AgentUpdateIn(BaseModel):
     rules: str | None = None
     fee_bps: int | None = Field(default=None, ge=0, le=5000)
     avatar: str | None = None
+    subagents: list[SubagentIn] | None = None  # 渡した一覧で丸ごと置き換える（[] で全消し）
+    policy: Policy | None = None  # GRD-006。ENS には書かない（DEC-002）
+
+    @field_validator("subagents", mode="before")
+    @classmethod
+    def _v_sub(cls, v):
+        return _clean_subagents(v)
 
 
 class AgentOut(ORM):
@@ -67,8 +121,53 @@ class AgentOut(ORM):
     rating_count: int
     completed_count: int
     ens_error: str | None = None
+    subagents: list[dict[str, str]] = []  # None（未設定）は既定の 4 つに展開して返す
     created_at: datetime
     creator: UserOut
+    policy: dict | None = None  # 保存された policy（無ければ None）
+
+    @computed_field
+    @property
+    def effective_policy(self) -> dict:
+        """実際に使う policy（保存された値、無ければ既定。DEC-002）"""
+        return agent_policy.effective(self.policy, self.category)
+
+    @field_validator("subagents", mode="before")
+    @classmethod
+    def _default_subagents(cls, v):
+        if v is None:
+            from .services.ens import DEFAULT_SUBAGENTS
+
+            return [dict(x) for x in DEFAULT_SUBAGENTS]
+        return v
+
+
+class EarningRowOut(BaseModel):
+    case_id: str
+    case_title: str
+    case_status: str
+    task_id: str
+    task_title: str
+    amount: str  # PM 管理費（最小単位）
+    received: str  # 実際に受け取った額。paid = amount、resolved = 裁定の pay_amount（返金なら 0）、預託中 = 0
+    chain_status: str  # funded | submitted | paid | disputed | resolved
+    payee: str | None
+    tx_hash: str | None
+    at: datetime | None
+    budget: str
+
+
+class AgentEarningsOut(BaseModel):
+    """D3 / API-18: Creator の収益（PM 工程の Escrow 投影の集計）"""
+    agent_id: str
+    agent_name: str
+    payout_address: str
+    fee_bps: int
+    paid_total: str  # paid の受取合計
+    pending_total: str  # 預託中（未払い）の工程額合計
+    resolved_total: str  # 裁定で受け取った額の合計（返金分は含まない）
+    cases: int
+    rows: list[EarningRowOut]
 
 
 class AgentDetailOut(AgentOut):
@@ -83,11 +182,12 @@ class CaseCreateIn(BaseModel):
     agent_id: str
     title: str = Field(min_length=1, max_length=200)
     description: str = ""
-    budget_usdc: int = Field(gt=0, le=10_000_000, description="USDC 単位（整数）")
+    budget_usdc: int = Field(gt=0, le=10_000_000, description="In USDC (integer)")
     deadline: str | None = None
-    approvers: list[str] = Field(default_factory=list, description="承認者アドレス（空なら発注者本人）")
+    approvers: list[str] = Field(default_factory=list, description="Approver addresses (if empty, the Client)")
     threshold: int = Field(default=1, ge=1, le=10)
     idkit_response: dict[str, Any] | None = None  # FR-002 依頼開始時の World 検証
+    world_signal: str | None = Field(default=None, max_length=120, description="Signal for World verification (the API assigns Case IDs, so only Request start uses an ID issued by the client)")
 
 
 

@@ -1,3 +1,4 @@
+import hashlib
 import logging
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException  # noqa: F401
@@ -7,8 +8,8 @@ from sqlalchemy.orm import Session
 from ..auth import current_user
 from ..config import get_settings
 from ..db import get_db
-from ..models import Agent, Review, User
-from ..schemas import AgentCreateIn, AgentDetailOut, AgentOut, AgentUpdateIn, ReviewOut, TxIn
+from ..models import Agent, Case, ChainJob, Review, Task, User
+from ..schemas import AgentCreateIn, AgentDetailOut, AgentEarningsOut, AgentOut, AgentUpdateIn, EarningRowOut, ReviewOut, TxIn
 from ..services import ens, worker
 
 log = logging.getLogger(__name__)
@@ -33,6 +34,11 @@ def profile_texts(agent: Agent, avatar: str | None = None) -> dict[str, str]:
     if agent.owner_mode == "creator":
         t["codrea.agent.creator"] = agent.parent_ens_name or agent.creator.wallet_address
     return t
+
+
+def agent_subagents(agent: Agent) -> list[dict]:
+    """所有者が定義した専門エージェントの一覧。未設定（None）は既定の 4 つ"""
+    return [dict(x) for x in (agent.subagents if agent.subagents is not None else ens.DEFAULT_SUBAGENTS)]
 
 
 def agent_on_ens(agent: Agent) -> bool:
@@ -78,7 +84,7 @@ def my_agents(user: User = Depends(current_user), db: Session = Depends(get_db))
 def create_agent(body: AgentCreateIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
     parent, mode = None, "platform"
     if db.query(Agent).filter(Agent.label == body.label, func.coalesce(Agent.parent_ens_name, "") == (body.parent_ens_name or "")).first():
-        raise HTTPException(409, f"{body.label}.{body.parent_ens_name or get_settings().ens_parent_name} は既に使われています")
+        raise HTTPException(409, f"{body.label}.{body.parent_ens_name or get_settings().ens_parent_name} is already taken")
     if body.parent_ens_name:
         # D1: Creator 自身の .eth の下に公開する。所有者が接続ウォレットか ENSv2 で確認する。
         # 未登録・RPC エラーは拒否（RPC 未設定 = モックのときだけ確認なしで通す）
@@ -90,7 +96,8 @@ def create_agent(body: AgentCreateIn, user: User = Depends(current_user), db: Se
     agent = Agent(
         creator_id=user.id, name=body.name, label=body.label, description=body.description, category=body.category,
         rules=body.rules, fee_bps=body.fee_bps, payout_address=(body.payout_address or user.wallet_address).lower(), status="draft",
-        parent_ens_name=parent, owner_mode=mode,
+        parent_ens_name=parent, owner_mode=mode, policy=body.policy.model_dump() if body.policy else None,
+        subagents=[x.model_dump() for x in body.subagents] if body.subagents is not None else None,
     )
     db.add(agent)
     db.commit()
@@ -100,7 +107,7 @@ def create_agent(body: AgentCreateIn, user: User = Depends(current_user), db: Se
 
 @router.post("/{agent_id}/publish")
 def publish_agent(agent_id: str, bg: BackgroundTasks, subagents: bool = True, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    """公開。platform: worker が choice.eth の下に発行。creator: Creator が署名する calldata（名前空間の構築込み）を返す。"""
+    """公開。platform: worker が guildace.eth の下に発行。creator: Creator が署名する calldata（名前空間の構築込み）を返す。"""
     agent = db.get(Agent, agent_id)
     if agent is None:
         raise HTTPException(404)
@@ -116,7 +123,7 @@ def publish_agent(agent_id: str, bg: BackgroundTasks, subagents: bool = True, us
             db.refresh(agent)
             return {"mode": "creator", "mock": True, "txs": [], "agent": AgentOut.model_validate(agent)}
         try:
-            ns = ens.agent_namespace_calldata(name=name, owner=user.wallet_address, payout_address=agent.payout_address, texts=profile_texts(agent), subagents=subagents)
+            ns = ens.agent_namespace_calldata(name=name, owner=user.wallet_address, payout_address=agent.payout_address, texts=profile_texts(agent), subagents=agent_subagents(agent) if subagents else [])
         except Exception as e:  # noqa: BLE001
             raise HTTPException(400, str(e)) from e
         agent.status = "publishing"
@@ -124,11 +131,14 @@ def publish_agent(agent_id: str, bg: BackgroundTasks, subagents: bool = True, us
         db.refresh(agent)
         return {"mode": "creator", "mock": False, "txs": ns["txs"], "ens_name": name, "subregistry": ns["subregistry"], "reputation_name": ns["reputation_name"],
                 "project_key": ns["project_key"], "reputation_key": ns["reputation_key"], "agent": AgentOut.model_validate(agent)}
+    # 公開のたびに番号を進める（固定キーだと、再公開・親名の変更後に前回の done ジョブと重なって投入されない）
+    n = db.query(func.count(ChainJob.id)).filter(ChainJob.kind == "ens_publish", ChainJob.idempotency_key.like(f"ens_publish:{agent.id}:%")).scalar()
     agent.status = "publishing"
     agent.ens_error = None
     db.commit()
     db.refresh(agent)
-    worker.enqueue(db, "ens_publish", f"ens_publish:{agent.id}:{agent.status}", {"agent_id": agent.id, "label": agent.label, "payout_address": agent.payout_address, "texts": profile_texts(agent)})
+    worker.enqueue(db, "ens_publish", f"ens_publish:{agent.id}:{n}", {"agent_id": agent.id, "label": agent.label, "payout_address": agent.payout_address, "texts": profile_texts(agent),
+                                                                                  "subagents": agent_subagents(agent)})
     return {"mode": "platform", "agent": AgentOut.model_validate(agent)}
 
 
@@ -137,7 +147,7 @@ def agent_ens_written(agent_id: str, body: TxIn, user: User = Depends(current_us
     """Creator 所有の Agent: ブラウザで register / multicall を送った後に tx hash を報告する"""
     agent = db.get(Agent, agent_id)
     if agent is None or agent.creator_id != user.id or agent.owner_mode != "creator":
-        raise HTTPException(400, "対象の Agent ではありません")
+        raise HTTPException(400, "Not the target Agent")
     name = f"{agent.label}.{agent.parent_ens_name}"
     ens.invalidate_walk(name)  # Creator が今送った tx でリゾルバ・サブレジストリが変わっている可能性があるため、走査キャッシュを捨てる
     # 自己申告の tx hash を信用せず、レシートと text record をオンチェーンで確認する
@@ -156,9 +166,9 @@ def agent_ens_written(agent_id: str, body: TxIn, user: User = Depends(current_us
             ns = {"subregistry": None, "error": str(e)[:120]}
         agent.ens_subregistry = ns.get("subregistry")
         if not ns.get("subregistry"):
-            agent.ens_error = "名前空間（サブレジストリ）が未設定です。再公開で残りの tx に署名してください"
+            agent.ens_error = "Namespace (Subregistry) is not configured. Publish again to sign the remaining tx"
         elif not ns.get("reputation"):
-            agent.ens_error = "reputation subname が未発行です。再公開で残りの tx に署名してください"
+            agent.ens_error = "Reputation subname has not been issued. Publish again to sign the remaining tx"
     db.commit()
     db.refresh(agent)
     if agent.ens_subregistry:
@@ -174,16 +184,41 @@ def update_agent(agent_id: str, body: AgentUpdateIn, user: User = Depends(curren
     if agent is None:
         raise HTTPException(404)
     if agent.creator_id != user.id:
-        raise HTTPException(403, "作成者のみ編集できます")
+        raise HTTPException(403, "Only the creator can edit this")
     before = profile_texts(agent)
+    before_subs = {x["role"]: x for x in agent_subagents(agent)}
     changes = body.model_dump(exclude_none=True)
     avatar = changes.pop("avatar", None)
+    new_subs = changes.pop("subagents", None)
     for k, v in changes.items():
         setattr(agent, k, v)
+    if new_subs is not None:
+        agent.subagents = new_subs
     db.flush()
     after = profile_texts(agent, avatar=avatar)
     diff = {k: v for k, v in after.items() if before.get(k) != v}
     out: dict = {"mode": agent.owner_mode, "changed_keys": sorted(diff)}
+    # 専門エージェントの追加・変更（rules 以外）は ENS の subname / record に反映する。削除は ENS には触らない（record はそのまま残る）
+    sub_changed = []
+    if new_subs is not None:
+        for x in new_subs:
+            b = before_subs.get(x["role"])
+            if b is None or any(b.get(k, "") != x.get(k, "") for k in ("name", "description")):
+                sub_changed.append(x)
+        out["changed_subagents"] = [x["role"] for x in sub_changed]
+        out["removed_subagents"] = sorted(set(before_subs) - {x["role"] for x in new_subs})
+    if sub_changed and agent.status == "published" and agent_on_ens(agent):
+        if agent.owner_mode == "platform":
+            key = "ens_subagents:" + agent.id + ":" + hashlib.sha256(repr(sorted((x["role"], x.get("name", ""), x.get("description", "")) for x in sub_changed)).encode()).hexdigest()[:16]
+            worker.enqueue(db, "ens_subagents", key[:200], {"agent_id": agent.id, "label": agent.label, "subagents": sub_changed})
+            out["ens_subagents"] = "queued"
+        elif get_settings().sepolia_rpc_url:
+            try:
+                out["subagent_txs"] = ens.subagents_calldata(name=f"{agent.label}.{agent.parent_ens_name}", owner=user.wallet_address, subagents=sub_changed)
+                out["ens_subagents"] = "sign"
+            except Exception as e:  # noqa: BLE001
+                db.rollback()
+                raise HTTPException(400, str(e)) from e
     if agent.status == "published" and diff:
         if agent.owner_mode == "platform":
             if agent.ens_tx_hash and not agent.ens_tx_hash.startswith("0xmock"):
@@ -222,7 +257,7 @@ def get_agent(agent_id: str, db: Session = Depends(get_db)):
     out = AgentDetailOut.model_validate(agent)
     if agent.ens_name and agent_on_ens(agent):
         out.ens_reputation_name = ens.reputation_name_of(agent.ens_name)
-        subs = [f"{r}.{agent.ens_name}" for r in ens.SUBAGENT_ROLES]
+        subs = [f"{x['role']}.{agent.ens_name}" for x in agent_subagents(agent)]
         got = ens.read_texts_many([(agent.ens_name, ens.PROFILE_KEYS), (out.ens_reputation_name, ens.REPUTATION_KEYS), *[(n, ens.SUBAGENT_KEYS) for n in subs]])
         out.ens_records = got[agent.ens_name]
         out.ens_reputation_records = got[out.ens_reputation_name]
@@ -236,3 +271,43 @@ def get_agent(agent_id: str, db: Session = Depends(get_db)):
 @router.get("/{agent_id}/reviews", response_model=list[ReviewOut])
 def agent_reviews(agent_id: str, db: Session = Depends(get_db)):
     return db.query(Review).filter(Review.target_type == "agent", Review.target_id == agent_id).order_by(Review.created_at.desc()).all()
+
+
+@router.get("/{agent_id}/earnings", response_model=AgentEarningsOut)
+def earnings(agent_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """D3 / API-18: Creator の収益。この Agent が受けた案件の PM 管理費の工程（cases.PM_FEE_TITLE。計画側の role=pm タスクは含めない）を
+    Escrow の投影から集計する。received = 実際に受取アドレスへ渡った額: paid は工程額、resolved は resolve ジョブの pay_amount（返金なら 0）、
+    funded / submitted / disputed は預託中で 0。金額の正本は Escrow（Etherscan の tx）で、ここは DB の投影。Creator 本人だけが見られる。"""
+    from .cases import PM_FEE_TITLE
+
+    agent = db.get(Agent, agent_id)
+    if agent is None:
+        raise HTTPException(404)
+    if agent.creator_id != user.id:
+        raise HTTPException(403, "Only the Creator can view this")
+    rows: list[EarningRowOut] = []
+    paid = pending = resolved_total = 0
+    q = (db.query(Task, Case).join(Case, Task.case_id == Case.id).filter(Case.agent_id == agent.id, Task.role == "pm", Task.title == PM_FEE_TITLE)
+         .filter(Task.chain_status.in_(["funded", "submitted", "paid", "disputed", "resolved"])).order_by(Case.created_at.desc()))
+    pairs = q.all()
+    # resolved の受取額は resolve ジョブの payload（pay_amount）から。返金なら 0
+    resolved_ids = [t.id for t, _ in pairs if t.chain_status == "resolved"]
+    pay_by_task: dict[str, int] = {}
+    if resolved_ids:
+        for j in db.query(ChainJob).filter(ChainJob.kind == "resolve", ChainJob.payload["task_db_id"].as_string().in_(resolved_ids)).all():
+            pay_by_task[j.payload["task_db_id"]] = int(j.payload.get("pay_amount") or 0)
+    for t, c in pairs:
+        amt = int(t.estimated_cost or 0)
+        if t.chain_status == "paid":
+            received = amt
+            paid += amt
+        elif t.chain_status == "resolved":
+            received = pay_by_task.get(t.id, 0)
+            resolved_total += received
+        else:
+            received = 0
+            pending += amt
+        rows.append(EarningRowOut(case_id=c.id, case_title=c.title, case_status=c.status, task_id=t.id, task_title=t.title, amount=str(amt), received=str(received),
+                                  chain_status=t.chain_status, payee=t.payee, tx_hash=t.chain_tx_hash, at=t.completed_at or t.updated_at, budget=str(int(c.budget or 0))))
+    return AgentEarningsOut(agent_id=agent.id, agent_name=agent.name, payout_address=agent.payout_address, fee_bps=agent.fee_bps,
+                            paid_total=str(paid), pending_total=str(pending), resolved_total=str(resolved_total), cases=len(rows), rows=rows)

@@ -4,7 +4,9 @@ from collections import Counter
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from ..agents import run_queue
 from ..auth import current_user
+from ..config import get_settings
 from ..db import SessionLocal, get_db
 from ..models import Dispute, JuryVote, User
 from ..schemas import DisputeCreateIn, DisputeOut, JuryVoteIn
@@ -16,7 +18,17 @@ log = logging.getLogger(__name__)
 router = APIRouter(tags=["jury"])
 
 
+def _request_summary(db: Session, d: Dispute, bg: BackgroundTasks) -> None:
+    """紛争の論点整理を始める。既定は AG-001 → AG-004 経由（WP-019。ランナーの実行 → apply_dispute で summary_json に写す）。
+    AGENT_PIPELINE=legacy なら旧経路（_summarize_job。summarize_dispute を BackgroundTasks で実行）。"""
+    if get_settings().agent_pipeline == "legacy":
+        bg.add_task(_summarize_job, d.id)
+    else:
+        run_queue.request_dispute(db, d.id, input_text=d.reason)
+
+
 def _summarize_job(dispute_id: str) -> None:
+    """旧経路（AGENT_PIPELINE=legacy のときだけ使う）"""
     db = SessionLocal()
     try:
         d = db.get(Dispute, dispute_id)
@@ -41,7 +53,7 @@ def open_dispute(case_id: str, body: DisputeCreateIn, bg: BackgroundTasks, user:
     if case.client_id != user.id:
         raise HTTPException(403)
     if case.status not in ("delivered", "in_progress"):
-        raise HTTPException(400, "進行中または納品済みの案件のみ差し戻せます")
+        raise HTTPException(400, "Only in-progress or delivered Cases can be sent back")
     d = Dispute(case_id=case.id, reason=body.reason, status="open")
     case.status = "disputed"
     db.add(d)
@@ -51,7 +63,7 @@ def open_dispute(case_id: str, body: DisputeCreateIn, bg: BackgroundTasks, user:
     for t in case.tasks:
         if t.chain_status in ("funded", "submitted"):
             worker.enqueue(db, "dispute", f"dispute:{t.id}:{d.id}", {"task_db_id": t.id, "case_id_hex": case.escrow_case_id, "task_id_hex": t.escrow_task_id})
-    bg.add_task(_summarize_job, d.id)
+    _request_summary(db, d, bg)
     return d
 
 
@@ -77,13 +89,13 @@ def vote(dispute_id: str, body: JuryVoteIn, user: User = Depends(current_user), 
     if d is None:
         raise HTTPException(404)
     if d.status != "open":
-        raise HTTPException(400, "この紛争は終了しています")
+        raise HTTPException(400, "This Dispute has ended")
     case = _load(db, d.case_id)
     parties = {case.client_id, case.agent.creator_id} | {t.human_task.worker_id for t in case.tasks if t.human_task and t.human_task.worker_id}
     if user.id in parties:
-        raise HTTPException(403, "当事者は投票できません")
+        raise HTTPException(403, "Parties to the Case cannot vote")
     if any(v.voter_id == user.id for v in d.votes):
-        raise HTTPException(409, "既に投票済みです")
+        raise HTTPException(409, "You have already voted")
     nullifier = verify_and_record(db, user, action="jury", signal=d.id, idkit_response=body.idkit_response)
     d.votes.append(JuryVote(voter_id=user.id, vote=body.vote, nullifier=nullifier))
     db.commit()

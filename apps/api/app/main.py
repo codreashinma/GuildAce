@@ -40,6 +40,11 @@ def _migrate() -> None:
         if "uq_agents_label_parent" not in idx:
             conn.execute(text("create unique index uq_agents_label_parent on agents (label, coalesce(parent_ens_name, ''))"))
             logging.getLogger("choice").info("migrate: uq_agents_label_parent を作成")
+        # 2026-09-26: 専門 AI エージェントごとのプロンプト（agents.subagent_rules）
+        cols = {r[0] for r in conn.execute(text("select column_name from information_schema.columns where table_name = 'agents'"))}
+        if "subagent_rules" not in cols:
+            conn.execute(text("alter table agents add column subagent_rules json"))
+            logging.getLogger("choice").info("migrate: agents.subagent_rules を追加")
 
 
 app = FastAPI(title="Choice — AI Agent Marketplace API", lifespan=lifespan)

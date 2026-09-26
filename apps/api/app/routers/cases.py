@@ -99,6 +99,7 @@ def _plan_job(case_id: str) -> None:
             plan = gemini.plan_case(
                 agent_name=case.agent.name, agent_rules=case.agent.rules, fee_bps=case.agent.fee_bps,
                 title=case.title, description=case.description, budget_usdc=int(case.budget) // USDC, deadline=case.deadline,
+                subagent_rules=case.agent.subagent_rules or None,
             )
         except Exception as e:  # noqa: BLE001
             log.exception("planning failed")
@@ -160,6 +161,7 @@ def _execute_job(case_id: str) -> None:
                     t.deliverable = gemini.execute_ai_task(
                         agent_name=case.agent.name, agent_rules=case.agent.rules, case_title=case.title, case_description=case.description,
                         task_title=t.title, task_description=t.description, role=t.role,
+                        role_rules=(case.agent.subagent_rules or {}).get(t.role, ""),
                     )
             except Exception as e:  # noqa: BLE001
                 log.exception("task execution failed")

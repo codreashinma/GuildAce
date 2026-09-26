@@ -14,7 +14,9 @@ BASE = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8001"
 AGENTS = [
     {"name": "Web開発 PM Agent", "label": "web-pm", "category": "web", "fee_bps": 200,
      "description": "Web サービス / SaaS の MVP を短期間で。Next.js と TypeScript が得意。現地確認や実物レビューは World で認証された人間に発注します。",
-     "rules": "1. 案件を 4〜6 タスクに分解する 2. デザイン→フロント→バックエンド→QA の順で進める 3. 実店舗の写真や利用者の感想が要る場合は Human Task にする 4. 成果物は Markdown で具体的に書く"},
+     "rules": "1. 案件を 4〜6 タスクに分解する 2. デザイン→フロント→バックエンド→QA の順で進める 3. 実店舗の写真や利用者の感想が要る場合は Human Task にする 4. 成果物は Markdown で具体的に書く",
+     "subagent_rules": {"designer": "画面一覧とワイヤーフレームを Markdown の表で。配色は白黒基調", "frontend": "Next.js + TypeScript。コンポーネント一覧と主要な実装コードを載せる",
+                        "backend": "FastAPI。エンドポイント表（メソッド・パス・入出力）と DB のテーブル定義", "qa": "受け入れ条件ごとに手順・期待値・結果欄の表"}},
     {"name": "デザイン PM Agent", "label": "design-pm", "category": "design", "fee_bps": 300,
      "description": "ブランド・UI・LP のデザイン案件を編成。人間のデザイナーによる最終確認を必ず入れます。",
      "rules": "1. リサーチ→コンセプト→ビジュアル→仕上げの順 2. 最終チェックは人間に依頼する"},

@@ -115,7 +115,8 @@ def _mock_plan(title: str, budget_usdc: int, fee_bps: int) -> Plan:
     )
 
 
-def plan_case(*, agent_name: str, agent_rules: str, fee_bps: int, title: str, description: str, budget_usdc: int, deadline: str | None) -> Plan:
+def plan_case(*, agent_name: str, agent_rules: str, fee_bps: int, title: str, description: str, budget_usdc: int, deadline: str | None,
+              subagent_rules: dict[str, str] | None = None) -> Plan:
     s = get_settings()
     if not s.gemini_enabled:
         return _mock_plan(title, budget_usdc, fee_bps)
@@ -125,6 +126,8 @@ def plan_case(*, agent_name: str, agent_rules: str, fee_bps: int, title: str, de
         f"あなたは PM Agent「{agent_name}」です。以下は作成者が定めた進め方・ルールです。\n{agent_rules}\n\n"
         "あなたの役割は案件をタスクに分解し、AI 専門エージェントと人間のチームを編成することです。"
         "資金の支払い判断はしません。"
+        + ("\n\nチームの専門エージェントごとの方針（所有者が設定。担当の割り当てと説明の参考にする）:\n"
+           + "\n".join(f"- {r}: {t}" for r, t in subagent_rules.items()) if subagent_rules else "")
     )
     prompt = (
         f"案件: {title}\n説明: {description}\n納期: {deadline or '未指定'}\n"
@@ -147,7 +150,9 @@ def plan_case(*, agent_name: str, agent_rules: str, fee_bps: int, title: str, de
 # ---------------------------------------------------------------- execution
 
 
-def execute_ai_task(*, agent_name: str, agent_rules: str, case_title: str, case_description: str, task_title: str, task_description: str, role: str) -> str:
+def execute_ai_task(*, agent_name: str, agent_rules: str, case_title: str, case_description: str, task_title: str, task_description: str, role: str,
+                    role_rules: str = "") -> str:
+    """AI 工程の成果物を生成する。role_rules は PM Agent の所有者が設定した、その専門エージェント（role）向けの追加プロンプト"""
     s = get_settings()
     if not s.gemini_enabled:
         h = hashlib.sha256(f"{case_title}:{task_title}".encode()).hexdigest()[:8]
@@ -161,7 +166,8 @@ def execute_ai_task(*, agent_name: str, agent_rules: str, case_title: str, case_
     system = (
         f"あなたは PM Agent「{agent_name}」のチームに所属する {role} 専門の AI エージェントです。\n"
         f"PM の進め方・ルール:\n{agent_rules}\n"
-        "成果物は Markdown で、具体的で発注者がそのまま検収できる粒度で書いてください。"
+        + (f"\n{role} 専門エージェントとしての方針（PM Agent の所有者が設定）:\n{role_rules}\n" if role_rules else "")
+        + "成果物は Markdown で、具体的で発注者がそのまま検収できる粒度で書いてください。"
     )
     prompt = f"案件: {case_title}\n案件説明: {case_description}\n\n担当タスク: {task_title}\n{task_description}\n\n成果物を作成してください。日本語で。"
     return _generate_text(system, prompt)

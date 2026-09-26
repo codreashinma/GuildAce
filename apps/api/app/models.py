@@ -61,6 +61,8 @@ class Agent(TimestampMixin, Base):
     rating_count: Mapped[int] = mapped_column(Integer, default=0)
     completed_count: Mapped[int] = mapped_column(Integer, default=0)
     ens_error: Mapped[str | None] = mapped_column(Text)
+    # 専門 AI エージェント（designer / frontend / backend / qa）ごとの追加プロンプト。所有者が編集。ENS には書かない
+    subagent_rules: Mapped[dict | None] = mapped_column(JSON)
 
     creator: Mapped[User] = relationship()
 

@@ -37,6 +37,7 @@ PM Agent は「名前・説明・カテゴリ・利用料・進め方（system p
 | 利用料（%） | PM 管理費。案件予算からこの割合を PM 工程として預託し、承認で Creator の受取アドレスへ支払う | 0〜50 |
 | 進め方・ルール | **Agent の system prompt**。タスクの切り方、人間に任せる仕事、成果物の形式、担当者の選び方など | 自由文 |
 | 受取アドレス | 空なら自分のウォレット | 0x アドレス |
+| 専門エージェントのプロンプト | designer / frontend / backend / qa ごとの追加プロンプト。折りたたみを開いて入力。空欄の役割は PM のルールだけで動く | 各 4000 文字まで |
 
 3. 「作成」→ 一覧に「下書き」で並ぶ →「ENS に公開」。
 4. 状態が「ENS に公開中」→「公開中」になれば完了。モックなら数秒、実チェーンなら 1〜2 分（Agent 本体、専門 Agent 4 件、reputation subname を発行する）。「公開失敗」ならカード下のエラー文を見て「ENS に公開」で再試行。運用者なら `/ops/jobs` からも再投入できる。
@@ -69,6 +70,7 @@ curl -s $API/agents/$ID | python3 -c 'import sys,json;a=json.load(sys.stdin);pri
 ```
 
 - `fee_bps` は bps（100 = 1%）。画面の「利用料（%）」と単位が違う。
+- `subagent_rules` は `{"designer": "…", "frontend": "…", "backend": "…", "qa": "…"}`。キーはこの 4 つだけ。PATCH では渡した内容で丸ごと置き換わる（`{}` で全消し）。
 - ラベルが重複すると 409。
 - 更新は `PATCH /agents/{id}`（`description` / `rules` / `fee_bps`）。公開済みなら ENS レコードも書き直される。
 - まとめて作るなら `apps/api/scripts/seed.py` の `AGENTS` 配列に追記して `.venv/bin/python scripts/seed.py http://localhost:8001`。同じラベルは飛ばされる。
@@ -79,8 +81,8 @@ curl -s $API/agents/$ID | python3 -c 'import sys,json;a=json.load(sys.stdin);pri
 
 | 場面 | 関数 | Agent の `rules` の使われ方 | 出力の形 |
 |---|---|---|---|
-| 案件作成直後の計画 | `plan_case` | システムプロンプトに「あなたは PM Agent『名前』です。以下は作成者が定めた進め方・ルールです」として埋め込む | `tasks[]`（3〜6 件。`title` / `description` / `type: ai\|human` / `role: designer\|frontend\|backend\|qa\|field\|pm` / `estimated_cost`）と `team[]`、`summary`。合計が「予算 −（予算 × 利用料）」を超えると最大 3 回再生成 |
-| 預託後の AI 工程 | `execute_ai_task` | 同じくシステムプロンプト | Markdown の成果物 |
+| 案件作成直後の計画 | `plan_case` | システムプロンプトに「あなたは PM Agent『名前』です。以下は作成者が定めた進め方・ルールです」として埋め込む。専門エージェントのプロンプトがあれば「チームの専門エージェントごとの方針」として添える | `tasks[]`（3〜6 件。`title` / `description` / `type: ai\|human` / `role: designer\|frontend\|backend\|qa\|field\|pm` / `estimated_cost`）と `team[]`、`summary`。合計が「予算 −（予算 × 利用料）」を超えると最大 3 回再生成 |
+| 預託後の AI 工程 | `execute_ai_task` | PM のルールに加えて、その役割の**専門エージェントのプロンプト**（`subagent_rules[role]`）をシステムプロンプトに足す | Markdown の成果物 |
 | Human Task の指名 | `assign_human_task` | 同上。候補（ENS レコード: 役割・スキル・拠点・稼働可否）から 1 名と理由 | `member_id` と `reason` |
 | Human Task の提出確認 | `check_human_submission` | 使わない（タスクの完成条件と提出物だけ） | `meets_requirements` と `comment` |
 | 差し戻し時の論点整理 | `summarize_dispute` | 使わない | 争点・双方の主張・確認事項 |
@@ -89,6 +91,7 @@ curl -s $API/agents/$ID | python3 -c 'import sys,json;a=json.load(sys.stdin);pri
 
 - 「タスクは 4〜6 個」「順番」「Human Task にする条件」「成果物の形式」を明示すると計画が安定する。
 - `type=human` のタスクが 1 つ以上出るようにしないと、指名・Human Task の経路が動かない。
+- 専門エージェントのプロンプトには「その役割の成果物に何を含めるか」「技術スタック」「形式」を書く。PM のルールに書くと全役割に効くので、役割固有のことはこちらに分ける。
 - 各タスクの `estimated_cost` は USDC の整数。0 のタスクは Escrow が `ZeroAmount` で拒否するので、ルールで「各タスク 1 USDC 以上」と書いておく（プランナー側の検証は未実装）。
 - PM 管理費は Agent 側が自動で 1 工程として追加する（`cases.py` の `PM_FEE_TITLE`）。ルールで PM 工程を作らせない。
 

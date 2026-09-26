@@ -90,7 +90,7 @@ def create_agent(body: AgentCreateIn, user: User = Depends(current_user), db: Se
     agent = Agent(
         creator_id=user.id, name=body.name, label=body.label, description=body.description, category=body.category,
         rules=body.rules, fee_bps=body.fee_bps, payout_address=(body.payout_address or user.wallet_address).lower(), status="draft",
-        parent_ens_name=parent, owner_mode=mode,
+        parent_ens_name=parent, owner_mode=mode, subagent_rules=body.subagent_rules or None,
     )
     db.add(agent)
     db.commit()

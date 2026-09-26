@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 CATEGORIES = ["web", "design", "video", "wedding", "other"]
 
@@ -26,6 +26,29 @@ class AuthVerifyIn(BaseModel):
     signature: str
 
 
+SUBAGENT_ROLES = ("designer", "frontend", "backend", "qa")
+
+
+def _clean_subagent_rules(v):
+    """{role: prompt}。role は 4 つの専門エージェントだけ。空文字のキーは落とす"""
+    if v is None:
+        return None
+    if not isinstance(v, dict):
+        raise ValueError("subagent_rules は {role: prompt} の形式です")
+    bad = [k for k in v if k not in SUBAGENT_ROLES]
+    if bad:
+        raise ValueError(f"未知の専門エージェント: {', '.join(bad)}（使えるのは {', '.join(SUBAGENT_ROLES)}）")
+    out = {}
+    for k, t in v.items():
+        if t is None:
+            continue
+        if not isinstance(t, str) or len(t) > 4000:
+            raise ValueError(f"{k} のプロンプトは 4000 文字以内の文字列にしてください")
+        if t.strip():
+            out[k] = t.strip()
+    return out
+
+
 class AgentCreateIn(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     label: str = Field(pattern=r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$")
@@ -36,6 +59,12 @@ class AgentCreateIn(BaseModel):
     payout_address: str | None = None
     avatar: str | None = None
     parent_ens_name: str | None = Field(default=None, pattern=r"^[a-z0-9-]+\.eth$", description="Creator が所有する .eth。空ならプラットフォームの親名")
+    subagent_rules: dict[str, str] | None = Field(default=None, description="専門 AI エージェント（designer / frontend / backend / qa）ごとの追加プロンプト")
+
+    @field_validator("subagent_rules", mode="before")
+    @classmethod
+    def _v_sub(cls, v):
+        return _clean_subagent_rules(v)
 
 
 class AgentUpdateIn(BaseModel):
@@ -46,6 +75,12 @@ class AgentUpdateIn(BaseModel):
     rules: str | None = None
     fee_bps: int | None = Field(default=None, ge=0, le=5000)
     avatar: str | None = None
+    subagent_rules: dict[str, str] | None = None  # 渡した内容で丸ごと置き換える（{} で全消し）
+
+    @field_validator("subagent_rules", mode="before")
+    @classmethod
+    def _v_sub(cls, v):
+        return _clean_subagent_rules(v)
 
 
 class AgentOut(ORM):
@@ -68,8 +103,14 @@ class AgentOut(ORM):
     rating_count: int
     completed_count: int
     ens_error: str | None = None
+    subagent_rules: dict[str, str] = {}
     created_at: datetime
     creator: UserOut
+
+    @field_validator("subagent_rules", mode="before")
+    @classmethod
+    def _none_to_empty(cls, v):
+        return v or {}
 
 
 class EarningRowOut(BaseModel):

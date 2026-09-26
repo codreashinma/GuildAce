@@ -8,6 +8,7 @@ import { api, CATEGORY_LABEL, type Agent } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useEnsureSepolia } from "@/lib/chain";
 import { BackLink, Button, Card, ErrorBox, Field, inputCls, Mono, PageTitle } from "@/components/ui";
+import { SubagentRulesEditor } from "@/components/subagent-rules";
 
 type UpdateResult = { mode: "platform" | "creator"; changed_keys: string[]; ens?: "queued" | "mock" | "sign"; txs?: { to: string; data: string; label: string }[]; agent: Agent };
 
@@ -29,6 +30,7 @@ function EditForm({ a }: { a: Agent }) {
   const ensureSepolia = useEnsureSepolia();
   const pc = usePublicClient();
   const [f, setF] = useState(() => ({ name: a.name, description: a.description, category: a.category, rules: a.rules, fee_bps: a.fee_bps }));
+  const [subRules, setSubRules] = useState<Record<string, string>>(() => ({ ...(a.subagent_rules ?? {}) }));
   const [err, setErr] = useState<unknown>(null);
   const [step, setStep] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
@@ -37,7 +39,7 @@ function EditForm({ a }: { a: Agent }) {
   const save = async () => {
     setErr(null); setDone(null); setStep("保存中…");
     try {
-      const r = await api<UpdateResult>(`/agents/${a.id}`, { method: "PATCH", json: f });
+      const r = await api<UpdateResult>(`/agents/${a.id}`, { method: "PATCH", json: { ...f, subagent_rules: subRules } });
       if (r.ens === "sign" && r.txs?.length) {
         await ensureSepolia();
         let last = "";
@@ -84,6 +86,7 @@ function EditForm({ a }: { a: Agent }) {
           </Field>
         </div>
         <Field label="進め方・ルール" hint="PM Agent の system prompt。ENS には書きません"><textarea className={inputCls} rows={5} value={f.rules} onChange={(e) => set("rules", e.target.value)} /></Field>
+        <SubagentRulesEditor value={subRules} onChange={setSubRules} defaultOpen={Object.keys(a.subagent_rules ?? {}).length > 0} />
         <ErrorBox error={err} />
         {done && <p className="text-sm text-neutral-900">{done}</p>}
         <div className="flex justify-end gap-2">

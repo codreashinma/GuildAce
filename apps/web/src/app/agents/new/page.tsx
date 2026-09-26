@@ -7,12 +7,14 @@ import { api, CATEGORY_LABEL, type Agent } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { Button, Card, ErrorBox, Field, inputCls, PageTitle } from "@/components/ui";
 import { usePublishAgent } from "@/components/publish-agent";
+import { SubagentRulesEditor } from "@/components/subagent-rules";
 import { EnsNameCheck } from "@/components/ens-records";
 
 export default function NewAgent() {
   const router = useRouter();
   const { me, config } = useAuth();
   const [f, setF] = useState({ name: "Web開発 PM Agent", label: "", description: "", category: "web", rules: "", fee_bps: 200, payout_address: "" });
+  const [subRules, setSubRules] = useState<Record<string, string>>({});
   const [mode, setMode] = useState<"platform" | "creator">("platform");
   const [ownName, setOwnName] = useState("");
   const [ownOk, setOwnOk] = useState<{ ok: boolean; checking: boolean }>({ ok: false, checking: false });
@@ -28,7 +30,7 @@ export default function NewAgent() {
     setErr(null);
     setBusy(true);
     try {
-      const a = await api<Agent>("/agents", { method: "POST", json: { ...f, payout_address: f.payout_address || null, parent_ens_name: mode === "creator" ? ownName : null } });
+      const a = await api<Agent>("/agents", { method: "POST", json: { ...f, payout_address: f.payout_address || null, parent_ens_name: mode === "creator" ? ownName : null, subagent_rules: subRules } });
       if (publish) await doPublish(a.id, { subagents });
       router.push(`/agents/${a.id}`);
     } catch (e) {
@@ -92,6 +94,7 @@ export default function NewAgent() {
         <Field label="進め方・ルール" hint="PM Agent の system prompt になります。タスクの切り方、人間に任せる仕事、成果物の形式など">
           <textarea className={inputCls} rows={5} placeholder={"1. 案件を 4〜6 タスクに分解する\n2. 現地確認や実物レビューは Human Task にする\n3. 成果物は Markdown で書く"} value={f.rules} onChange={(e) => set("rules", e.target.value)} />
         </Field>
+        <SubagentRulesEditor value={subRules} onChange={setSubRules} />
         <Field label="受取アドレス" hint="空なら自分のウォレット。ENS の addr レコードにも登録されます">
           <input className={inputCls} placeholder={me.wallet_address} value={f.payout_address} onChange={(e) => set("payout_address", e.target.value)} />
         </Field>

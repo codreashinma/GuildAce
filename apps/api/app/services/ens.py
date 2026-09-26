@@ -736,3 +736,72 @@ def verify_agent_namespace(*, name: str) -> dict:
     out["reputation"] = bool(int(reg.functions.getResolver("reputation").call(), 16))
     out["subagents"] = [r for r in SUBAGENT_ROLES if int(reg.functions.getResolver(r).call(), 16)]
     return out
+
+
+# ---------------------------------------------------------------- 利用者が自分のウォレットで .eth（2LD）を登録する
+
+REGISTRAR_ABI = [
+    {"type": "function", "name": "isAvailable", "stateMutability": "view", "inputs": [{"name": "label", "type": "string"}], "outputs": [{"type": "bool"}]},
+    {"type": "function", "name": "getRegisterPrice", "stateMutability": "view",
+     "inputs": [{"name": "label", "type": "string"}, {"name": "duration", "type": "uint64"}, {"name": "paymentToken", "type": "address"}],
+     "outputs": [{"name": "base", "type": "uint256"}, {"name": "premium", "type": "uint256"}]},
+    {"type": "function", "name": "makeCommitment", "stateMutability": "view",
+     "inputs": [{"name": "label", "type": "string"}, {"name": "owner", "type": "address"}, {"name": "secret", "type": "bytes32"}, {"name": "subregistry", "type": "address"},
+                {"name": "resolver", "type": "address"}, {"name": "duration", "type": "uint64"}, {"name": "referrer", "type": "bytes32"}],
+     "outputs": [{"type": "bytes32"}]},
+    {"type": "function", "name": "commit", "stateMutability": "nonpayable", "inputs": [{"name": "commitment", "type": "bytes32"}], "outputs": []},
+    {"type": "function", "name": "register", "stateMutability": "nonpayable",
+     "inputs": [{"name": "label", "type": "string"}, {"name": "owner", "type": "address"}, {"name": "secret", "type": "bytes32"}, {"name": "subregistry", "type": "address"},
+                {"name": "resolver", "type": "address"}, {"name": "duration", "type": "uint64"}, {"name": "paymentToken", "type": "address"}, {"name": "referrer", "type": "bytes32"}],
+     "outputs": [{"name": "tokenId", "type": "uint256"}]},
+]
+ERC20_MIN_ABI = [
+    {"type": "function", "name": "mint", "stateMutability": "nonpayable", "inputs": [{"name": "to", "type": "address"}, {"name": "amount", "type": "uint256"}], "outputs": []},
+    {"type": "function", "name": "approve", "stateMutability": "nonpayable", "inputs": [{"name": "spender", "type": "address"}, {"name": "amount", "type": "uint256"}], "outputs": [{"type": "bool"}]},
+    {"type": "function", "name": "balanceOf", "stateMutability": "view", "inputs": [{"name": "a", "type": "address"}], "outputs": [{"type": "uint256"}]},
+    {"type": "function", "name": "allowance", "stateMutability": "view", "inputs": [{"name": "o", "type": "address"}, {"name": "s", "type": "address"}], "outputs": [{"type": "uint256"}]},
+]
+MIN_COMMITMENT_AGE = 60  # ENSv2 Sepolia beta の ETHRegistrar（秒）
+
+
+def register_calldata(*, name: str, owner: str, phase: str, secret: str | None = None) -> dict:
+    """利用者のウォレットで .eth（2LD）を登録する calldata。commit / reveal の 2 段階。
+      phase=commit  … テスト用トークンの mint（不足分）・approve（不足分）・commit。secret を返す（reveal で必要）
+      phase=register… commit から 60 秒以上あけて register（resolver / subregistry は 0。続けて setup-calldata で用意する）
+    登録料は ENSv2 beta のテスト用トークン（誰でも mint 可）。"""
+    s = get_settings()
+    if not s.sepolia_rpc_url:
+        raise ValueError("RPC 未設定のため calldata を生成できません")
+    labels = name.lower().split(".")
+    if len(labels) != 2 or labels[1] != "eth":
+        raise ValueError("登録できるのは <label>.eth（2LD）だけです")
+    label = labels[0]
+    owner = Web3.to_checksum_address(owner)
+    w3 = _w3()
+    registrar = w3.eth.contract(address=Web3.to_checksum_address(s.ensv2_registrar), abi=REGISTRAR_ABI)
+    token = w3.eth.contract(address=Web3.to_checksum_address(s.ensv2_payment_token), abi=ERC20_MIN_ABI)
+    zero = "0x" + "00" * 20
+    if not registrar.functions.isAvailable(label).call():
+        raise ValueError(f"{name} は取得できません（登録済みか予約済み）")
+    base, premium = registrar.functions.getRegisterPrice(label, ONE_YEAR, token.address).call()
+    price = base + premium
+    out: dict = {"name": name, "owner": owner, "price": str(price), "payment_token": token.address, "duration": ONE_YEAR, "min_commitment_age": MIN_COMMITMENT_AGE, "txs": []}
+    if phase == "commit":
+        secret_b = secrets.token_bytes(32)
+        bal = token.functions.balanceOf(owner).call()
+        if bal < price:
+            out["txs"].append({"to": token.address, "data": token.encode_abi("mint", args=[owner, price - bal]), "label": f"登録料のテスト用トークンを mint（{price - bal}）"})
+        if token.functions.allowance(owner, registrar.address).call() < price:
+            out["txs"].append({"to": token.address, "data": token.encode_abi("approve", args=[registrar.address, price]), "label": "登録料の approve"})
+        commitment = registrar.functions.makeCommitment(label, owner, secret_b, zero, zero, ONE_YEAR, b"\x00" * 32).call()
+        out["txs"].append({"to": registrar.address, "data": registrar.encode_abi("commit", args=[commitment]), "label": f"{name} の commit（先取り防止。60 秒後に register）"})
+        out["secret"] = "0x" + secret_b.hex()
+        return out
+    if phase == "register":
+        if not secret or not secret.startswith("0x") or len(secret) != 66:
+            raise ValueError("commit で受け取った secret が必要です")
+        secret_b = bytes.fromhex(secret[2:])
+        out["txs"].append({"to": registrar.address, "data": registrar.encode_abi("register", args=[label, owner, secret_b, zero, zero, ONE_YEAR, token.address, b"\x00" * 32]),
+                           "label": f"{name} を登録（reveal）"})
+        return out
+    raise ValueError("phase は commit または register")

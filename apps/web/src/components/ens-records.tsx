@@ -85,6 +85,7 @@ export function EnsNameCheck({ name, onStatus }: { name: string; onStatus?: (s: 
       <li className={r.resolver ? "text-neutral-900" : "text-neutral-700"}>{r.resolver ? <>✓ リゾルバ <Mono>{r.resolver}</Mono></> : "✕ リゾルバ未設定（record を書けません）"}</li>
       {r.next_steps?.map((s) => <li key={s} className="text-neutral-500">→ {s}</li>)}
       {o.is_mine && !r.ready && r.registered && <li className="pt-1"><EnsSetupButton name={debounced} /></li>}
+      {o.status === "unregistered" && <li className="pt-1"><EnsRegisterButton name={debounced} /></li>}
     </ul>
   );
 }
@@ -123,6 +124,58 @@ export function EnsSetupButton({ name, onDone }: { name: string; onDone?: () => 
   return (
     <span className="inline-flex flex-col gap-1">
       <Button variant="secondary" className="px-2 py-1 text-xs" disabled={!!busy} onClick={run}>{busy ?? "自分のウォレットでリゾルバとサブレジストリを用意する"}</Button>
+      {err && <span className="max-w-md text-[11px] text-neutral-700 [overflow-wrap:anywhere]">{err}</span>}
+    </span>
+  );
+}
+
+
+type RegisterCalldata = { mock: boolean; txs: { to: string; data: string; label: string }[]; secret?: string; price?: string; min_commitment_age?: number };
+
+/** 利用者が自分のウォレットで .eth（2LD）を登録する: commit → 60 秒待機 → register → リゾルバとサブレジストリの準備。
+ *  API は calldata を返すだけで鍵を持たない。登録料は ENSv2 beta のテスト用トークン（誰でも mint 可）。 */
+export function EnsRegisterButton({ name }: { name: string }) {
+  const qc = useQueryClient();
+  const { sendTransactionAsync } = useSendTransaction();
+  const ensureSepolia = useEnsureSepolia();
+  const pc = usePublicClient();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const sendAll = async (txs: { to: string; data: string; label: string }[], prefix: string) => {
+    for (const tx of txs) {
+      setBusy(`${prefix}${tx.label.replace(/ →.*$/, "")} に署名…`);
+      const h = await sendTransactionAsync({ to: tx.to as `0x${string}`, data: tx.data as `0x${string}` });
+      setBusy(`${prefix}トランザクション確認中…`);
+      await pc!.waitForTransactionReceipt({ hash: h });
+    }
+  };
+  const run = async () => {
+    setErr(null);
+    try {
+      await ensureSepolia();
+      setBusy("登録内容を取得中…");
+      const c = await api<RegisterCalldata>(`/ens/register-calldata?name=${encodeURIComponent(name)}&phase=commit`);
+      if (c.mock) { setBusy(null); return; }
+      await sendAll(c.txs, "1/3 ");
+      const wait = (c.min_commitment_age ?? 60) + 10;
+      for (let i = wait; i > 0; i--) { setBusy(`2/3 先取り防止の待機中… ${i} 秒（ページを閉じないでください）`); await new Promise((r) => setTimeout(r, 1000)); }
+      const r = await api<RegisterCalldata>(`/ens/register-calldata?name=${encodeURIComponent(name)}&phase=register&secret=${c.secret}`);
+      await sendAll(r.txs, "2/3 ");
+      setBusy("3/3 リゾルバとサブレジストリを準備中…");
+      const su = await api<SetupCalldata>(`/ens/setup-calldata?name=${encodeURIComponent(name)}`);
+      await sendAll(su.txs, "3/3 ");
+      await qc.invalidateQueries({ queryKey: ["ens-check-owner", name] });
+      await qc.invalidateQueries({ queryKey: ["ens-readiness", name] });
+      await qc.invalidateQueries({ queryKey: ["ens-resolve", name] });
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <span className="inline-flex flex-col gap-1">
+      <Button variant="secondary" className="px-2 py-1 text-xs" disabled={!!busy} onClick={run}>{busy ?? `${name} を自分のウォレットで登録する（テスト用トークン・約 8 tx・60 秒待ち）`}</Button>
       {err && <span className="max-w-md text-[11px] text-neutral-700 [overflow-wrap:anywhere]">{err}</span>}
     </span>
   );

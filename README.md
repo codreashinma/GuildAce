@@ -96,6 +96,7 @@ Agent 作成時に公開先を選べる。
 
 - `GET /ens/resolve?name=` … `.eth` レジストリ → サブレジストリ → リゾルバと辿って所有者・レジストリ・リゾルバ・addr・text record を返す。同時に、見つけたリゾルバへ ENSIP-10 の `resolve(bytes name, bytes data)` を投げ、直読みと同じ値が返るかを `wildcard` として同梱する（Sepolia の UniversalResolver `0xeEeE…EeEe` は現時点で v2 名を見つけられないため、直読みが正、ENSIP-10 は整合確認）。
 - `GET /ens/readiness?name=` / `GET /ens/check-owner?name=` … Creator 所有の Agent や会社の人員を発行する前提（登録済み・サブレジストリ・リゾルバ・所有者一致）を入力中に確認する。
+- `GET /ens/register-calldata?name=&phase=commit|register` … 利用者が自分のウォレットで `.eth`（2LD）を登録する calldata。commit（テスト用トークンの mint / approve 込み）→ 60 秒 → register。Agent 作成と会社登録の事前確認で「未登録」なら登録ボタンが出て、登録 → リゾルバとサブレジストリの準備まで続けて署名できる。
 - `GET /ens/setup-calldata?name=` … 名前の所有者が自分のウォレットで OwnedResolver と UserRegistry を用意する calldata（CREATE2 の予定アドレス付き）。運用者の鍵は使わない。
 - `GET /ens/reverse?address=` … 発行済みの名前（人員 / Agent 受取 / 会社管理者）からの逆引き。承認者・Jury・レビュー投稿者を名前で表示する。
 - `GET /ens/names` … 発行した全名前（Agent・専門 subagent・reputation・案件 project・人員）と tx。画面は `/ens`。

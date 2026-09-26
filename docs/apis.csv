@@ -59,3 +59,4 @@ API-104,ENS,GET,/ens/reverse?address=,不要,アドレス → ENS 名の逆引�
 API-105,ENS,GET,/ens/names,不要,プラットフォームが発行した全名前（Agent・案件・人員）と tx・発行日時の一覧,出力: name / kind / owner / tx_hash / created_at の配列,"G2, G3","FR-026, FR-027",済,agent・subagent・reputation・project・person を kind 付きで列挙。0xmock は mock=True,
 API-31,案件,GET,/cases/{id}/team,不要,タスクごとの担当（AI は Agent 名前空間の subname と record、人間は指名先）と、ENS に登録された人員の候補一覧（指名・辞退・稼働可否）,出力: TeamTaskOut[],"B5, B6","UC-002, FR-004, FR-005",済,record は 60 秒キャッシュ,
 API-106,ENS,GET,/ens/keys,不要,プラットフォームが使う text record キーの一覧,出力: profile / reputation / subagent / project / person,G3,FR-026,済,表示用,
+API-107,ENS,GET,/ens/register-calldata?name=&phase=,要,利用者が自分のウォレットで .eth（2LD）を登録する calldata（commit → 60 秒 → register）,入力: name / phase（commit | register）/ secret。出力: txs[] / secret / price / min_commitment_age,"D1, E1","FR-026, 追補1 F9",済,登録料は ENSv2 beta のテスト用トークン（mint 可）。登録後は /ens/setup-calldata が続けて走る,

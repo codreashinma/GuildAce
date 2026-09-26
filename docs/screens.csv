@@ -12,11 +12,11 @@ B6,発注者,案件詳細（進行・検収）,/cases/[id],発注者・承認者
 B7,発注者,案件詳細（完了・レビュー）,/cases/[id],発注者,UC-007,支払い済み工程と tx・Agent へのレビュー投稿,済,,
 C1,承認者,承認待ち一覧,/cases（先頭セクション）,承認者（開発部・経理部）,UC-005,自分の署名待ち工程を横断表示。その場で World 確認 + EIP-712 署名,済,API `GET /cases/pending-approvals`,
 C2,承認者,工程の承認,/cases/[id]（タスクカード内）,承認者（開発部・経理部）,"FR-010, FR-011",成果物・ハッシュ・支払先・World 確認・EIP-712 署名,済,共通部品 approve-button,
-D1,Creator,Agent 作成,/agents/new,PM Agent Creator,"UC-010, FR-026",名前・公開先（choice.eth / 自分の .eth）・ラベル・説明・カテゴリ・進め方・利用料・受取アドレス・Creator 所有時は名前空間の構築内容（tx 一覧）と専門 Agent 発行の選択,済,"入力中に所有者・サブレジストリ・リゾルバを Sepolia で事前確認（/ens/check-owner, /ens/readiness）。未準備なら自分のウォレットで用意するボタン（/ens/setup-calldata）。実機確認は scripts/smoke_creator.py",
+D1,Creator,Agent 作成,/agents/new,PM Agent Creator,"UC-010, FR-026",名前・公開先（choice.eth / 自分の .eth）・ラベル・説明・カテゴリ・進め方・利用料・受取アドレス・Creator 所有時は名前空間の構築内容（tx 一覧）と専門 Agent 発行の選択・未登録の .eth はその場で登録（commit → 60 秒 → register → 準備、すべて自分のウォレットで署名）,済,"入力中に所有者・サブレジストリ・リゾルバを Sepolia で事前確認（/ens/check-owner, /ens/readiness）。未準備なら自分のウォレットで用意するボタン（/ens/setup-calldata）。実機確認は scripts/smoke_creator.py",
 D2,Creator,Agent 管理一覧,/agents/mine,PM Agent Creator,UC-010,状態・ENS 名と tx・Creator 所有バッジ・評価・実績・再公開・名前空間バッジ・未完時は残りの tx に署名,済,,
 D3,Creator,Agent の収益,/agents/mine（拡張）,PM Agent Creator,FR-024,案件ごとの管理費（PM 工程）の受取履歴,未,FR-024 は Won't。PM 工程の Paid tx を集計すれば作れる,低
 D4,Creator,Agent 編集,/agents/[id]/edit,PM Agent Creator,UC-010,説明・ルール・利用料の更新と ENS レコードの再書き込み,済,platform は worker が再書き込み、creator は自分のウォレットで multicall に署名,
-E1,会社・人員,会社と人員,/companies,会社管理者,追補1 F9,会社登録（ENS 所有確認）・人員の追加・稼働可否・ENS 書き込み（会社管理者が署名）・ENS 名の事前確認と準備（所有者 / サブレジストリ / リゾルバ）・書き込み後の実レコード表示,済,,
+E1,会社・人員,会社と人員,/companies,会社管理者,追補1 F9,会社登録（ENS 所有確認）・人員の追加・稼働可否・ENS 書き込み（会社管理者が署名）・ENS 名の事前確認と準備（所有者 / サブレジストリ / リゾルバ）・書き込み後の実レコード表示・未登録の .eth はその場で登録（commit → 60 秒 → register → 準備、すべて自分のウォレットで署名）,済,,
 E2,会社・人員,人員一覧（公開）,/companies（下部）,全員,追補1 F10,PM Agent の指名候補になる人員プールを閲覧,済,,
 E3,会社・人員,Human Task 一覧,/tasks,人員・World 検証済みの人間,UC-009,あなたへの指名・公開募集・自分が受注したタスク,済,,
 E4,会社・人員,Human Task 詳細,/tasks/[id],人員・World 検証済みの人間,UC-009,指名理由・受諾 / 辞退（World 確認）・提出・PM Agent の確認コメント,済,,

@@ -19,7 +19,7 @@ from web3 import Web3  # noqa: E402
 from app.config import get_settings  # noqa: E402
 from app.services import ens  # noqa: E402
 from app.services.chain import ESCROW_ABI  # noqa: E402
-from ens_setup import DURATION, ERC20_ABI, REGISTRAR_ABI, ZERO  # noqa: E402
+from ens_setup import ERC20_ABI  # noqa: E402
 
 BASE = next((a for a in sys.argv[1:] if a.startswith("http")), "http://localhost:8001")
 SKIP_CASE = "--skip-case" in sys.argv
@@ -64,22 +64,18 @@ def main() -> None:
         w3.eth.wait_for_transaction_receipt(h, timeout=240)
         print("  funded creator with 0.03 ETH")
 
-    # 1. Creator の .eth を登録（テスト用トークンで支払い）
+    # 1. Creator の .eth を登録（/ens/register-calldata: commit → 60 秒 → register。料金はテスト用トークン）
     label = "codrea-cr-" + secrets.token_hex(3)
     name = f"{label}.eth"
-    registrar = w3.eth.contract(address=Web3.to_checksum_address(s.ensv2_registrar), abi=REGISTRAR_ABI)
-    token = w3.eth.contract(address=Web3.to_checksum_address(s.ensv2_payment_token), abi=ERC20_ABI)
-    base, premium = registrar.functions.getRegisterPrice(label, DURATION, token.address).call()
-    total = base + premium
-    print(f"1. {name} を登録（料金 {total}）")
-    send(w3, acct, token.functions.mint(acct.address, total), label="mint")
-    send(w3, acct, token.functions.approve(registrar.address, total), label="approve")
-    secret = secrets.token_bytes(32)
-    commitment = registrar.functions.makeCommitment(label, acct.address, secret, ZERO, ZERO, DURATION, b"\x00" * 32).call()
-    send(w3, acct, registrar.functions.commit(commitment), label="commit")
-    print("  75 秒待機（minCommitmentAge）")
-    time.sleep(75)
-    send(w3, acct, registrar.functions.register(label, acct.address, secret, ZERO, ZERO, DURATION, token.address, b"\x00" * 32), label="register")
+    c = creator.get(f"/ens/register-calldata?name={name}&phase=commit")
+    print(f"1. {name} を登録（料金 {c['price']}、commit 段階 {len(c['txs'])} tx）")
+    for t in c["txs"]:
+        send(w3, acct, to=t["to"], data=t["data"], label=t["label"][:40])
+    print(f"  {c['min_commitment_age'] + 15} 秒待機（minCommitmentAge）")
+    time.sleep(c["min_commitment_age"] + 15)
+    r = creator.get(f"/ens/register-calldata?name={name}&phase=register&secret={c['secret']}")
+    for t in r["txs"]:
+        send(w3, acct, to=t["to"], data=t["data"], label=t["label"][:40])
     co = creator.get(f"/ens/check-owner?name={name}")
     assert co["is_mine"], co
     print("   check-owner: is_mine =", co["is_mine"])

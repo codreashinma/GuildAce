@@ -233,3 +233,20 @@ def names(db: Session = Depends(get_db)):
         rows.append({"name": m.ens_name, "kind": "person", "owner_mode": "company", "tx_hash": m.ens_tx_hash, "created_at": m.created_at,
                      "mock": not m.ens_tx_hash or m.ens_tx_hash.startswith("0xmock"), "link": "/companies", "note": "会社管理者のウォレットが発行"})
     return {"parent": s.ens_parent_name, "count": len(rows), "names": rows}
+
+
+@router.get("/register-calldata")
+def register_calldata(name: str = Query(min_length=5, max_length=255), phase: str = Query(pattern="^(commit|register)$"), secret: str | None = None, user=Depends(current_user)):
+    """利用者が自分のウォレットで .eth（2LD）を登録する calldata（commit → 60 秒 → register）。
+    登録後は /ens/setup-calldata でリゾルバとサブレジストリを用意すると、Agent や人員の subname を発行できる。"""
+    n = _valid_name(name)
+    if not get_settings().sepolia_rpc_url:
+        return {"name": n, "mock": True, "txs": [], "note": "RPC 未設定（モック）"}
+    try:
+        out = ens.register_calldata(name=n, owner=user.wallet_address, phase=phase, secret=secret)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(502, f"Sepolia からの読み取りに失敗しました: {type(e).__name__}") from e
+    _cache.pop(n, None)
+    return {"mock": False, **out}

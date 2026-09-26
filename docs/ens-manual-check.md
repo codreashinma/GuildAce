@@ -112,6 +112,12 @@
 
 platform（`choice.eth`）と creator（Creator の `.eth`）で、名前空間の構造とプラットフォーム鍵の権限範囲は同一。違いは「誰が root か」だけ。
 
+### 6-2. 画面から `.eth` を登録する経路（`/ens/register-calldata`）の実機確認（2026-09-26）
+
+一時鍵 `0xa2a6f524…` が API の calldata だけで `codrea-cr-cdc22c.eth` を登録し、続けて準備まで完了した。
+mint `0xc7e64c3c…` → approve `0xd9141279…` → commit `0x93424abd…` → 75 秒 → register `0xc5453f88…` → OwnedResolver `0x1027E983…` / UserRegistry `0x81A0e8d1…`。
+その後の Agent 公開（11 tx）と権限表 3 役割の verified も同じ実行で確認済み。
+
 ## トラブルシュート
 
 - `execution reverted` で register が落ちる: commit から 60 秒未満、または `approve` 額不足。`ens_setup.py` を再実行すれば登録済み判定でスキップされる。

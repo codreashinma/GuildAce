@@ -57,21 +57,7 @@ def resolve_name(name: str, ttl: float = 60.0) -> dict:
             "subregistry": sub if int(sub, 16) else None, "resolver": resolver_addr, "expiry": int(expiry) or None,
         })
         if resolver_addr:
-            r = w3.eth.contract(address=resolver_addr, abi=ens.RESOLVER_ABI)
-            node = ens.namehash(name)
-            try:
-                a = r.functions.addr(node).call()
-                out["addr"] = a if int(a, 16) else None
-            except Exception:  # noqa: BLE001
-                out["addr"] = None
-            texts = {}
-            for k in ALL_TEXT_KEYS:
-                try:
-                    v = r.functions.text(node, k).call()
-                except Exception:  # noqa: BLE001
-                    continue
-                if v:
-                    texts[k] = v
+            out["addr"], texts = _read_records(w3, resolver_addr, name)
             out["texts"] = texts
             out["wildcard"] = _ensip10_check(w3, resolver_addr, name, texts)
     except HTTPException:
@@ -80,6 +66,55 @@ def resolve_name(name: str, ttl: float = 60.0) -> dict:
         raise HTTPException(502, f"Sepolia からの読み取りに失敗しました: {type(e).__name__}") from e
     _cache[name] = (time.time(), dict(out))
     return out
+
+
+MULTICALL3 = "0xcA11bde05977b3631167028862bE2a173976CA11"  # Sepolia にもデプロイ済みの標準アドレス
+MULTICALL3_ABI = [{"type": "function", "name": "aggregate3", "stateMutability": "payable",
+                   "inputs": [{"name": "calls", "type": "tuple[]", "components": [{"name": "target", "type": "address"}, {"name": "allowFailure", "type": "bool"}, {"name": "callData", "type": "bytes"}]}],
+                   "outputs": [{"name": "returnData", "type": "tuple[]", "components": [{"name": "success", "type": "bool"}, {"name": "returnData", "type": "bytes"}]}]}]
+
+
+def _read_records(w3, resolver_addr: str, name: str) -> tuple[str | None, dict[str, str]]:
+    """addr と全 text key を Multicall3 の 1 回の eth_call で読む（Render → RPC の往復が 1 回で済む）。失敗時は 1 件ずつ読む。"""
+    r = w3.eth.contract(address=resolver_addr, abi=ens.RESOLVER_ABI)
+    node = ens.namehash(name)
+    try:
+        mc = w3.eth.contract(address=Web3.to_checksum_address(MULTICALL3), abi=MULTICALL3_ABI)
+        calls = [(resolver_addr, True, bytes.fromhex(r.encode_abi("addr", args=[node])[2:]))]
+        calls += [(resolver_addr, True, bytes.fromhex(r.encode_abi("text", args=[node, k])[2:])) for k in ALL_TEXT_KEYS]
+        results = mc.functions.aggregate3(calls).call()
+        addr = None
+        ok, raw = results[0]
+        if ok and len(raw) >= 32:
+            (a,) = w3.codec.decode(["address"], raw)
+            addr = Web3.to_checksum_address(a) if int(a, 16) else None
+        texts: dict[str, str] = {}
+        for k, (ok, raw) in zip(ALL_TEXT_KEYS, results[1:], strict=True):
+            if not ok or len(raw) < 64:
+                continue
+            try:
+                (v,) = w3.codec.decode(["string"], raw)
+            except Exception:  # noqa: BLE001
+                continue
+            if v:
+                texts[k] = v
+        return addr, texts
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        a = r.functions.addr(node).call()
+        addr = a if int(a, 16) else None
+    except Exception:  # noqa: BLE001
+        addr = None
+    texts = {}
+    for k in ALL_TEXT_KEYS:
+        try:
+            v = r.functions.text(node, k).call()
+        except Exception:  # noqa: BLE001
+            continue
+        if v:
+            texts[k] = v
+    return addr, texts
 
 
 def _ensip10_check(w3, resolver_addr: str, name: str, texts: dict[str, str]) -> dict:

@@ -1,4 +1,4 @@
-# Choice — AI Agent Marketplace（AI Agent × World × ENS）
+# GuildAce — Digital Company Marketplace（AI Agent × World × ENS）
 
 AI Agent（PM Agent）が案件を受け、タスク分解・チーム編成・実行・納品・支払いまでを進める B2B マーケットプレイス。
 **評価・仲裁・人間にしかできない仕事は World ID で証明された実在の人間が行い、Agent の名前と公開情報は ENS（ENSv2 / Sepolia）に置く。**

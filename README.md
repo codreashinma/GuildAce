@@ -130,6 +130,6 @@ Sepolia: Escrow `0x2CE6C9f243557D0D7eb2EfD89C4F3A800Ffe0Bde`, MockUSDC `0xbf08e6
 ## Deployment notes
 
 - API: Render web service `choice-api` (Docker, root `apps/api`), auto‑deployed from `master` of this repository. Environment variables are set in the Render dashboard; `DEV_LOGIN_ENABLED=false` in production.
-- Web: Vercel project `choice`, deployed with `cd apps/web && vercel --prod`; `NEXT_PUBLIC_API_URL` points at the API.
+- Web: Vercel project (named `choice` for historical reasons), deployed with `cd apps/web && vercel --prod`; `NEXT_PUBLIC_API_URL` points at the API.
 - Database: Render PostgreSQL 16 `choice-db`.
 - Changing the public URLs requires rewriting the `url` / `codrea.agent.endpoint` / `codrea.project.url` records on existing names with `scripts/ens_rewrite_urls.py`.

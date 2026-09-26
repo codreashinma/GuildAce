@@ -1,7 +1,7 @@
 # AI 利用開示（ETHGlobal Tokyo 提出用）
 
 > 作成日: 2026-09-26
-> 対象: Choice — AI Agent Marketplace（AI Agent × World × ENS）
+> 対象: GuildAce — Digital Company Marketplace（AI Agent × World × ENS）
 > 関連: [重要プロンプト集](ai-prompts.md) / [仕様書](specs/20260925-agent-marketplace-mvp.md) / [DB 設計](database/) / [ENS 実機確認手順と記録](ens-manual-check.md)
 
 この文書は、本プロジェクトの開発における生成 AI の利用内容と、人間が担当した判断・確認・テスト・修正を開示するものです。

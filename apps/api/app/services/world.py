@@ -28,7 +28,7 @@ from ..config import get_settings
 ACTIONS = {"request", "approve", "review", "jury", "human-task"}  # NFR-001 の 5 行為（このアプリ内の二重実行判定キー。World の action ではない）
 RP_SIGNATURE_MSG_VERSION = 1
 _issued_nonces: dict[str, tuple[str, str, int]] = {}  # rp-context で発行した nonce → (action, signal, expires_at)。再利用・他の操作への流用を拒否する
-log = logging.getLogger("choice.world")
+log = logging.getLogger("guildace.world")
 
 
 @dataclass(frozen=True)

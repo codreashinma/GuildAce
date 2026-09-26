@@ -5,7 +5,7 @@ import { injectedWallet, metaMaskWallet, rabbyWallet, walletConnectWallet } from
 import { createConfig, http } from "wagmi";
 import { sepolia } from "wagmi/chains";
 
-const projectId = process.env.NEXT_PUBLIC_WC_PROJECT_ID || "choice-dev";
+const projectId = process.env.NEXT_PUBLIC_WC_PROJECT_ID || "guildace-dev";
 
 // Coinbase Wallet は依存（@coinbase/cdp-sdk → @x402）が Next のビルドで解決できないため外している
 const connectors = connectorsForWallets(

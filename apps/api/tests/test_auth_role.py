@@ -12,7 +12,7 @@ def _siwe(client, acct, role=None):
     issued = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.000Z")
     message = (
         f"localhost:3000 wants you to sign in with your Ethereum account:\n{acct.address}\n\n"
-        f"Sign in to Choice\n\nURI: http://localhost:3000\nVersion: 1\nChain ID: 11155111\n"
+        f"Sign in to GuildAce\n\nURI: http://localhost:3000\nVersion: 1\nChain ID: 11155111\n"
         f"Nonce: {nonce}\nIssued At: {issued}"
     )
     sig = acct.sign_message(encode_defunct(text=message)).signature.to_0x_hex()

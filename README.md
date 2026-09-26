@@ -5,6 +5,7 @@ AI Agent（PM Agent）が案件を受け、タスク分解・チーム編成・�
 
 - 仕様書: [`docs/specs/20260925-agent-marketplace-mvp.md`](docs/specs/20260925-agent-marketplace-mvp.md)
 - DB 設計: [`docs/database/`](docs/database/)
+- AI 利用開示（提出用）: [`docs/ai-disclosure.md`](docs/ai-disclosure.md) / 主要プロンプト: [`docs/ai-prompts.md`](docs/ai-prompts.md)
 
 ## 構成
 

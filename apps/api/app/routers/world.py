@@ -32,4 +32,5 @@ def verify_and_record(db: Session, user: User, *, action: str, signal: str, idki
         raise HTTPException(409, "この World ID は既にこの操作を行っています")
     db.add(WorldVerification(user_id=user.id, action=action, signal=signal, nullifier=nullifier))
     db.flush()
+    world.consume_nonce(idkit_response)
     return nullifier

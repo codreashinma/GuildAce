@@ -101,11 +101,22 @@ def check_binding(*, idkit_response: dict, action: str, signal: str) -> None:
         raise ValueError("World ID の proof が別の操作向けです（signal 不一致）")
     nonce = _find_str(idkit_response, ("nonce",))
     if nonce is not None and nonce.startswith("0x") and len(nonce) == 66:
-        issued = _issued_nonces.pop(nonce, None)
+        # ここでは消費しない。検証と記録まで成功した時点で consume_nonce() が消す。
+        # 途中で失敗（入力エラー・World API の一時障害など）した proof を、同じ rp_context でやり直せるようにするため
+        issued = _issued_nonces.get(nonce)
         if issued is None:
             raise ValueError("World ID の rp_context が無効か使用済みです。もう一度お試しください")
         if issued[0] != action or issued[1] < int(time.time()):
             raise ValueError("World ID の rp_context が別の操作向けか期限切れです")
+
+
+def consume_nonce(idkit_response: dict | None) -> None:
+    """検証と記録が完了した proof の rp_context nonce を使用済みにする"""
+    if not idkit_response:
+        return
+    nonce = _find_str(idkit_response, ("nonce",))
+    if nonce:
+        _issued_nonces.pop(nonce, None)
 
 
 def verify_proof(*, idkit_response: dict | None, action: str, signal: str, user_wallet: str) -> str:

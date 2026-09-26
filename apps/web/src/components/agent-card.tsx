@@ -18,9 +18,12 @@ export function AgentCard({ agent }: { agent: Agent }) {
           </div>
         </div>
         <p className="mt-3 line-clamp-2 text-sm text-neutral-600">{agent.description || "(No description)"}</p>
-        <div className="mt-4 flex items-center justify-between text-sm">
+        <div className="mt-4 flex items-end justify-between gap-2 text-sm">
           <Stars value={Number(agent.rating_avg)} count={agent.rating_count} />
-          <span className="whitespace-nowrap tabular-nums text-neutral-500">Fee {agent.fee_bps / 100}% · Completed {agent.completed_count}</span>
+          <div className="text-right tabular-nums text-neutral-500">
+            <div className="whitespace-nowrap">Fee {agent.fee_bps / 100}%</div>
+            <div className="whitespace-nowrap">Completed {agent.completed_count}</div>
+          </div>
         </div>
       </Card>
     </Link>

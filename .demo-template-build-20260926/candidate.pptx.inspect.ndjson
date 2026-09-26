@@ -1,0 +1,87 @@
+{"kind":"deck","id":"pr/ihhmaf","name":"Deck"}
+{"kind":"layout","layoutId":"8f10d1c4-4f2c-4412-aa66-30c46dddd526","name":"Master","type":"master"}
+{"kind":"layout","layoutId":"98877f21-7890-4b48-97c5-46bb553af0fe","name":"Title Slide","type":"title"}
+{"kind":"slide","id":"sl/rftvid","slide":1,"title":"Choice","textShapes":5}
+{"kind":"textbox","id":"sh/ny5o3al4","slide":1,"text":"Choice","textPreview":"Choice","textChars":6,"textLines":1,"bbox":[72,64,1136,120]}
+{"kind":"textbox","id":"sh/oze5cf2p","slide":1,"text":"CHOICE / ETHGLOBAL TOKYO","textPreview":"CHOICE / ETHGLOBAL TOKYO","textChars":24,"textLines":1,"bbox":[72,662,750,25]}
+{"kind":"textbox","id":"sh/p0n65k3a","slide":1,"text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[1140,660,70,28]}
+{"kind":"textbox","id":"sh/e9cn654n","slide":1,"text":"AI agent marketplace\nwith human approval","textPreview":"AI agent marketplace | with human approval","textChars":40,"textLines":2,"bbox":[72,240,1100,170]}
+{"kind":"textbox","id":"sh/fal4zal8","slide":1,"text":"[Team name]   /   ETHGlobal Tokyo","textPreview":"[Team name]   /   ETHGlobal Tokyo","textChars":33,"textLines":1,"bbox":[76,540,1000,50]}
+{"kind":"notes","id":"nt/rftvid","slide":1,"text":"15秒。「Choiceは、AIが案件を進め、人間が重要な判断を担うB2Bマーケットプレイスです」。チーム名と一文説明を確定する。\n\n出典: README.md、contracts/src/Escrow.sol（2026-09-26 読み取り）。テンプレート内の [ ] は差し替え項目。実機連携・成功実績は未検証。"}
+{"kind":"slide","id":"sl/f1xdcb","slide":2,"title":"The trust gap in AI work","textShapes":7}
+{"kind":"textbox","id":"sh/m1cjalkn","slide":2,"text":"The trust gap in AI work","textPreview":"The trust gap in AI work","textChars":24,"textLines":1,"bbox":[72,64,1136,120]}
+{"kind":"textbox","id":"sh/94n2l0je","slide":2,"text":"CHOICE / ETHGLOBAL TOKYO","textPreview":"CHOICE / ETHGLOBAL TOKYO","textChars":24,"textLines":1,"bbox":[72,662,750,25]}
+{"kind":"textbox","id":"sh/83e1cv2t","slide":2,"text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[1140,660,70,28]}
+{"kind":"textbox","id":"sh/v65kna14","slide":2,"text":"Who is behind the agent?","textPreview":"Who is behind the agent?","textChars":24,"textLines":1,"bbox":[72,230,1100,60]}
+{"kind":"textbox","id":"sh/a5wje5kz","slide":2,"text":"Who accepts the work?","textPreview":"Who accepts the work?","textChars":21,"textLines":1,"bbox":[72,325,1100,60]}
+{"kind":"textbox","id":"sh/x8n2p0ja","slide":2,"text":"What authorizes payment?","textPreview":"What authorizes payment?","textChars":24,"textLines":1,"bbox":[72,420,1100,60]}
+{"kind":"textbox","id":"sh/w7e1gf2p","slide":2,"text":"[Add one concrete customer situation]","textPreview":"[Add one concrete customer situation]","textChars":37,"textLines":1,"bbox":[72,560,1100,45]}
+{"kind":"notes","id":"nt/f1xdcb","slide":2,"text":"20秒。課題仮説として説明。「AIに作業を任せられても、誰に依頼するか、成果物を誰が判断するか、いつ支払うかは残ります」。顧客調査や市場規模は未確認のため断定しない。\n\n出典: README.md、contracts/src/Escrow.sol（2026-09-26 読み取り）。テンプレート内の [ ] は差し替え項目。実機連携・成功実績は未検証。"}
+{"kind":"slide","id":"sl/ei3c18","slide":3,"title":"How Choice works","textShapes":6}
+{"kind":"textbox","id":"sh/tgvetsbq","slide":3,"text":"How Choice works","textPreview":"How Choice works","textChars":16,"textLines":1,"bbox":[72,64,1136,120]}
+{"kind":"textbox","id":"sh/6d4vydsz","slide":3,"text":"CHOICE / ETHGLOBAL TOKYO","textPreview":"CHOICE / ETHGLOBAL TOKYO","textChars":24,"textLines":1,"bbox":[72,662,750,25]}
+{"kind":"textbox","id":"sh/redcritk","slide":3,"text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[1140,660,70,28]}
+{"kind":"textbox","id":"sh/4bmdw3at","slide":3,"text":"AI organizes and produces the work","textPreview":"AI organizes and produces the work","textChars":34,"textLines":1,"bbox":[72,230,1100,65]}
+{"kind":"textbox","id":"sh/5cvup8be","slide":3,"text":"People approve deliverables and handle human tasks","textPreview":"People approve deliverables and handle human tasks","textChars":50,"textLines":1,"bbox":[72,325,1100,75]}
+{"kind":"textbox","id":"sh/ipkvuds3","slide":3,"text":"Escrow pays when the approval threshold is met","textPreview":"Escrow pays when the approval threshold is met","textChars":46,"textLines":1,"bbox":[72,435,1100,80]}
+{"kind":"notes","id":"nt/ei3c18","slide":3,"text":"20秒。「PM Agentが依頼を工程に分解し、AIと人間に振り分けます。人間が成果物を承認し、必要な署名がそろった工程からEscrowが支払います」。ENS名は権限を付与しない。World IDは専門能力を保証しない。\n\n出典: README.md、contracts/src/Escrow.sol（2026-09-26 読み取り）。テンプレート内の [ ] は差し替え項目。実機連携・成功実績は未検証。"}
+{"kind":"slide","id":"sl/ds7tbu","slide":4,"title":"Live demo","textShapes":6}
+{"kind":"textbox","id":"sh/3at4nitc","slide":4,"text":"Live demo","textPreview":"Live demo","textChars":9,"textLines":1,"bbox":[72,64,1136,120]}
+{"kind":"textbox","id":"sh/4b2lwnux","slide":4,"text":"CHOICE / ETHGLOBAL TOKYO","textPreview":"CHOICE / ETHGLOBAL TOKYO","textChars":24,"textLines":1,"bbox":[72,662,750,25]}
+{"kind":"textbox","id":"sh/5cvmpsbi","slide":4,"text":"04","textPreview":"04","textChars":2,"textLines":1,"bbox":[1140,660,70,28]}
+{"kind":"textbox","id":"sh/u5k3qdcv","slide":4,"text":"[Customer request in one sentence]","textPreview":"[Customer request in one sentence]","textChars":34,"textLines":1,"bbox":[72,200,1100,70]}
+{"kind":"textbox","id":"sh/v6t4jytg","slide":4,"text":"[Replace this area with an actual screenshot]\n\nAgent profile / task plan / delivery / payment","textPreview":"[Replace this area with an actual screenshot] |  | Agent profile / task plan / delivery / payment","textChars":93,"textLines":3,"bbox":[72,310,1090,200]}
+{"kind":"textbox","id":"sh/g72ls3u1","slide":4,"text":"Choose an agent     Plan the work     Review     Approve","textPreview":"Choose an agent     Plan the work     Review     Approve","textChars":56,"textLines":1,"bbox":[72,565,1100,50]}
+{"kind":"notes","id":"nt/ds7tbu","slide":4,"text":"75秒。例: 新店舗のWebページ用コンテンツを依頼し、AIが原稿を生成、人間が現地情報を確認する。実際の機能に合う1案件へ差し替える。Agent選択10秒、計画15秒、人間確認と成果物20秒、承認と支払い30秒。World確認など待ち時間の長い部分は事前準備し、省略を明示する。画面にmock表示があれば口頭で明示する。\n\n出典: README.md、contracts/src/Escrow.sol（2026-09-26 読み取り）。テンプレート内の [ ] は差し替え項目。実機連携・成功実績は未検証。"}
+{"kind":"slide","id":"sl/0os1gv","slide":5,"title":"Why World, ENS and escrow","textShapes":9}
+{"kind":"textbox","id":"sh/e98n614n","slide":5,"text":"Why World, ENS and escrow","textPreview":"Why World, ENS and escrow","textChars":25,"textLines":1,"bbox":[72,64,1136,120]}
+{"kind":"textbox","id":"sh/1cjmhw3e","slide":5,"text":"CHOICE / ETHGLOBAL TOKYO","textPreview":"CHOICE / ETHGLOBAL TOKYO","textChars":24,"textLines":1,"bbox":[72,662,750,25]}
+{"kind":"textbox","id":"sh/gbq58rmt","slide":5,"text":"05","textPreview":"05","textChars":2,"textLines":1,"bbox":[1140,660,70,28]}
+{"kind":"textbox","id":"sh/rmh4bmlw","slide":5,"text":"World ID","textPreview":"World ID","textChars":8,"textLines":1,"bbox":[72,225,260,60]}
+{"kind":"textbox","id":"sh/6l8n2h4r","slide":5,"text":"Human verification for key actions","textPreview":"Human verification for key actions","textChars":34,"textLines":1,"bbox":[370,228,820,65]}
+{"kind":"textbox","id":"sh/t8zmdw32","slide":5,"text":"ENS","textPreview":"ENS","textChars":3,"textLines":1,"bbox":[72,337,260,60]}
+{"kind":"textbox","id":"sh/snq54rmh","slide":5,"text":"Agent names and public profiles","textPreview":"Agent names and public profiles","textChars":31,"textLines":1,"bbox":[370,340,820,65]}
+{"kind":"textbox","id":"sh/bi1on6lg","slide":5,"text":"Escrow","textPreview":"Escrow","textChars":6,"textLines":1,"bbox":[72,449,260,60]}
+{"kind":"textbox","id":"sh/qhsnel4v","slide":5,"text":"Task payment after signed approval","textPreview":"Task payment after signed approval","textChars":34,"textLines":1,"bbox":[370,452,820,65]}
+{"kind":"notes","id":"nt/0os1gv","slide":5,"text":"25秒。Worldは重要操作に人間確認を使い、ENSはAgentの名前と公開プロフィールを共有する。Escrowは固定承認者の署名と承認数を検証する。運用ワーカーが送信する構成で、完全な分散型仲裁ではない。カスタムENS配下の評価更新には委任の制約がある。\n\n出典: README.md、contracts/src/Escrow.sol（2026-09-26 読み取り）。テンプレート内の [ ] は差し替え項目。実機連携・成功実績は未検証。"}
+{"kind":"slide","id":"sl/rpevj0","slide":6,"title":"What the demo proves","textShapes":10}
+{"kind":"textbox","id":"sh/rqtg3y5c","slide":6,"text":"What the demo proves","textPreview":"What the demo proves","textChars":20,"textLines":1,"bbox":[72,64,1136,120]}
+{"kind":"textbox","id":"sh/cr2hc3mh","slide":6,"text":"CHOICE / ETHGLOBAL TOKYO","textPreview":"CHOICE / ETHGLOBAL TOKYO","textChars":24,"textLines":1,"bbox":[72,662,750,25]}
+{"kind":"textbox","id":"sh/dsby58n2","slide":6,"text":"06","textPreview":"06","textChars":2,"textLines":1,"bbox":[1140,660,70,28]}
+{"kind":"textbox","id":"sh/210z6tof","slide":6,"text":"Completed flow","textPreview":"Completed flow","textChars":14,"textLines":1,"bbox":[72,225,300,55]}
+{"kind":"textbox","id":"sh/3m9gzy50","slide":6,"text":"[Verified start and end state]","textPreview":"[Verified start and end state]","textChars":30,"textLines":1,"bbox":[395,225,805,65]}
+{"kind":"textbox","id":"sh/4nih83ml","slide":6,"text":"Evidence","textPreview":"Evidence","textChars":8,"textLines":1,"bbox":[72,335,300,55]}
+{"kind":"textbox","id":"sh/pory18n6","slide":6,"text":"[Transaction link / ENS record / screenshot]","textPreview":"[Transaction link / ENS record / screenshot]","textChars":44,"textLines":1,"bbox":[395,335,805,85]}
+{"kind":"textbox","id":"sh/mxkzid4z","slide":6,"text":"Demo mode","textPreview":"Demo mode","textChars":9,"textLines":1,"bbox":[72,465,300,55]}
+{"kind":"textbox","id":"sh/nid0bi54","slide":6,"text":"[Live integrations]   [Mock integrations]","textPreview":"[Live integrations]   [Mock integrations]","textChars":41,"textLines":1,"bbox":[395,465,805,80]}
+{"kind":"textbox","id":"sh/nqd83e50","slide":6,"text":"Prototype environment: Sepolia / Mock USDC","textPreview":"Prototype environment: Sepolia / Mock USDC","textChars":42,"textLines":1,"bbox":[72,590,1100,40]}
+{"kind":"notes","id":"nt/rpevj0","slide":6,"text":"15秒。実際に確認した結果だけ記入する。未記入のまま本番で使用しない。数値は計測していなければ載せない。SepoliaとMock USDCを明示し、モックと実連携を区別する。\n\n出典: README.md、contracts/src/Escrow.sol（2026-09-26 読み取り）。テンプレート内の [ ] は差し替え項目。実機連携・成功実績は未検証。"}
+{"kind":"slide","id":"sl/qjxvxx","slide":7,"title":"Choice","textShapes":6}
+{"kind":"textbox","id":"sh/10bedknu","slide":7,"text":"Choice","textPreview":"Choice","textChars":6,"textLines":1,"bbox":[72,64,1136,120]}
+{"kind":"textbox","id":"sh/ex0vi5o3","slide":7,"text":"CHOICE / ETHGLOBAL TOKYO","textPreview":"CHOICE / ETHGLOBAL TOKYO","textChars":24,"textLines":1,"bbox":[72,662,750,25]}
+{"kind":"textbox","id":"sh/fy9wba5o","slide":7,"text":"07","textPreview":"07","textChars":2,"textLines":1,"bbox":[1140,660,70,28]}
+{"kind":"textbox","id":"sh/o32doz65","slide":7,"text":"AI work. Human approval.","textPreview":"AI work. Human approval.","textChars":24,"textLines":1,"bbox":[72,230,1130,110]}
+{"kind":"textbox","id":"sh/p4behknq","slide":7,"text":"[Demo URL]\n[Repository URL]","textPreview":"[Demo URL] | [Repository URL]","textChars":27,"textLines":2,"bbox":[76,400,1100,110]}
+{"kind":"textbox","id":"sh/21kvmpof","slide":7,"text":"Next: [One concrete milestone]","textPreview":"Next: [One concrete milestone]","textChars":30,"textLines":1,"bbox":[76,570,1100,50]}
+{"kind":"notes","id":"nt/qjxvxx","slide":7,"text":"10秒。「AIに仕事を任せ、人間の判断で完了させる。その一連の体験がChoiceです」。デモURL・リポジトリURLと次の開発目標を差し替える。\n\n出典: README.md、contracts/src/Escrow.sol（2026-09-26 読み取り）。テンプレート内の [ ] は差し替え項目。実機連携・成功実績は未検証。"}
+{"kind":"slide","id":"sl/itjtz7","slide":8,"title":"Appendix / implementation","textShapes":11}
+{"kind":"textbox","id":"sh/ah4fapkf","slide":8,"text":"Appendix / implementation","textPreview":"Appendix / implementation","textChars":25,"textLines":1,"bbox":[72,64,1136,120]}
+{"kind":"textbox","id":"sh/xkfe543q","slide":8,"text":"CHOICE / ETHGLOBAL TOKYO","textPreview":"CHOICE / ETHGLOBAL TOKYO","textChars":24,"textLines":1,"bbox":[72,662,750,25]}
+{"kind":"textbox","id":"sh/wjmxcz2l","slide":8,"text":"08","textPreview":"08","textChars":2,"textLines":1,"bbox":[1140,660,70,28]}
+{"kind":"textbox","id":"sh/nedwzalo","slide":8,"text":"App","textPreview":"App","textChars":3,"textLines":1,"bbox":[72,220,250,55]}
+{"kind":"textbox","id":"sh/mt4f65k3","slide":8,"text":"Next.js / FastAPI / PostgreSQL","textPreview":"Next.js / FastAPI / PostgreSQL","textChars":30,"textLines":1,"bbox":[350,220,850,65]}
+{"kind":"textbox","id":"sh/9gve1k3u","slide":8,"text":"Agent","textPreview":"Agent","textChars":5,"textLines":1,"bbox":[72,320,250,55]}
+{"kind":"textbox","id":"sh/8fmx8f29","slide":8,"text":"Gemini plans tasks and generates deliverables","textPreview":"Gemini plans tasks and generates deliverables","textChars":45,"textLines":1,"bbox":[350,320,850,75]}
+{"kind":"textbox","id":"sh/zqtwvals","slide":8,"text":"Identity","textPreview":"Identity","textChars":8,"textLines":1,"bbox":[72,425,250,55]}
+{"kind":"textbox","id":"sh/ypkf25k7","slide":8,"text":"World verification / ENS profiles","textPreview":"World verification / ENS profiles","textChars":33,"textLines":1,"bbox":[350,425,850,65]}
+{"kind":"textbox","id":"sh/wnu1kzqp","slide":8,"text":"Settlement","textPreview":"Settlement","textChars":10,"textLines":1,"bbox":[72,525,250,55]}
+{"kind":"textbox","id":"sh/hon2t4ru","slide":8,"text":"Operations worker / EIP-712 / task escrow","textPreview":"Operations worker / EIP-712 / task escrow","textChars":41,"textLines":1,"bbox":[350,525,850,80]}
+{"kind":"notes","id":"nt/itjtz7","slide":8,"text":"質疑応答用。本編には含めない。Next.jsからFastAPIへ要求を送り、Geminiが計画・生成を担う。PostgreSQLに案件等を保存し、ワーカーがENSとEscrowを更新する。World検証はAPIで行う。署名承認者と必要数はopenCaseで固定。Jury結果の反映はonlyOpsのresolveで実行する。READMEと旧仕様書で資金フローが異なるため、READMEと現在のEscrow.solを優先した。\n\n出典: README.md、contracts/src/Escrow.sol（2026-09-26 読み取り）。テンプレート内の [ ] は差し替え項目。実機連携・成功実績は未検証。"}
+{"kind":"slide","id":"sl/s4l64p","slide":9,"title":"Appendix / recorded demo","textShapes":6}
+{"kind":"textbox","id":"sh/lob25cb2","slide":9,"text":"Appendix / recorded demo","textPreview":"Appendix / recorded demo","textChars":24,"textLines":1,"bbox":[72,64,1136,120]}
+{"kind":"textbox","id":"sh/y103uxcb","slide":9,"text":"CHOICE / ETHGLOBAL TOKYO","textPreview":"CHOICE / ETHGLOBAL TOKYO","textChars":24,"textLines":1,"bbox":[72,662,750,25]}
+{"kind":"textbox","id":"sh/z29k32tw","slide":9,"text":"09","textPreview":"09","textChars":2,"textLines":1,"bbox":[1140,660,70,28]}
+{"kind":"textbox","id":"sh/czils7u5","slide":9,"text":"[Recorded demo file or URL]","textPreview":"[Recorded demo file or URL]","textChars":27,"textLines":1,"bbox":[72,205,1100,65]}
+{"kind":"textbox","id":"sh/x0r21sbq","slide":9,"text":"[Replace with a screenshot of the final state]","textPreview":"[Replace with a screenshot of the final state]","textChars":46,"textLines":1,"bbox":[72,330,1100,140]}
+{"kind":"textbox","id":"sh/ax03qxcf","slide":9,"text":"[Verified result]   /   [Live or mock mode]","textPreview":"[Verified result]   /   [Live or mock mode]","textChars":43,"textLines":1,"bbox":[72,555,1100,60]}
+{"kind":"notes","id":"nt/s4l64p","slide":9,"text":"回線・ウォレット・外部APIの不調時は20秒以内に切り替える。「こちらは同じフローの事前録画です」と説明する。実画面を配置する。録画もモックか実連携かを明示する。保存先をオフラインで開けるようにする。\n\n出典: README.md、contracts/src/Escrow.sol（2026-09-26 読み取り）。テンプレート内の [ ] は差し替え項目。実機連携・成功実績は未検証。"}

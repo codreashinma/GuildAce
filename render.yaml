@@ -1,0 +1,64 @@
+# Render Blueprint: API（Docker、常駐）+ PostgreSQL。Web は Vercel（Root Directory = apps/web）
+# 秘密値（鍵・RPC・JWT）は Render のダッシュボードで設定する（sync: false）
+services:
+  - type: web
+    name: choice-api
+    runtime: docker
+    rootDir: apps/api
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: choice-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DEV_LOGIN_ENABLED
+        value: "false"
+      - key: CORS_ORIGINS
+        sync: false   # 例: https://choice.vercel.app
+      - key: APP_URL
+        sync: false   # 例: https://choice.vercel.app
+      - key: API_URL
+        sync: false   # 例: https://choice-api.onrender.com
+      - key: SEPOLIA_RPC_URL
+        sync: false
+      - key: SERVER_PRIVATE_KEY
+        sync: false
+      - key: REPUTATION_PRIVATE_KEY
+        sync: false
+      - key: PROJECT_PRIVATE_KEY
+        sync: false
+      - key: ESCROW_ADDRESS
+        sync: false
+      - key: USDC_ADDRESS
+        sync: false
+      - key: ENS_PARENT_NAME
+        value: choice.eth
+      - key: ENS_WRITE_ENABLED
+        value: "true"
+      - key: ENS_OWNED_RESOLVER
+        sync: false
+      - key: ENS_PARENT_SUBREGISTRY
+        sync: false
+      - key: ENS_REPUTATION_RESOLVER
+        sync: false
+      - key: ENS_PROJECT_RESOLVER
+        sync: false
+      - key: WORLD_APP_ID
+        sync: false
+      - key: WORLD_RP_ID
+        sync: false
+      - key: WORLD_RP_SIGNING_KEY
+        sync: false
+      - key: WORLD_VERIFY_ENABLED
+        value: "false"
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+databases:
+  - name: choice-db
+    plan: basic-256mb
+    postgresMajorVersion: "16"

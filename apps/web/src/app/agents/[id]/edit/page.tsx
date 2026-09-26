@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/auth";
 import { useEnsureSepolia } from "@/lib/chain";
 import { BackLink, Button, Card, ErrorBox, Field, inputCls, Mono, PageTitle } from "@/components/ui";
 import { SubagentsEditor, subagentsValid } from "@/components/subagent-rules";
+import { PolicyEditor, policyErrors, type PolicyDraft } from "@/components/policy-editor";
 
 type Tx = { to: string; data: string; label: string };
 type UpdateResult = { mode: "platform" | "creator"; changed_keys: string[]; ens?: "queued" | "mock" | "sign"; txs?: Tx[]; changed_subagents?: string[]; removed_subagents?: string[]; ens_subagents?: "queued" | "sign"; subagent_txs?: Tx[]; agent: Agent };
@@ -32,6 +33,8 @@ function EditForm({ a }: { a: Agent }) {
   const pc = usePublicClient();
   const [f, setF] = useState(() => ({ name: a.name, description: a.description, category: a.category, rules: a.rules, fee_bps: a.fee_bps }));
   const [subs, setSubs] = useState<Subagent[]>(() => (a.subagents ?? []).map((x) => ({ ...x })));
+  const [policy, setPolicy] = useState<PolicyDraft>(() => structuredClone(a.effective_policy));
+  const policyChanged = JSON.stringify(policy) !== JSON.stringify(a.effective_policy); // 変えていなければ送らない（既定のままを保つ）
   const [err, setErr] = useState<unknown>(null);
   const [step, setStep] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
@@ -40,7 +43,7 @@ function EditForm({ a }: { a: Agent }) {
   const save = async () => {
     setErr(null); setDone(null); setStep("保存中…");
     try {
-      const r = await api<UpdateResult>(`/agents/${a.id}`, { method: "PATCH", json: { ...f, subagents: subs } });
+      const r = await api<UpdateResult>(`/agents/${a.id}`, { method: "PATCH", json: { ...f, subagents: subs, policy: policyChanged ? { ...policy, domain: f.category } : null } });
       const txs = [...(r.ens === "sign" ? r.txs ?? [] : []), ...(r.ens_subagents === "sign" ? r.subagent_txs ?? [] : [])];
       if (txs.length) {
         await ensureSepolia();
@@ -59,7 +62,7 @@ function EditForm({ a }: { a: Agent }) {
       } else if (r.ens === "mock") {
         setDone("保存しました（ENS 書き込みはモック）");
       } else {
-        setDone(r.changed_keys.length ? "保存しました（未公開のため ENS 書き込みなし）" : "変更はありません");
+        setDone(r.changed_keys.length ? "保存しました（未公開のため ENS 書き込みなし）" : policyChanged ? "保存しました（工程・人間の使い方は ENS に書きません）" : "変更はありません");
       }
       setTimeout(() => router.push(`/agents/${a.id}`), 1200);
     } catch (e) {
@@ -89,7 +92,8 @@ function EditForm({ a }: { a: Agent }) {
         </div>
         <Field label="進め方・ルール" hint="PM Agent の system prompt。ENS には書きません"><textarea className={inputCls} rows={5} value={f.rules} onChange={(e) => set("rules", e.target.value)} /></Field>
         <SubagentsEditor value={subs} onChange={setSubs} published={a.status === "published"} defaultOpen agentEns={a.ens_name ?? `${a.label}.${a.parent_ens_name ?? "choice.eth"}`} />
-        <ErrorBox error={err} />
+        <PolicyEditor value={policy} onChange={setPolicy} errors={policyErrors(err)} />
+        {Object.keys(policyErrors(err)).length > 0 ? <p className="text-sm font-medium text-neutral-900">工程・人間の使い方の入力を確かめてください（⚠ の項目）</p> : <ErrorBox error={err} />}
         {done && <p className="text-sm text-neutral-900">{done}</p>}
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={() => router.push(`/agents/${a.id}`)} disabled={!!step}>戻る</Button>

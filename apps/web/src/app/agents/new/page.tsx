@@ -9,6 +9,7 @@ import { Button, Card, ErrorBox, Field, inputCls, PageTitle } from "@/components
 import { usePublishAgent } from "@/components/publish-agent";
 import { SubagentsEditor, subagentsValid } from "@/components/subagent-rules";
 import { EnsNameCheck } from "@/components/ens-records";
+import { defaultPolicy, PolicyEditor, policyErrors, type PolicyDraft } from "@/components/policy-editor";
 
 export default function NewAgent() {
   const router = useRouter();
@@ -20,6 +21,8 @@ export default function NewAgent() {
   const [ownOk, setOwnOk] = useState<{ ok: boolean; checking: boolean }>({ ok: false, checking: false });
   const [subagents, setSubagents] = useState(true);
   const onOwnStatus = useCallback((s: { ok: boolean; checking: boolean }) => setOwnOk(s), []);
+  const [policy, setPolicy] = useState<PolicyDraft>(() => defaultPolicy("web"));
+  const [policyTouched, setPolicyTouched] = useState(false); // 触っていなければ送らない（= 既定の policy。DEC-002）
   const [err, setErr] = useState<unknown>(null);
   const [failedPublish, setFailedPublish] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -30,7 +33,9 @@ export default function NewAgent() {
     setErr(null);
     setBusy(true);
     try {
-      const a = await api<Agent>("/agents", { method: "POST", json: { ...f, payout_address: f.payout_address || null, parent_ens_name: mode === "creator" ? ownName : null, subagents: subs } });
+      const a = await api<Agent>("/agents", { method: "POST", json: { ...f, payout_address: f.payout_address || null, parent_ens_name: mode === "creator" ? ownName : null, subagents: subs,
+        policy: policyTouched ? { ...policy, domain: f.category } : null,
+      } });
       if (publish) await doPublish(a.id, { subagents });
       router.push(`/agents/${a.id}`);
     } catch (e) {
@@ -44,6 +49,7 @@ export default function NewAgent() {
   if (!me) return <p className="text-sm text-neutral-500">ウォレットを接続して Sign in してください。</p>;
   const parent = mode === "creator" ? (ownName || "<your-name>.eth") : (config?.ens_parent_name ?? "choice.eth");
   const ens = `${f.label || "<PM Agent のラベル>"}.${parent}`;
+  const pErrs = policyErrors(err);
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -95,10 +101,11 @@ export default function NewAgent() {
           <textarea className={inputCls} rows={5} placeholder={"1. 案件を 4〜6 タスクに分解する\n2. 現地確認や実物レビューは Human Task にする\n3. 成果物は Markdown で書く"} value={f.rules} onChange={(e) => set("rules", e.target.value)} />
         </Field>
         <SubagentsEditor value={subs} onChange={setSubs} agentEns={ens} />
+        <PolicyEditor value={policy} onChange={(v) => { setPolicy(v); setPolicyTouched(true); }} errors={pErrs} />
         <Field label="受取アドレス" hint="空なら自分のウォレット。ENS の addr レコードにも登録されます">
           <input className={inputCls} placeholder={me.wallet_address} value={f.payout_address} onChange={(e) => set("payout_address", e.target.value)} />
         </Field>
-        <ErrorBox error={err} />
+        {Object.keys(pErrs).length > 0 ? <p className="text-sm font-medium text-neutral-900">工程・人間の使い方の入力を確かめてください（⚠ の項目）</p> : <ErrorBox error={err} />}
         {failedPublish && <p className="text-xs text-neutral-700">Agent は作成済みです。送信済みの tx はそのまま有効なので、<Link href="/agents/mine" className="underline">Agent 管理</Link> の「残りの tx に署名」から続きを進めてください（揃っていない段階だけ再度署名します）。</p>}
         <div className="flex justify-end gap-2">
           <Button variant="secondary" disabled={busy || !!subagentsValid(subs) || !f.label} onClick={() => submit(false)}>下書き保存</Button>

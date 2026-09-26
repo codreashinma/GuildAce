@@ -46,7 +46,11 @@ export type Agent = {
   id: string; creator_id: string; name: string; label: string; description: string; category: string; rules: string;
   fee_bps: number; payout_address: string; ens_name: string | null; ens_tx_hash: string | null; parent_ens_name: string | null; owner_mode: "platform" | "creator"; ens_subregistry: string | null; status: string;
   rating_avg: number; rating_count: number; completed_count: number; ens_error: string | null; subagents: Subagent[]; created_at: string; creator: User;
+  policy: Policy | null; effective_policy: Policy; // policy = 保存された値（無ければ null）、effective_policy = 無ければ既定（WP-009）
 };
+/** PM Agent の進め方（codrea.agent.policy のスキーマ。GRD-006: 変えられるのは工程と人間の使い方だけ） */
+export type HumanRole = { role: "approver" | "reviewer" | "juror"; world_verified: boolean; min_count: number };
+export type Policy = { version: 1; domain: string; workflow: { phases: { key: string; title: string }[] }; human_roles: HumanRole[] };
 export type Subagent = { role: string; name: string; description: string; rules: string };
 /** 既定の専門エージェント（API の DEFAULT_SUBAGENTS と同じ）。所有者が追加・削除・編集できる */
 export const DEFAULT_SUBAGENTS: Subagent[] = [
@@ -87,9 +91,15 @@ export type Review = { id: string; case_id: string; rating: number; comment: str
 export type JuryVote = { id: string; vote: "release" | "refund"; created_at: string; voter: User };
 export type Dispute = {
   id: string; case_id: string; reason: string; status: string; outcome: string | null; resolve_tx_hash: string | null; required_votes: number; created_at: string;
-  summary_json: { issues?: string[]; client_position?: string; agent_position?: string; facts_to_check?: string[]; ai_note?: string; error?: string } | null;
+  summary_json: DisputeSummary | null;
   case: Case; votes: JuryVote[];
 };
+/** AG-004 の争点（agent-definitions AG-004 の「出力」）。結論の項目は持たない */
+export type DisputeIssue = { title: string; requester_position: string; provider_position: string; evidence_refs: string[] };
+/** 論点サマリー。source = "agents" は AG-001 → AG-004 経由（WP-019）、無ければ旧 summarize_dispute の形。resolve_jobs は裁定で足される */
+export type DisputeSummary =
+  | { source: "agents"; version: number | null; issues: DisputeIssue[]; no_issues: boolean; no_issues_reason: string | null; ref_labels: Record<string, string>; resolve_jobs?: string[] }
+  | { source?: undefined; issues?: string[]; client_position?: string; agent_position?: string; facts_to_check?: string[]; ai_note?: string; error?: string; resolve_jobs?: string[] };
 export type AuditActor = { address: string; name: string | null; source: string | null; verified: boolean; roles: string[] };
 export type AuditEvent = {
   seq: number; kind: string; label: string; task_id: string | null; task_title: string | null; actor: string | null; actor_role: string;

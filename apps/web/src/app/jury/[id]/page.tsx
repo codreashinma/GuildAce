@@ -3,7 +3,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { use, useState } from "react";
-import { api, short, usdc, type Dispute } from "@/lib/api";
+import { api, short, usdc, type Dispute, type DisputeSummary } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { Markdown } from "@/components/markdown";
 import { WorldVerifyButton } from "@/components/world-verify";
@@ -39,15 +39,7 @@ export default function DisputePage({ params }: { params: Promise<{ id: string }
 
       <Card>
         <h2 className="font-semibold">論点サマリー <span className="text-xs font-normal text-neutral-500">AI が整理。判断はしません</span></h2>
-        {!s ? <p className="mt-2 animate-pulse text-sm">論点を整理しています…</p> : s.error ? <ErrorBox error={s.error} /> : (
-          <div className="mt-2 grid gap-4 text-sm md:grid-cols-2">
-            <div><h3 className="font-medium">争点</h3><ul className="list-disc pl-5">{s.issues?.map((i) => <li key={i}>{i}</li>)}</ul></div>
-            <div><h3 className="font-medium">確認すべき事実</h3><ul className="list-disc pl-5">{s.facts_to_check?.map((i) => <li key={i}>{i}</li>)}</ul></div>
-            <div className="rounded-md border border-neutral-200 p-3"><h3 className="font-medium">発注者の主張</h3><p>{s.client_position}</p></div>
-            <div className="rounded-md border border-neutral-200 p-3"><h3 className="font-medium">Agent 側の主張</h3><p>{s.agent_position}</p></div>
-            {s.ai_note && <p className="text-xs text-neutral-500 md:col-span-2">AI の参考所見: {s.ai_note}</p>}
-          </div>
-        )}
+        <SummaryBody s={s} />
       </Card>
 
       <Card>
@@ -83,6 +75,47 @@ export default function DisputePage({ params }: { params: Promise<{ id: string }
             </div>
           )}
       </Card>
+    </div>
+  );
+}
+
+/** 論点整理がまだ終わっていない（投票で resolve_jobs だけが入った場合も含む） */
+function pending(s: DisputeSummary | null): boolean {
+  return !s || (s.source !== "agents" && !s.issues && !s.error);
+}
+
+function SummaryBody({ s }: { s: DisputeSummary | null }) {
+  if (!s || pending(s)) return <p className="mt-2 animate-pulse text-sm">論点を整理しています…</p>;
+  if (s.source === "agents") {
+    // HIL-004: 争点ごとに双方の立場と根拠の参照を並べる。論点なしでも投票はできる
+    if (s.no_issues) return <p className="mt-2 text-sm text-neutral-700">論点を整理できませんでした。差し戻し理由と成果物をもとに判断してください。</p>;
+    return (
+      <ol className="mt-2 space-y-3 text-sm">
+        {s.issues.map((i, n) => (
+          <li key={n} className="rounded-md border border-neutral-200 p-3">
+            <h3 className="font-medium">争点 {n + 1}: {i.title}</h3>
+            <div className="mt-2 grid gap-3 md:grid-cols-2">
+              <div><h4 className="text-xs font-medium text-neutral-500">発注者の立場</h4><p>{i.requester_position}</p></div>
+              <div><h4 className="text-xs font-medium text-neutral-500">受注者の立場</h4><p>{i.provider_position}</p></div>
+            </div>
+            {i.evidence_refs.length > 0 && (
+              <div className="mt-2"><h4 className="text-xs font-medium text-neutral-500">根拠の参照</h4>
+                <ul className="flex flex-wrap gap-2">{i.evidence_refs.map((r) => <li key={r} className="whitespace-nowrap rounded-sm border border-neutral-300 px-2 py-0.5 text-xs">{s.ref_labels[r] ?? r}</li>)}</ul>
+              </div>
+            )}
+          </li>
+        ))}
+      </ol>
+    );
+  }
+  if (s.error) return <ErrorBox error={s.error} />;
+  return (
+    <div className="mt-2 grid gap-4 text-sm md:grid-cols-2">
+      <div><h3 className="font-medium">争点</h3><ul className="list-disc pl-5">{s.issues?.map((i) => <li key={i}>{i}</li>)}</ul></div>
+      <div><h3 className="font-medium">確認すべき事実</h3><ul className="list-disc pl-5">{s.facts_to_check?.map((i) => <li key={i}>{i}</li>)}</ul></div>
+      <div className="rounded-md border border-neutral-200 p-3"><h3 className="font-medium">発注者の主張</h3><p>{s.client_position}</p></div>
+      <div className="rounded-md border border-neutral-200 p-3"><h3 className="font-medium">Agent 側の主張</h3><p>{s.agent_position}</p></div>
+      {s.ai_note && <p className="text-xs text-neutral-500 md:col-span-2">AI の参考所見: {s.ai_note}</p>}
     </div>
   );
 }

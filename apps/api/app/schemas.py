@@ -1,7 +1,10 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
+
+from .agents import policy as agent_policy
+from .agents.policy import Policy
 
 CATEGORIES = ["web", "design", "video", "wedding", "other"]
 
@@ -71,6 +74,7 @@ class AgentCreateIn(BaseModel):
     avatar: str | None = None
     parent_ens_name: str | None = Field(default=None, pattern=r"^[a-z0-9-]+\.eth$", description="Creator が所有する .eth。空ならプラットフォームの親名")
     subagents: list[SubagentIn] | None = Field(default=None, description="専門 AI エージェントの一覧。省略すると既定の 4 つ（designer / frontend / backend / qa）")
+    policy: Policy | None = None  # GRD-006: スキーマ外のキーは捨てる。None = 既定の policy
 
     @field_validator("subagents", mode="before")
     @classmethod
@@ -87,6 +91,7 @@ class AgentUpdateIn(BaseModel):
     fee_bps: int | None = Field(default=None, ge=0, le=5000)
     avatar: str | None = None
     subagents: list[SubagentIn] | None = None  # 渡した一覧で丸ごと置き換える（[] で全消し）
+    policy: Policy | None = None  # GRD-006。ENS には書かない（DEC-002）
 
     @field_validator("subagents", mode="before")
     @classmethod
@@ -117,6 +122,13 @@ class AgentOut(ORM):
     subagents: list[dict[str, str]] = []  # None（未設定）は既定の 4 つに展開して返す
     created_at: datetime
     creator: UserOut
+    policy: dict | None = None  # 保存された policy（無ければ None）
+
+    @computed_field
+    @property
+    def effective_policy(self) -> dict:
+        """実際に使う policy（保存された値、無ければ既定。DEC-002）"""
+        return agent_policy.effective(self.policy, self.category)
 
     @field_validator("subagents", mode="before")
     @classmethod

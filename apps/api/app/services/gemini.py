@@ -5,6 +5,7 @@ AI は提案・生成のみを行い、資金を動かす判断はしない。""
 import hashlib
 import json
 import logging
+from functools import lru_cache
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -49,7 +50,9 @@ class TaskCheck(BaseModel):
     comment: str
 
 
+@lru_cache(maxsize=1)
 def _client():
+    """Client は保持しておく。使い捨てにすると回収時に接続が閉じられ、送信前に RuntimeError になる。"""
     from google import genai
 
     return genai.Client(api_key=get_settings().gemini_api_key)

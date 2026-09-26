@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session, selectinload
 
+from ..agents import run_queue
 from ..auth import current_user
 from ..config import get_settings
 from ..db import SessionLocal, get_db
@@ -91,7 +92,17 @@ def _on_completed(db: Session, case: Case) -> None:
 # ---------------------------------------------------------------- background jobs
 
 
+def _request_plan(db: Session, case: Case, bg: BackgroundTasks) -> None:
+    """依頼の計画を始める。既定は AG-001 経由（WP-018。ランナーの実行 → apply_plan で tasks に写して awaiting_approval）。
+    AGENT_PIPELINE=legacy なら旧経路（_plan_job。plan_case を BackgroundTasks で実行）。"""
+    if get_settings().agent_pipeline == "legacy":
+        bg.add_task(_plan_job, case.id)
+    else:
+        run_queue.request_planning(db, case.id, input_text=case.title)
+
+
 def _plan_job(case_id: str) -> None:
+    """旧経路（AGENT_PIPELINE=legacy のときだけ使う）"""
     db = SessionLocal()
     try:
         case = _load(db, case_id)
@@ -268,7 +279,7 @@ def create_case(body: CaseCreateIn, bg: BackgroundTasks, user: User = Depends(cu
                 approvers=approvers, threshold=body.threshold, request_nullifier=nullifier)
     db.add(case)
     db.commit()
-    bg.add_task(_plan_job, case.id)
+    _request_plan(db, case, bg)
     return _load(db, case.id)
 
 
@@ -321,7 +332,7 @@ def replan(case_id: str, bg: BackgroundTasks, user: User = Depends(current_user)
         db.delete(t)
     case.status, case.error, case.plan_json = "planning", None, None
     db.commit()
-    bg.add_task(_plan_job, case.id)
+    _request_plan(db, case, bg)
     return _load(db, case.id)
 
 

@@ -4,7 +4,9 @@ from collections import Counter
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from ..agents import run_queue
 from ..auth import current_user
+from ..config import get_settings
 from ..db import SessionLocal, get_db
 from ..models import Dispute, JuryVote, User
 from ..schemas import DisputeCreateIn, DisputeOut, JuryVoteIn
@@ -16,7 +18,17 @@ log = logging.getLogger(__name__)
 router = APIRouter(tags=["jury"])
 
 
+def _request_summary(db: Session, d: Dispute, bg: BackgroundTasks) -> None:
+    """紛争の論点整理を始める。既定は AG-001 → AG-004 経由（WP-019。ランナーの実行 → apply_dispute で summary_json に写す）。
+    AGENT_PIPELINE=legacy なら旧経路（_summarize_job。summarize_dispute を BackgroundTasks で実行）。"""
+    if get_settings().agent_pipeline == "legacy":
+        bg.add_task(_summarize_job, d.id)
+    else:
+        run_queue.request_dispute(db, d.id, input_text=d.reason)
+
+
 def _summarize_job(dispute_id: str) -> None:
+    """旧経路（AGENT_PIPELINE=legacy のときだけ使う）"""
     db = SessionLocal()
     try:
         d = db.get(Dispute, dispute_id)
@@ -51,7 +63,7 @@ def open_dispute(case_id: str, body: DisputeCreateIn, bg: BackgroundTasks, user:
     for t in case.tasks:
         if t.chain_status in ("funded", "submitted"):
             worker.enqueue(db, "dispute", f"dispute:{t.id}:{d.id}", {"task_db_id": t.id, "case_id_hex": case.escrow_case_id, "task_id_hex": t.escrow_task_id})
-    bg.add_task(_summarize_job, d.id)
+    _request_summary(db, d, bg)
     return d
 
 

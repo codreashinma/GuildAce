@@ -37,6 +37,7 @@ class User(TimestampMixin, Base):
     wallet_address: Mapped[str] = mapped_column(String(42), unique=True, index=True)
     display_name: Mapped[str | None] = mapped_column(String(120))
     world_session_id: Mapped[str | None] = mapped_column(String(160), unique=True)  # World ID 4.0 の session_id（初回の人間確認で保存。1 World ID = 1 アカウント）
+    role: Mapped[str | None] = mapped_column(String(20))  # 最後のログインで選んだ利用者種別（auth.USER_ROLES）。権限の判定には使わない
 
 
 class Agent(TimestampMixin, Base):

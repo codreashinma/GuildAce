@@ -20,6 +20,7 @@ class UserOut(ORM):
 
 
 class MeOut(UserOut):
+    role: str | None = None  # 最後のログインで選んだ利用者種別
     human_verified_actions: list[str] = []
     is_ops: bool = False  # 運用者（OPS_ADDRESSES）。/ops/* と運用画面を使える
 
@@ -27,6 +28,7 @@ class MeOut(UserOut):
 class AuthVerifyIn(BaseModel):
     message: str
     signature: str
+    role: str | None = None  # ウォレット接続の前に選んだ利用者種別（auth.USER_ROLES のキー）
 
 
 RESERVED_SUBAGENT_ROLES = {"pm", "field", "human", "worker", "reputation", "project", "www", "eth"}

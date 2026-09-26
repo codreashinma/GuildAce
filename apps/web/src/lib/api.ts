@@ -41,7 +41,9 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown 
 
 // ---- types (API の schemas.py に対応) ----
 export type User = { id: string; wallet_address: string; display_name: string | null };
-export type Me = User & { human_verified_actions: string[]; is_ops?: boolean };
+export type Me = User & { human_verified_actions: string[]; is_ops?: boolean; role?: string | null };
+/** ウォレット接続の前に選ぶ利用者種別（/auth/roles）。表示とメニュー用で、権限は付かない */
+export type UserRole = { role: string; label: string };
 export type Agent = {
   id: string; creator_id: string; name: string; label: string; description: string; category: string; rules: string;
   fee_bps: number; payout_address: string; ens_name: string | null; ens_tx_hash: string | null; parent_ens_name: string | null; owner_mode: "platform" | "creator"; ens_subregistry: string | null; status: string;

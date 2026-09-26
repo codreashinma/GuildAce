@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
-import { useAccount, useSignMessage } from "wagmi";
+import { useAccount, useAccountEffect, useSignMessage } from "wagmi";
 import { SiweMessage } from "siwe";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type AppConfig, type Me } from "./api";
@@ -12,7 +12,8 @@ type Auth = {
   /** デモログイン（秘密鍵の無い合成アドレス）でログイン中。実チェーンの署名はできない */
   dev: boolean;
   loading: boolean;
-  signIn: () => Promise<void>;
+  /** role = ウォレット接続の前に選んだ利用者種別（ログインしたアカウントに保存される） */
+  signIn: (role?: string) => Promise<void>;
   devLogin: (role: string) => Promise<void>;
   signOut: () => void;
   refresh: () => Promise<void>;
@@ -54,7 +55,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refresh = useCallback(async () => { await qc.invalidateQueries({ queryKey: ["me"] }); }, [qc]);
 
-  const signIn = useCallback(async () => {
+  const signIn = useCallback(async (role?: string) => {
     if (!address) throw new Error("先にウォレットを接続してください");
     const { nonce } = await api<{ nonce: string }>("/auth/nonce");
     const msg = new SiweMessage({
@@ -63,7 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
     const message = msg.prepareMessage();
     const signature = await signMessageAsync({ message });
-    const r = await api<{ token: string }>("/auth/verify", { method: "POST", json: { message, signature } });
+    const r = await api<{ token: string }>("/auth/verify", { method: "POST", json: { message, signature, role } });
     try { localStorage.setItem("choice.token", r.token); localStorage.removeItem("choice.dev"); } catch { /* ignore */ }
     setDev(false);
     setToken(r.token);
@@ -81,6 +82,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setDev(false);
     setToken(null);
   }, []);
+
+  // ウォレットを切断したらサインアウトする（デモアカウントはウォレットを使わないので対象外）
+  useAccountEffect({ onDisconnect: () => { if (!readDev()) signOut(); } });
 
   const value = useMemo(() => ({ me, config: config ?? null, dev: dev && !!me, loading: !!token && isLoading, signIn, devLogin, signOut, refresh }), [me, config, dev, token, isLoading, signIn, devLogin, signOut, refresh]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

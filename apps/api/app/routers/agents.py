@@ -1,7 +1,7 @@
 import logging
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException  # noqa: F401
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from ..auth import current_user
@@ -50,7 +50,7 @@ def ens_update_job(db: Session, agent: Agent, texts: dict[str, str]) -> None:
         texts = {k: v for k, v in texts.items() if k in ens.REPUTATION_KEYS}
         if not texts:
             return
-    key = "ens_update:" + agent.label + ":" + ",".join(f"{k}={v}" for k, v in sorted(texts.items()))
+    key = "ens_update:" + agent.id + ":" + ",".join(f"{k}={v}" for k, v in sorted(texts.items()))
     payload = {"label": agent.label, "texts": texts}
     if agent.owner_mode == "creator":
         payload["agent_name"] = agent.ens_name
@@ -76,9 +76,9 @@ def my_agents(user: User = Depends(current_user), db: Session = Depends(get_db))
 
 @router.post("", response_model=AgentOut, status_code=201)
 def create_agent(body: AgentCreateIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    if db.query(Agent).filter(Agent.label == body.label).first():
-        raise HTTPException(409, "このラベルは既に使われています")
     parent, mode = None, "platform"
+    if db.query(Agent).filter(Agent.label == body.label, func.coalesce(Agent.parent_ens_name, "") == (body.parent_ens_name or "")).first():
+        raise HTTPException(409, f"{body.label}.{body.parent_ens_name or get_settings().ens_parent_name} は既に使われています")
     if body.parent_ens_name:
         # D1: Creator 自身の .eth の下に公開する。所有者が接続ウォレットか ENSv2 で確認する。
         # 未登録・RPC エラーは拒否（RPC 未設定 = モックのときだけ確認なしで通す）

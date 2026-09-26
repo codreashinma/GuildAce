@@ -217,5 +217,22 @@ def _loop() -> None:
         _wake.clear()
 
 
+def recover_stale(db: Session) -> int:
+    """前回のプロセスが処理中（running）のまま落ちたジョブを retry に戻す（ワーカーは単一プロセス前提）。
+    そのままだと二度と拾われず、Agent が publishing のまま止まる。"""
+    stale = db.query(ChainJob).filter(ChainJob.status == "running").all()
+    for j in stale:
+        j.status, j.next_attempt_at, j.error = "retry", None, (j.error or "") + " [前回のプロセス終了時に処理中だったため再実行]"
+    if stale:
+        db.commit()
+        log.warning("chain worker: 処理中のまま残っていたジョブ %d 件を再実行します", len(stale))
+    return len(stale)
+
+
 def start() -> None:
+    db = SessionLocal()
+    try:
+        recover_stale(db)
+    finally:
+        db.close()
     threading.Thread(target=_loop, name="chain-worker", daemon=True).start()

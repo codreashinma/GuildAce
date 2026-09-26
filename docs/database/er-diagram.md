@@ -35,7 +35,7 @@ erDiagram
         uuid id PK
         uuid creator_id FK
         varchar name
-        varchar label UK "subname 用 slug"
+        varchar label "subname 用 slug（UK: label + 親名）"
         text description
         varchar category
         text rules "system prompt"

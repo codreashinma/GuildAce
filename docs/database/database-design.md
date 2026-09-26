@@ -93,7 +93,7 @@ AI Agent Marketplace（AI Agent × World × ENS）MVP のオフチェーン DB�
 | id | ID | uuid | NO | gen_random_uuid() | PK | |
 | creator_id | 作成者 | uuid | NO | | FK → users.id | PM Agent Creator |
 | name | 名前 | varchar(100) | NO | | | 表示名 |
-| label | ラベル | varchar(63) | NO | | UK | subname 用 slug。英小文字・数字・ハイフン。重複は 409 |
+| label | ラベル | varchar(63) | NO | | UK(label, 親名) | subname 用 slug。英小文字・数字・ハイフン。一意性は (label, coalesce(parent_ens_name,'')) の組。同じ親で重複は 409 |
 | description | 説明 | text | NO | | | ENS `description` のキャッシュ |
 | category | カテゴリ | varchar(32) | NO | | | `web_dev` / `design` / `video` / `other`（Web開発 / デザイン / 動画制作 / その他）。ENS `agent.category` のキャッシュ |
 | rules | 進め方・ルール | text | NO | | | system prompt。ENS には載せない（DB が正本） |
@@ -110,7 +110,7 @@ AI Agent Marketplace（AI Agent × World × ENS）MVP のオフチェーン DB�
 | created_at | 作成日時 | timestamptz | NO | now() | | |
 | updated_at | 更新日時 | timestamptz | NO | now() | | |
 
-- インデックス: `agents_label_key` (label) — UNIQUE。`agents_ens_name_key` (ens_name) — UNIQUE（NULL は複数可）。`idx_agents_creator_id` (creator_id)。`idx_agents_marketplace` (status, category, rating_avg DESC) — マーケットプレイスのカテゴリ絞り込み・評価順
+- インデックス: `uq_agents_label_parent` (label, coalesce(parent_ens_name,'')) — UNIQUE（ENS 名 `<label>.<親名>` の単位で一意。2026-09-26 に label 単独 UNIQUE から変更。起動時の `_migrate()` が既存 DB を冪等に更新）。`ix_agents_label` (label)。`agents_ens_name_key` (ens_name) — UNIQUE（NULL は複数可）。`idx_agents_creator_id` (creator_id)。`idx_agents_marketplace` (status, category, rating_avg DESC) — マーケットプレイスのカテゴリ絞り込み・評価順
 - 制約: `CHECK (label ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$')`、`CHECK (fee_bps BETWEEN 0 AND 10000)`、`CHECK (status IN ('draft','publishing','published','publish_failed'))`、`CHECK (rating_avg IS NULL OR rating_avg BETWEEN 1.0 AND 5.0)`、`CHECK (payout_address = lower(payout_address))`。FK `creator_id` は `ON DELETE RESTRICT`
 - 非正規化: `rating_avg` / `rating_count` / `completed_count` は `reviews` / `cases` から集計可能だが、一覧のソートと ENS への書き込み値を一致させるため保持する
 

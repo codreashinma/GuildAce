@@ -26,7 +26,9 @@ def main() -> None:
     assert agent["ens_name"] == f"{label}.choice.eth"
     print("V2 agent published:", agent["ens_name"], agent["ens_tx_hash"][:12])
     # D1: Creator 自身の .eth の下に公開（モックでは所有者チェックと tx を省略）
-    own = creator.post("/agents", {"name": "Own-name PM", "label": "own-pm-" + creator.address[-6:].lower(), "category": "web", "parent_ens_name": "smokecreator.eth"}, expect=201)
+    own = creator.post("/agents", {"name": "Own-name PM", "label": label, "category": "web", "parent_ens_name": "smokecreator.eth"}, expect=201)  # 同じラベルでも親が違えば OK
+    creator.post("/agents", {"name": "dup", "label": label, "category": "web"}, expect=409)  # 同じ親 + 同じラベルは 409
+    creator.post("/agents", {"name": "dup", "label": label, "category": "web", "parent_ens_name": "smokecreator.eth"}, expect=409)
     r = creator.post(f"/agents/{own['id']}/publish")
     assert r["mode"] == "creator" and r["agent"]["ens_name"] == f"{own['label']}.smokecreator.eth", r
     print("D1 creator-owned agent:", r["agent"]["ens_name"])

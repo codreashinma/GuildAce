@@ -9,9 +9,11 @@ from sqlalchemy import (
     Integer,
     Numeric,
     String,
+    Index,
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -38,10 +40,12 @@ class User(TimestampMixin, Base):
 
 class Agent(TimestampMixin, Base):
     __tablename__ = "agents"
+    # ENS 名は <label>.<親名> なので、一意性は (label, 親名) の組。親名 NULL（= プラットフォームの親名）は '' に寄せて比較する
+    __table_args__ = (Index("uq_agents_label_parent", "label", func.coalesce(text("parent_ens_name"), ""), unique=True),)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     creator_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     name: Mapped[str] = mapped_column(String(120))
-    label: Mapped[str] = mapped_column(String(63), unique=True, index=True)
+    label: Mapped[str] = mapped_column(String(63), index=True)
     description: Mapped[str] = mapped_column(Text, default="")
     category: Mapped[str] = mapped_column(String(40), index=True)
     rules: Mapped[str] = mapped_column(Text, default="")

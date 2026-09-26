@@ -12,6 +12,11 @@ type RpContextResponse = RpContext & {
   error?: string;
 };
 
+type VerificationResponse = {
+  verified?: boolean;
+  error?: string;
+};
+
 export default function WorldVerifyPage() {
   const appId = process.env.NEXT_PUBLIC_WORLD_APP_ID as
     | `app_${string}`
@@ -92,9 +97,29 @@ export default function WorldVerifyPage() {
           rp_context={rpContext}
           allow_legacy_proofs={false}
           preset={proofOfHuman()}
+          handleVerify={async (result) => {
+            setMessage("Pythonバックエンドで証明を検証中です。");
+
+            const response = await fetch("/api/world/verify", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(result),
+            });
+
+            const data =
+              (await response.json()) as VerificationResponse;
+
+            if (!response.ok || data.verified !== true) {
+              throw new Error(
+                data.error ?? "Python側の証明検証に失敗しました。",
+              );
+            }
+          }}
           onSuccess={() => {
             setMessage(
-              "World IDの証明を受け取りました。まだPython側の検証前です。",
+              "World IDの証明をPythonで検証しました。",
             );
           }}
           onError={(errorCode) => {

@@ -41,7 +41,7 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown 
 
 // ---- types (API の schemas.py に対応) ----
 export type User = { id: string; wallet_address: string; display_name: string | null };
-export type Me = User & { human_verified_actions: string[] };
+export type Me = User & { human_verified_actions: string[]; is_ops?: boolean };
 export type Agent = {
   id: string; creator_id: string; name: string; label: string; description: string; category: string; rules: string;
   fee_bps: number; payout_address: string; ens_name: string | null; ens_tx_hash: string | null; parent_ens_name: string | null; owner_mode: "platform" | "creator"; ens_subregistry: string | null; status: string;
@@ -102,6 +102,15 @@ export type MeSummary = {
   earnings_total: string; reviews_received: { count: number; avg: number | null };
 };
 export type MeEnsName = { name: string; kind: "person" | "agent-payout" | "company-admin"; verified: boolean; tx_hash: string | null; link: string; note: string | null };
+export type EarningRow = { case_id: string; case_title: string; case_status: string; task_id: string; task_title: string; amount: string; received: string; chain_status: ChainStatus; payee: string | null; tx_hash: string | null; at: string | null; budget: string };
+export type AgentEarnings = { agent_id: string; agent_name: string; payout_address: string; fee_bps: number; paid_total: string; pending_total: string; resolved_total: string; cases: number; rows: EarningRow[] };
+export type ChainJobStatus = "queued" | "running" | "retry" | "done" | "failed";
+export type ChainJob = {
+  id: string; kind: string; label: string; idempotency_key: string; status: ChainJobStatus; attempts: number; max_attempts: number; tx_hash: string | null; error: string | null;
+  next_attempt_at: string | null; finished_at: string | null; created_at: string; updated_at: string;
+  case_id: string | null; case_title: string | null; task_id: string | null; task_title: string | null; agent_id: string | null; agent_name: string | null; amount: string | null; href: string | null; retryable: boolean;
+};
+export type OpsJobs = { counts: Record<ChainJobStatus, number>; kinds: string[]; worker_alive: boolean; jobs: ChainJob[] };
 export type AppConfig = {
   chain_id: number; escrow_address: string; usdc_address: string; ens_parent_name: string; ens_universal_resolver: string;
   world_app_id: string; world_rp_id: string;

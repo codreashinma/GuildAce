@@ -19,6 +19,8 @@ from .world import verify_and_record
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/cases", tags=["cases"])
+# PM 管理費の工程（Creator の収益）。計画（Gemini）にも role=pm のタスクが混ざりうるので、管理費はこのタイトルで識別する
+PM_FEE_TITLE = "PM 管理（タスク分解・チーム編成・進捗管理）"
 
 
 def _load(db: Session, case_id: str) -> Case:
@@ -113,7 +115,7 @@ def _plan_job(case_id: str) -> None:
             total += t.estimated_cost * USDC
         # PM 管理費もタスク（工程）として契約する（CON-006、Creator の収益）
         fee = int(case.budget) - total
-        db.add(Task(case_id=case.id, order_no=len(plan.tasks), title="PM 管理（タスク分解・チーム編成・進捗管理）", description=plan.summary,
+        db.add(Task(case_id=case.id, order_no=len(plan.tasks), title=PM_FEE_TITLE, description=plan.summary,
                     type="ai", role="pm", estimated_cost=fee, assignee_name=case.agent.name))
         db.flush()
         for t in db.query(Task).filter(Task.case_id == case.id):

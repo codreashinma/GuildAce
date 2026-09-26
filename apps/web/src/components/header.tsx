@@ -21,6 +21,7 @@ const NAV = [
   { href: "/ens", label: "ENS" },
   { href: "/me", label: "マイページ" },
 ];
+const OPS_NAV = { href: "/ops/jobs", label: "運用" };
 
 /** 開発用: DEV_LOGIN_ENABLED のとき ?dev_login=<role> で自動ログイン（スクリーンショット・動作確認用） */
 function DevAutoLogin() {
@@ -44,6 +45,7 @@ export function Header() {
   const { data: devUsers } = useQuery({ queryKey: ["dev-users"], queryFn: () => api<{ role: string; label: string }[]>("/auth/dev-users"), staleTime: Infinity });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const nav = me?.is_ops ? [...NAV, OPS_NAV] : NAV;
 
   const doSignIn = async () => {
     setBusy(true);
@@ -68,7 +70,7 @@ export function Header() {
           <span className="hidden whitespace-nowrap text-xs text-neutral-400 xl:inline">AI Agent × World × ENS</span>
         </Link>
         <nav className="hidden min-w-0 items-center gap-1 overflow-x-auto md:flex">
-          {NAV.map((n) => (
+          {nav.map((n) => (
             <Link key={n.href} href={n.href} className={`whitespace-nowrap border-b-2 px-2.5 py-1.5 text-sm ${path === n.href || (n.href !== "/" && path.startsWith(n.href)) ? "border-neutral-900 font-medium text-neutral-900" : "border-transparent text-neutral-500 hover:text-neutral-900"}`}>
               {n.label}
             </Link>
@@ -94,7 +96,7 @@ export function Header() {
       </div>
       {err && <div className="mx-auto max-w-6xl px-4 pb-2 text-xs text-neutral-700">{err}</div>}
       <nav className="flex gap-1 overflow-x-auto px-4 pb-2 md:hidden">
-        {NAV.map((n) => (
+        {nav.map((n) => (
           <Link key={n.href} href={n.href} className={`whitespace-nowrap rounded-sm border px-3 py-1 text-xs ${path === n.href || (n.href !== "/" && path.startsWith(n.href)) ? "border-neutral-900 bg-neutral-900 text-white" : "border-neutral-300 text-neutral-700"}`}>{n.label}</Link>
         ))}
       </nav>

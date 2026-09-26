@@ -75,3 +75,18 @@ def optional_user(authorization: str | None = Header(default=None), db: Session 
         return current_user(authorization, db)
     except HTTPException:
         return None
+
+
+def is_ops(user: User) -> bool:
+    """運用者か。OPS_ADDRESSES に含まれるウォレット。未設定なら DEV_LOGIN_ENABLED のときだけ全員に開放（ローカル確認用）"""
+    s = get_settings()
+    allow = s.ops_address_list
+    if allow:
+        return user.wallet_address.lower() in allow
+    return s.dev_login_enabled
+
+
+def ops_user(user: User = Depends(current_user)) -> User:
+    if not is_ops(user):
+        raise HTTPException(403, "運用者（OPS_ADDRESSES）のみ使えます")
+    return user

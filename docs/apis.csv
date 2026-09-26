@@ -14,7 +14,7 @@ API-14,Agent,POST,/agents/{id}/ens-written,要,Creator 所有の Agent: ブラ�
 API-15,Agent,GET,/agents/{id},不要,Agent 詳細。ENS の text record（本体・reputation.<agent>・配下の subagent）と EAC の役割（hasRootRoles の実値）を Sepolia から読んで同梱,出力: AgentDetailOut（ens_records / ens_roles 付き）,"B2, G3","UC-011, NFR-004",済,,
 API-16,Agent,GET,/agents/{id}/reviews,不要,Agent へのレビュー一覧,出力: ReviewOut[],B2,FR-025,済,,
 API-17,Agent,PATCH,/agents/{id},要,Agent の説明・ルール・利用料を更新し ENS レコードを再書き込み,入力: description / rules / fee_bps。出力: AgentOut,D4,UC-010,済,PATCH。platform は worker に ens_update（Owner 鍵）、creator は署名用 multicall calldata を返す。変更したキーだけ再書き込み,
-API-18,Agent,GET,/agents/{id}/earnings,要,PM 工程の Paid tx を集計した受取履歴,出力: 案件ごとの金額と tx,D3,FR-024,未,FR-024 は Won't,低
+API-18,Agent,GET,/agents/{id}/earnings,要（Creator 本人）,Creator の収益。この Agent の案件の PM 工程（role=pm）を Escrow の投影から集計,出力: paid_total / pending_total / resolved_total（裁定で受け取った額。返金は 0）/ cases / rows[]（案件・予算・管理費・received・chain_status・payee・tx）,D3,FR-024,済,routers/agents.py。金額の正本は Escrow,
 API-20,案件,GET,/cases,要,自分の案件と承認者として関わる案件,出力: CaseOut[],"B4, A2",-,済,,
 API-21,案件,GET,/cases/pending-approvals,要,自分の署名待ち工程を横断取得,出力: PendingApprovalOut[],"C1, A2",UC-005,済,,
 API-22,案件,GET,/cases/notifications,要,承認待ち・指名・提出・支払い・紛争の通知,出力: NoticeOut[],A2,FR-032,済,,
@@ -48,8 +48,8 @@ API-70,紛争,POST,/cases/{id}/dispute,要,差し戻し。未払い工程を wor
 API-71,紛争,GET,/disputes?status=,不要,紛争一覧（審理中 / 終了）,出力: DisputeOut[],F1,UC-008,済,,
 API-72,紛争,GET,/disputes/{id},不要,紛争詳細（論点サマリー・投票・結果）,出力: DisputeOut,F2,UC-008,済,,
 API-73,紛争,POST,/disputes/{id}/vote,要,Jury 投票。当事者除外・World 検証（action=jury）・1 人 1 票。3 票で多数決し worker が resolve を工程ごとに送信,入力: vote（release / refund）/ idkit_response。出力: DisputeOut,F2,"FR-018, FR-019",済,,
-API-80,運用,GET,/ops/jobs,要（運用者）,chain_jobs の一覧（状態・試行回数・エラー・tx）,出力: ChainJob[],G1,ADR-006,未,,低
-API-81,運用,POST,/ops/jobs/{id}/retry,要（運用者）,失敗ジョブの再投入,出力: ChainJob,G1,ADR-006,未,,低
+API-80,運用,GET,/ops/jobs,要（運用者）,chain_jobs の一覧（状態別件数・ワーカー稼働・種類・対象・試行回数・エラー・tx）,入力: status（カンマ区切り）/ kind / limit。出力: counts / kinds / worker_alive / jobs[],G1,ADR-006,済,routers/ops.py。運用者 = OPS_ADDRESSES のウォレット（未設定なら DEV_LOGIN_ENABLED のときだけ全員）。payload の署名・record 本文は返さない,
+API-81,運用,POST,/ops/jobs/{id}/retry,要（運用者）,失敗（failed）ジョブの再投入（試行回数 0、待ち時間なし、冪等キーは維持）。Escrow 系は再送前にオンチェーンの工程状態を確認し、反映済みなら 409。ens_publish は Agent を publishing に戻す,出力: ChainJobOut。retry / done のジョブは 409（retry はワーカーが自動再送）,G1,ADR-006,済,routers/ops.py,
 API-90,マイページ,GET,/me/summary,要,自分のウォレットに紐づく ENS 名（人員・Agent 受取・会社管理者）・World 検証済み行為の回数・所属会社・作成 Agent・関わった案件数・受取履歴（payee = 自分の paid / resolved 工程）,出力: MeSummaryOut,A4,-,済,nullifier・署名は返さない。routers/me.py,
 API-100,ENS,GET,/ens/resolve?name=,不要,任意の ENS 名の所有者・レジストリ・リゾルバ・addr・text record を Sepolia から読む（scripts/ens_check.py の API 化）,入力: name。出力: owner / registry / resolver / addr / texts,"G3, B5, E1, B2, G3","FR-026, FR-027, NFR-004",済,"レジストリ直読み（registry-walk）に加え、リゾルバの ENSIP-10 resolve(bytes,bytes) でも同じ値が返るかを wildcard として同梱。60 秒キャッシュ",
 API-101,ENS,GET,/ens/check-owner?name=,要,入力中の名前が接続ウォレットの所有か（ENSv2 .eth レジストリの latestOwner）を事前確認,入力: name。出力: owner / is_mine / status,"D1, E1","FR-026, 追補1 F9",済,認証必須。/ens/resolve の owner と接続ウォレットを比較（status: ok / unregistered / unconfigured）,

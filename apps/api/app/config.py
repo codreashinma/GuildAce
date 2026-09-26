@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     app_url: str = "http://localhost:3000"
     api_url: str = "http://localhost:8001"
     dev_login_enabled: bool = False  # true で /auth/dev-login（ウォレット不要のデモログイン）を有効化
+    ops_addresses: str = ""  # 運用者のウォレット（カンマ区切り）。/ops/* を使える。空なら DEV_LOGIN_ENABLED のときだけ全ログインユーザーに開放
 
     # --- chain (Sepolia) ---
     chain_id: int = 11155111
@@ -54,6 +55,10 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def ops_address_list(self) -> list[str]:
+        return [a.strip().lower() for a in self.ops_addresses.split(",") if a.strip()]
 
     @property
     def chain_enabled(self) -> bool:

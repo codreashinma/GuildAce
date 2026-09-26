@@ -229,10 +229,24 @@ def recover_stale(db: Session) -> int:
     return len(stale)
 
 
+_thread: threading.Thread | None = None
+
+
+def wake() -> None:
+    """待ち時間を飛ばしてワーカーを起こす（運用者の再投入用）"""
+    _wake.set()
+
+
+def is_alive() -> bool:
+    return _thread is not None and _thread.is_alive()
+
+
 def start() -> None:
+    global _thread
     db = SessionLocal()
     try:
         recover_stale(db)
     finally:
         db.close()
-    threading.Thread(target=_loop, name="chain-worker", daemon=True).start()
+    _thread = threading.Thread(target=_loop, name="chain-worker", daemon=True)
+    _thread.start()

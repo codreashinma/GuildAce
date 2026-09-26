@@ -18,6 +18,7 @@ class UserOut(ORM):
 
 class MeOut(UserOut):
     human_verified_actions: list[str] = []
+    is_ops: bool = False  # 運用者（OPS_ADDRESSES）。/ops/* と運用画面を使える
 
 
 class AuthVerifyIn(BaseModel):
@@ -69,6 +70,34 @@ class AgentOut(ORM):
     ens_error: str | None = None
     created_at: datetime
     creator: UserOut
+
+
+class EarningRowOut(BaseModel):
+    case_id: str
+    case_title: str
+    case_status: str
+    task_id: str
+    task_title: str
+    amount: str  # PM 管理費（最小単位）
+    received: str  # 実際に受け取った額。paid = amount、resolved = 裁定の pay_amount（返金なら 0）、預託中 = 0
+    chain_status: str  # funded | submitted | paid | disputed | resolved
+    payee: str | None
+    tx_hash: str | None
+    at: datetime | None
+    budget: str
+
+
+class AgentEarningsOut(BaseModel):
+    """D3 / API-18: Creator の収益（PM 工程の Escrow 投影の集計）"""
+    agent_id: str
+    agent_name: str
+    payout_address: str
+    fee_bps: int
+    paid_total: str  # paid の受取合計
+    pending_total: str  # 預託中（未払い）の工程額合計
+    resolved_total: str  # 裁定で受け取った額の合計（返金分は含まない）
+    cases: int
+    rows: list[EarningRowOut]
 
 
 class AgentDetailOut(AgentOut):

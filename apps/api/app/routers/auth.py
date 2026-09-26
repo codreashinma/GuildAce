@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from pydantic import BaseModel
 
-from ..auth import current_user, issue_nonce, make_token, verify_siwe
+from ..auth import current_user, is_ops, issue_nonce, make_token, verify_siwe
 from ..config import get_settings
 from ..db import get_db
 from ..models import User, WorldVerification
@@ -21,7 +21,9 @@ def nonce():
 @router.post("/verify")
 def verify(body: AuthVerifyIn, db: Session = Depends(get_db)):
     user, token = verify_siwe(body.message, body.signature, db)
-    return {"token": token, "user": MeOut.model_validate(user)}
+    out = MeOut.model_validate(user)
+    out.is_ops = is_ops(user)
+    return {"token": token, "user": out}
 
 
 @router.get("/me", response_model=MeOut)
@@ -29,10 +31,11 @@ def me(user: User = Depends(current_user), db: Session = Depends(get_db)):
     actions = sorted({v.action for v in db.query(WorldVerification).filter(WorldVerification.user_id == user.id)})
     out = MeOut.model_validate(user)
     out.human_verified_actions = actions
+    out.is_ops = is_ops(user)
     return out
 
 
-DEV_USERS = {"client": "発注者", "creator": "Agent 作成者", "worker": "Human Task worker", "jury1": "Jury 1", "jury2": "Jury 2", "jury3": "Jury 3"}
+DEV_USERS = {"client": "発注者", "creator": "Agent 作成者", "worker": "Human Task worker", "jury1": "Jury 1", "jury2": "Jury 2", "jury3": "Jury 3", "ops": "運用者"}
 
 
 class DevLoginIn(BaseModel):
@@ -61,4 +64,6 @@ def dev_login(body: DevLoginIn, db: Session = Depends(get_db)):
         db.add(user)
         db.commit()
         db.refresh(user)
-    return {"token": make_token(user), "user": MeOut.model_validate(user)}
+    out = MeOut.model_validate(user)
+    out.is_ops = is_ops(user)
+    return {"token": make_token(user), "user": out}

@@ -7,8 +7,8 @@ from sqlalchemy.orm import Session
 from ..auth import current_user
 from ..config import get_settings
 from ..db import get_db
-from ..models import Agent, Review, User
-from ..schemas import AgentCreateIn, AgentDetailOut, AgentOut, AgentUpdateIn, ReviewOut, TxIn
+from ..models import Agent, Case, ChainJob, Review, Task, User
+from ..schemas import AgentCreateIn, AgentDetailOut, AgentEarningsOut, AgentOut, AgentUpdateIn, EarningRowOut, ReviewOut, TxIn
 from ..services import ens, worker
 
 log = logging.getLogger(__name__)
@@ -236,3 +236,43 @@ def get_agent(agent_id: str, db: Session = Depends(get_db)):
 @router.get("/{agent_id}/reviews", response_model=list[ReviewOut])
 def agent_reviews(agent_id: str, db: Session = Depends(get_db)):
     return db.query(Review).filter(Review.target_type == "agent", Review.target_id == agent_id).order_by(Review.created_at.desc()).all()
+
+
+@router.get("/{agent_id}/earnings", response_model=AgentEarningsOut)
+def earnings(agent_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """D3 / API-18: Creator の収益。この Agent が受けた案件の PM 管理費の工程（cases.PM_FEE_TITLE。計画側の role=pm タスクは含めない）を
+    Escrow の投影から集計する。received = 実際に受取アドレスへ渡った額: paid は工程額、resolved は resolve ジョブの pay_amount（返金なら 0）、
+    funded / submitted / disputed は預託中で 0。金額の正本は Escrow（Etherscan の tx）で、ここは DB の投影。Creator 本人だけが見られる。"""
+    from .cases import PM_FEE_TITLE
+
+    agent = db.get(Agent, agent_id)
+    if agent is None:
+        raise HTTPException(404)
+    if agent.creator_id != user.id:
+        raise HTTPException(403, "Creator 本人だけが見られます")
+    rows: list[EarningRowOut] = []
+    paid = pending = resolved_total = 0
+    q = (db.query(Task, Case).join(Case, Task.case_id == Case.id).filter(Case.agent_id == agent.id, Task.role == "pm", Task.title == PM_FEE_TITLE)
+         .filter(Task.chain_status.in_(["funded", "submitted", "paid", "disputed", "resolved"])).order_by(Case.created_at.desc()))
+    pairs = q.all()
+    # resolved の受取額は resolve ジョブの payload（pay_amount）から。返金なら 0
+    resolved_ids = [t.id for t, _ in pairs if t.chain_status == "resolved"]
+    pay_by_task: dict[str, int] = {}
+    if resolved_ids:
+        for j in db.query(ChainJob).filter(ChainJob.kind == "resolve", ChainJob.payload["task_db_id"].as_string().in_(resolved_ids)).all():
+            pay_by_task[j.payload["task_db_id"]] = int(j.payload.get("pay_amount") or 0)
+    for t, c in pairs:
+        amt = int(t.estimated_cost or 0)
+        if t.chain_status == "paid":
+            received = amt
+            paid += amt
+        elif t.chain_status == "resolved":
+            received = pay_by_task.get(t.id, 0)
+            resolved_total += received
+        else:
+            received = 0
+            pending += amt
+        rows.append(EarningRowOut(case_id=c.id, case_title=c.title, case_status=c.status, task_id=t.id, task_title=t.title, amount=str(amt), received=str(received),
+                                  chain_status=t.chain_status, payee=t.payee, tx_hash=t.chain_tx_hash, at=t.completed_at or t.updated_at, budget=str(int(c.budget or 0))))
+    return AgentEarningsOut(agent_id=agent.id, agent_name=agent.name, payout_address=agent.payout_address, fee_bps=agent.fee_bps,
+                            paid_total=str(paid), pending_total=str(pending), resolved_total=str(resolved_total), cases=len(rows), rows=rows)

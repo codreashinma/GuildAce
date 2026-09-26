@@ -44,14 +44,12 @@ export function SubagentsEditor({ value, onChange, published = false, defaultOpe
           {value.length === 0 && <p className="text-xs text-neutral-700">専門エージェントがありません。すべての AI タスクは role=general として PM Agent 自身が実行します。</p>}
           {value.map((x, i) => (
             <div key={i} className="space-y-2 rounded-md border border-neutral-200 p-3">
-              <div className="grid gap-2 sm:grid-cols-[12rem_1fr_auto]">
-                <div>
-                  <input id={`sub-role-${i}`} className={`${inputCls} font-mono`} placeholder="ENS ラベル（例: designer）" value={x.role} onChange={(e) => upd(i, "role", e.target.value.toLowerCase())} />
-                  <div className="mt-1 truncate font-mono text-[11px] text-neutral-500" title={`${x.role || "<ラベル>"}.${agentEns ?? "<agent>.choice.eth"}`}>{x.role || "<ラベル>"}.{agentEns ?? "<agent>.choice.eth"}</div>
-                </div>
+              <div className="grid items-center gap-2 sm:grid-cols-[12rem_1fr_auto]">
+                <input id={`sub-role-${i}`} className={`${inputCls} font-mono`} placeholder="ENS ラベル（例: designer）" value={x.role} onChange={(e) => upd(i, "role", e.target.value.toLowerCase())} />
                 <input id={`sub-name-${i}`} className={inputCls} placeholder="名前（例: Designer Agent）" value={x.name} onChange={(e) => upd(i, "name", e.target.value)} />
                 <Button variant="ghost" onClick={() => remove(i)}>削除</Button>
               </div>
+              <div className="truncate font-mono text-[11px] text-neutral-500" title={`${x.role || "<ラベル>"}.${agentEns ?? "<agent>.choice.eth"}`}>ENS: {x.role || "<ラベル>"}.{agentEns ?? "<agent>.choice.eth"}</div>
               <input id={`sub-desc-${i}`} className={inputCls} placeholder="説明（ENS の description。200 文字まで）" maxLength={200} value={x.description} onChange={(e) => upd(i, "description", e.target.value)} />
               <textarea id={`sub-rules-${i}`} className={inputCls} rows={3} maxLength={4000} placeholder={"この役割の成果物に何を含めるか、技術スタック、形式など（system prompt に追加。ENS には書きません）"} value={x.rules} onChange={(e) => upd(i, "rules", e.target.value)} />
             </div>

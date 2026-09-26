@@ -19,7 +19,7 @@ router = APIRouter(prefix="/ops", tags=["ops"])
 
 KIND_LABEL = {
     "fund_task": "工程の預託（fundTask）", "submit": "成果物の提出（submit）", "approve": "承認の中継（approve）", "dispute": "差し戻し（dispute）",
-    "resolve": "裁定の反映（resolve）", "ens_publish": "Agent の ENS 公開", "ens_update": "ENS レコード更新", "ens_project": "案件 subname の発行",
+    "resolve": "裁定の反映（resolve）", "ens_publish": "Agent の ENS 公開", "ens_update": "ENS レコード更新", "ens_project": "案件 subname の発行", "ens_subagents": "専門エージェントの ENS 反映",
 }
 # 再投入できるのは failed だけ。retry はワーカーが自動で拾うので、ここから触るとワーカーと競合する
 RETRYABLE = {"failed"}

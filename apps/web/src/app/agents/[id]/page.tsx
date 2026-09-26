@@ -80,16 +80,20 @@ export default function AgentPage({ params }: { params: Promise<{ id: string }> 
         </Card>
       </div>
 
-      {Object.keys(a.ens_subagents ?? {}).length > 0 && (
+      {(a.subagents ?? []).length > 0 && (
         <Card>
-          <h2 className="mb-1 font-semibold">Agent の名前空間 <span className="text-xs font-normal text-neutral-500">専門 AI エージェントは Agent 配下の subname。PM Agent はここから候補を選ぶ</span></h2>
+          <h2 className="mb-1 font-semibold">専門エージェント <span className="text-xs font-normal text-neutral-500">PM Agent 配下の subname。所有者が定義し、PM Agent はここに AI タスクを割り当てる</span></h2>
           <ul className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
-            {Object.entries(a.ens_subagents).map(([name, recs]) => (
-              <li key={name} className="rounded-md border border-neutral-200 p-3">
-                <div className="flex items-center gap-2"><Tag>AI</Tag><Mono className="text-neutral-900">{name}</Mono></div>
-                <div className="mt-1 text-xs text-neutral-600">{recs["description"] ?? <span className="text-neutral-400">record 未取得</span>}</div>
-              </li>
-            ))}
+            {(a.subagents ?? []).map((x) => {
+              const ensName = a.ens_name ? `${x.role}.${a.ens_name}` : null;
+              const recs = ensName ? a.ens_subagents?.[ensName] : undefined;
+              return (
+                <li key={x.role} className="rounded-md border border-neutral-200 p-3">
+                  <div className="flex flex-wrap items-center gap-2"><Tag>AI</Tag><span className="font-medium">{x.name}</span><Mono className="text-xs text-neutral-500">{ensName ?? x.role}</Mono>{ensName && (recs && Object.keys(recs).length > 0 ? <Badge status="published">ENS</Badge> : <span className="text-[10px] text-neutral-400">ENS 未反映</span>)}</div>
+                  <div className="mt-1 text-xs text-neutral-600">{x.description || recs?.["description"] || <span className="text-neutral-400">説明なし</span>}</div>
+                </li>
+              );
+            })}
           </ul>
         </Card>
       )}

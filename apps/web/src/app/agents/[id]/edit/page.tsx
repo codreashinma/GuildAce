@@ -4,13 +4,14 @@ import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { usePublicClient, useSendTransaction } from "wagmi";
-import { api, CATEGORY_LABEL, type Agent } from "@/lib/api";
+import { api, CATEGORY_LABEL, type Agent, type Subagent } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useEnsureSepolia } from "@/lib/chain";
 import { BackLink, Button, Card, ErrorBox, Field, inputCls, Mono, PageTitle } from "@/components/ui";
-import { SubagentRulesEditor } from "@/components/subagent-rules";
+import { SubagentsEditor, subagentsValid } from "@/components/subagent-rules";
 
-type UpdateResult = { mode: "platform" | "creator"; changed_keys: string[]; ens?: "queued" | "mock" | "sign"; txs?: { to: string; data: string; label: string }[]; agent: Agent };
+type Tx = { to: string; data: string; label: string };
+type UpdateResult = { mode: "platform" | "creator"; changed_keys: string[]; ens?: "queued" | "mock" | "sign"; txs?: Tx[]; changed_subagents?: string[]; removed_subagents?: string[]; ens_subagents?: "queued" | "sign"; subagent_txs?: Tx[]; agent: Agent };
 
 /** D4: Agent の編集。説明・ルール・利用料を更新し、ENS の text record を再書き込みする。
  *  platform 所有は worker（Owner 鍵）が書き、Creator 所有は Creator のウォレットで multicall に署名する。ラベルと公開先は変更不可。 */
@@ -30,7 +31,7 @@ function EditForm({ a }: { a: Agent }) {
   const ensureSepolia = useEnsureSepolia();
   const pc = usePublicClient();
   const [f, setF] = useState(() => ({ name: a.name, description: a.description, category: a.category, rules: a.rules, fee_bps: a.fee_bps }));
-  const [subRules, setSubRules] = useState<Record<string, string>>(() => ({ ...(a.subagent_rules ?? {}) }));
+  const [subs, setSubs] = useState<Subagent[]>(() => (a.subagents ?? []).map((x) => ({ ...x })));
   const [err, setErr] = useState<unknown>(null);
   const [step, setStep] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
@@ -39,11 +40,12 @@ function EditForm({ a }: { a: Agent }) {
   const save = async () => {
     setErr(null); setDone(null); setStep("保存中…");
     try {
-      const r = await api<UpdateResult>(`/agents/${a.id}`, { method: "PATCH", json: { ...f, subagent_rules: subRules } });
-      if (r.ens === "sign" && r.txs?.length) {
+      const r = await api<UpdateResult>(`/agents/${a.id}`, { method: "PATCH", json: { ...f, subagents: subs } });
+      const txs = [...(r.ens === "sign" ? r.txs ?? [] : []), ...(r.ens_subagents === "sign" ? r.subagent_txs ?? [] : [])];
+      if (txs.length) {
         await ensureSepolia();
         let last = "";
-        for (const tx of r.txs) {
+        for (const tx of txs) {
           setStep(`${tx.label} に署名…`);
           const h = await sendTransactionAsync({ to: tx.to as `0x${string}`, data: tx.data as `0x${string}` });
           setStep("トランザクション確認中…");
@@ -51,9 +53,9 @@ function EditForm({ a }: { a: Agent }) {
           last = h;
         }
         await api(`/agents/${a.id}/ens-written`, { method: "POST", json: { tx_hash: last } });
-        setDone(`ENS の record を更新しました（${r.changed_keys.join(", ")}）`);
-      } else if (r.ens === "queued") {
-        setDone(`保存しました。ENS の record（${r.changed_keys.join(", ")}）は運用ワーカーが 1〜2 分で書き込みます`);
+        setDone(`ENS を更新しました（${[...r.changed_keys, ...(r.changed_subagents ?? []).map((x) => `専門: ${x}`)].join(", ")}）`);
+      } else if (r.ens === "queued" || r.ens_subagents === "queued") {
+        setDone(`保存しました。ENS（${[...r.changed_keys, ...(r.changed_subagents ?? []).map((x) => `専門: ${x}`)].join(", ")}）は運用ワーカーが 1〜2 分で書き込みます`);
       } else if (r.ens === "mock") {
         setDone("保存しました（ENS 書き込みはモック）");
       } else {
@@ -86,12 +88,12 @@ function EditForm({ a }: { a: Agent }) {
           </Field>
         </div>
         <Field label="進め方・ルール" hint="PM Agent の system prompt。ENS には書きません"><textarea className={inputCls} rows={5} value={f.rules} onChange={(e) => set("rules", e.target.value)} /></Field>
-        <SubagentRulesEditor value={subRules} onChange={setSubRules} defaultOpen={Object.keys(a.subagent_rules ?? {}).length > 0} />
+        <SubagentsEditor value={subs} onChange={setSubs} published={a.status === "published"} defaultOpen />
         <ErrorBox error={err} />
         {done && <p className="text-sm text-neutral-900">{done}</p>}
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={() => router.push(`/agents/${a.id}`)} disabled={!!step}>戻る</Button>
-          <Button onClick={save} disabled={!!step || !f.name}>{step ?? "保存して ENS を更新"}</Button>
+          <Button onClick={save} disabled={!!step || !f.name || !!subagentsValid(subs)}>{step ?? "保存して ENS を更新"}</Button>
         </div>
       </Card>
     </div>

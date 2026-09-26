@@ -104,8 +104,12 @@ def _resolve(p: dict) -> tuple[str, dict]:
     return tx, {"chain_status": "resolved"}
 
 
+def _ens_subagents(p: dict) -> tuple[str, dict]:
+    return ens.sync_subagents(label=p["label"], subagents=p["subagents"]), {}
+
+
 def _ens_publish(p: dict) -> tuple[str, dict]:
-    name, tx = ens.publish_agent(label=p["label"], payout_address=p["payout_address"], texts=p["texts"])
+    name, tx = ens.publish_agent(label=p["label"], payout_address=p["payout_address"], texts=p["texts"], subagents=p.get("subagents"))
     sub = None
     if get_settings().ens_write_enabled:
         try:
@@ -129,7 +133,7 @@ def _ens_project(p: dict) -> tuple[str, dict]:
 
 
 HANDLERS = {"fund_task": _fund_task, "submit": _submit, "approve": _approve, "dispute": _dispute, "resolve": _resolve,
-            "ens_publish": _ens_publish, "ens_update": _ens_update, "ens_project": _ens_project}
+            "ens_publish": _ens_publish, "ens_update": _ens_update, "ens_project": _ens_project, "ens_subagents": _ens_subagents}
 
 
 # ------------------------------------------------------------------ projection

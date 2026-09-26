@@ -45,13 +45,15 @@ export type Me = User & { human_verified_actions: string[]; is_ops?: boolean };
 export type Agent = {
   id: string; creator_id: string; name: string; label: string; description: string; category: string; rules: string;
   fee_bps: number; payout_address: string; ens_name: string | null; ens_tx_hash: string | null; parent_ens_name: string | null; owner_mode: "platform" | "creator"; ens_subregistry: string | null; status: string;
-  rating_avg: number; rating_count: number; completed_count: number; ens_error: string | null; subagent_rules: Record<string, string>; created_at: string; creator: User;
+  rating_avg: number; rating_count: number; completed_count: number; ens_error: string | null; subagents: Subagent[]; created_at: string; creator: User;
 };
-export const SUBAGENT_ROLES: { role: string; label: string; hint: string }[] = [
-  { role: "designer", label: "designer（デザイン）", hint: "画面構成・トーン・成果物の形式（例: ワイヤーフレームを Markdown の表で）" },
-  { role: "frontend", label: "frontend（フロントエンド）", hint: "技術スタック・コーディング規約・出力するもの（例: Next.js、コンポーネント一覧と主要コード）" },
-  { role: "backend", label: "backend（バックエンド）", hint: "API 設計の方針・DB・認証（例: FastAPI、エンドポイント表と型）" },
-  { role: "qa", label: "qa（品質確認）", hint: "テスト観点・受け入れ基準の書き方（例: 受け入れ条件ごとに手順と期待値）" },
+export type Subagent = { role: string; name: string; description: string; rules: string };
+/** 既定の専門エージェント（API の DEFAULT_SUBAGENTS と同じ）。所有者が追加・削除・編集できる */
+export const DEFAULT_SUBAGENTS: Subagent[] = [
+  { role: "designer", name: "Designer Agent", description: "画面構成・ワイヤーフレーム・デザイン方針", rules: "" },
+  { role: "frontend", name: "Frontend Agent", description: "画面の実装方針とコンポーネント設計", rules: "" },
+  { role: "backend", name: "Backend Agent", description: "API 設計とデータモデル", rules: "" },
+  { role: "qa", name: "QA Agent", description: "受け入れテストの観点と結果", rules: "" },
 ];
 export type EnsRole = { role: string; account?: string | null; where?: string; can?: string; cannot?: string; subregistry?: string | null; verified?: boolean; checks?: Record<string, boolean | null>; error?: string };
 export type TeamCandidate = { ens_name: string; kind: "ai" | "human"; name: string; role: string; skills: string; location: string; available: boolean; company: string | null; chosen: boolean; declined: boolean; records: Record<string, string> };

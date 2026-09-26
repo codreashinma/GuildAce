@@ -243,8 +243,8 @@ def names(db: Session = Depends(get_db)):
                      "link": f"/agents/{a.id}", "subregistry": a.ens_subregistry, "note": "Creator のウォレットが発行（名前空間の root = Creator）" if a.owner_mode == "creator" else None})
         if not mock and (a.owner_mode == "platform" or a.ens_subregistry):
             rows.append({"name": ens.reputation_name_of(a.ens_name), "kind": "reputation", "owner_mode": a.owner_mode, "tx_hash": a.ens_tx_hash, "created_at": a.created_at, "mock": False, "link": f"/agents/{a.id}", "note": "Reputation 鍵が所有・更新"})
-            for role in ens.SUBAGENT_ROLES:
-                rows.append({"name": f"{role}.{a.ens_name}", "kind": "subagent", "owner_mode": a.owner_mode, "tx_hash": a.ens_tx_hash, "created_at": a.created_at, "mock": False, "link": f"/agents/{a.id}"})
+            for sub in (a.subagents if a.subagents is not None else ens.DEFAULT_SUBAGENTS):
+                rows.append({"name": f"{sub['role']}.{a.ens_name}", "kind": "subagent", "owner_mode": a.owner_mode, "tx_hash": a.ens_tx_hash, "created_at": a.created_at, "mock": False, "link": f"/agents/{a.id}", "note": sub.get("name")})
     for c in db.query(Case).filter(Case.project_ens_name.isnot(None)).order_by(Case.created_at).all():
         rows.append({"name": c.project_ens_name, "kind": "project", "owner_mode": "platform", "tx_hash": c.project_ens_tx_hash, "created_at": c.created_at,
                      "mock": not c.project_ens_tx_hash or c.project_ens_tx_hash.startswith("0xmock"), "link": f"/cases/{c.id}", "note": "Project 鍵が発行・更新"})

@@ -26,27 +26,38 @@ class AuthVerifyIn(BaseModel):
     signature: str
 
 
-SUBAGENT_ROLES = ("designer", "frontend", "backend", "qa")
+RESERVED_SUBAGENT_ROLES = {"pm", "field", "human", "worker", "reputation", "project", "www", "eth"}
 
 
-def _clean_subagent_rules(v):
-    """{role: prompt}。role は 4 つの専門エージェントだけ。空文字のキーは落とす"""
+class SubagentIn(BaseModel):
+    """専門 AI エージェント 1 件。role は ENS の subname（<role>.<agent>）になる"""
+    role: str = Field(pattern=r"^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$")
+    name: str = Field(min_length=1, max_length=60)
+    description: str = Field(default="", max_length=200)
+    rules: str = Field(default="", max_length=4000)
+
+    @field_validator("role")
+    @classmethod
+    def _v_role(cls, v):
+        if v in RESERVED_SUBAGENT_ROLES or v.startswith("project-"):
+            raise ValueError(f"役割 '{v}' は予約語なので使えません")
+        return v
+
+
+def _clean_subagents(v):
     if v is None:
         return None
-    if not isinstance(v, dict):
-        raise ValueError("subagent_rules は {role: prompt} の形式です")
-    bad = [k for k in v if k not in SUBAGENT_ROLES]
-    if bad:
-        raise ValueError(f"未知の専門エージェント: {', '.join(bad)}（使えるのは {', '.join(SUBAGENT_ROLES)}）")
-    out = {}
-    for k, t in v.items():
-        if t is None:
-            continue
-        if not isinstance(t, str) or len(t) > 4000:
-            raise ValueError(f"{k} のプロンプトは 4000 文字以内の文字列にしてください")
-        if t.strip():
-            out[k] = t.strip()
-    return out
+    if not isinstance(v, list):
+        raise ValueError("subagents は [{role, name, description, rules}] の配列です")
+    if len(v) > 12:
+        raise ValueError("専門エージェントは 12 件までです")
+    seen = set()
+    for x in v:
+        r = (x.get("role") if isinstance(x, dict) else getattr(x, "role", None)) or ""
+        if r in seen:
+            raise ValueError(f"役割 '{r}' が重複しています")
+        seen.add(r)
+    return v
 
 
 class AgentCreateIn(BaseModel):
@@ -59,12 +70,12 @@ class AgentCreateIn(BaseModel):
     payout_address: str | None = None
     avatar: str | None = None
     parent_ens_name: str | None = Field(default=None, pattern=r"^[a-z0-9-]+\.eth$", description="Creator が所有する .eth。空ならプラットフォームの親名")
-    subagent_rules: dict[str, str] | None = Field(default=None, description="専門 AI エージェント（designer / frontend / backend / qa）ごとの追加プロンプト")
+    subagents: list[SubagentIn] | None = Field(default=None, description="専門 AI エージェントの一覧。省略すると既定の 4 つ（designer / frontend / backend / qa）")
 
-    @field_validator("subagent_rules", mode="before")
+    @field_validator("subagents", mode="before")
     @classmethod
     def _v_sub(cls, v):
-        return _clean_subagent_rules(v)
+        return _clean_subagents(v)
 
 
 class AgentUpdateIn(BaseModel):
@@ -75,12 +86,12 @@ class AgentUpdateIn(BaseModel):
     rules: str | None = None
     fee_bps: int | None = Field(default=None, ge=0, le=5000)
     avatar: str | None = None
-    subagent_rules: dict[str, str] | None = None  # 渡した内容で丸ごと置き換える（{} で全消し）
+    subagents: list[SubagentIn] | None = None  # 渡した一覧で丸ごと置き換える（[] で全消し）
 
-    @field_validator("subagent_rules", mode="before")
+    @field_validator("subagents", mode="before")
     @classmethod
     def _v_sub(cls, v):
-        return _clean_subagent_rules(v)
+        return _clean_subagents(v)
 
 
 class AgentOut(ORM):
@@ -103,14 +114,18 @@ class AgentOut(ORM):
     rating_count: int
     completed_count: int
     ens_error: str | None = None
-    subagent_rules: dict[str, str] = {}
+    subagents: list[dict[str, str]] = []  # None（未設定）は既定の 4 つに展開して返す
     created_at: datetime
     creator: UserOut
 
-    @field_validator("subagent_rules", mode="before")
+    @field_validator("subagents", mode="before")
     @classmethod
-    def _none_to_empty(cls, v):
-        return v or {}
+    def _default_subagents(cls, v):
+        if v is None:
+            from .services.ens import DEFAULT_SUBAGENTS
+
+            return [dict(x) for x in DEFAULT_SUBAGENTS]
+        return v
 
 
 class EarningRowOut(BaseModel):

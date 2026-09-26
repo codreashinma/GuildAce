@@ -96,10 +96,12 @@ def _plan_job(case_id: str) -> None:
     try:
         case = _load(db, case_id)
         try:
+            from .agents import agent_subagents
+
             plan = gemini.plan_case(
                 agent_name=case.agent.name, agent_rules=case.agent.rules, fee_bps=case.agent.fee_bps,
                 title=case.title, description=case.description, budget_usdc=int(case.budget) // USDC, deadline=case.deadline,
-                subagent_rules=case.agent.subagent_rules or None,
+                subagents=agent_subagents(case.agent),
             )
         except Exception as e:  # noqa: BLE001
             log.exception("planning failed")
@@ -109,7 +111,8 @@ def _plan_job(case_id: str) -> None:
         case.plan_json = plan.model_dump()
         total = 0
         for i, t in enumerate(plan.tasks):
-            member = next((m.name for m in plan.team if m.role == t.role), None) or (f"{t.role.title()} Agent" if t.type == "ai" else "Human Task Worker")
+            sub = next((x for x in agent_subagents(case.agent) if x["role"] == t.role), None)
+            member = (sub["name"] if sub else None) or next((m.name for m in plan.team if m.role == t.role), None) or (f"{t.role.title()} Agent" if t.type == "ai" else "Human Task Worker")
             task = Task(case_id=case.id, order_no=i, title=t.title, description=t.description, type=t.type, role=t.role,
                         estimated_cost=t.estimated_cost * USDC, assignee_name=member)
             db.add(task)
@@ -149,6 +152,8 @@ def _execute_job(case_id: str) -> None:
                 db.commit()
                 db.refresh(ht)
                 assign.assign(db, ht)  # PM Agent が ENS 上の人員から指名（FR-004/FR-020）
+        from .agents import agent_subagents
+
         for t in case.tasks:
             if t.type != "ai" or t.status == "done":
                 continue
@@ -161,7 +166,8 @@ def _execute_job(case_id: str) -> None:
                     t.deliverable = gemini.execute_ai_task(
                         agent_name=case.agent.name, agent_rules=case.agent.rules, case_title=case.title, case_description=case.description,
                         task_title=t.title, task_description=t.description, role=t.role,
-                        role_rules=(case.agent.subagent_rules or {}).get(t.role, ""),
+                        role_rules=next((x.get("rules", "") for x in agent_subagents(case.agent) if x["role"] == t.role), ""),
+                        role_name=next((x.get("name", "") for x in agent_subagents(case.agent) if x["role"] == t.role), ""),
                     )
             except Exception as e:  # noqa: BLE001
                 log.exception("task execution failed")
@@ -277,15 +283,16 @@ def team(case_id: str, db: Session = Depends(get_db)):
 
     case = _load(db, case_id)
     agent_name = case.agent.ens_name or ens.agent_ens_name(case.agent.label)
-    from .agents import agent_on_ens
+    from .agents import agent_on_ens, agent_subagents
 
     real = agent_on_ens(case.agent)
+    sub_roles = {x["role"] for x in agent_subagents(case.agent)}
     members = db.query(Member).all()
     out = []
     for t in case.tasks:
         if t.type == "ai":
-            name = f"{t.role}.{agent_name}" if t.role in ens.SUBAGENT_ROLES else agent_name
-            recs = ens.read_texts(name, ens.SUBAGENT_KEYS if t.role in ens.SUBAGENT_ROLES else ["description", "codrea.agent.category"]) if real else {}
+            name = f"{t.role}.{agent_name}" if t.role in sub_roles else agent_name
+            recs = ens.read_texts(name, ens.SUBAGENT_KEYS if t.role in sub_roles else ["description", "codrea.agent.category"]) if real else {}
             out.append(TeamTaskOut(task_id=t.id, title=t.title, kind="ai", role=t.role, amount=int(t.estimated_cost), assignee_ens=name, assignee_name=t.assignee_name, assignee_records=recs))
             continue
         ht = t.human_task

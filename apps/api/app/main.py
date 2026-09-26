@@ -40,11 +40,23 @@ def _migrate() -> None:
         if "uq_agents_label_parent" not in idx:
             conn.execute(text("create unique index uq_agents_label_parent on agents (label, coalesce(parent_ens_name, ''))"))
             logging.getLogger("choice").info("migrate: uq_agents_label_parent を作成")
-        # 2026-09-26: 専門 AI エージェントごとのプロンプト（agents.subagent_rules）
+        # 2026-09-26: 専門 AI エージェントの一覧（agents.subagents）。旧 subagent_rules（{role: prompt}）があれば既定の 4 つに乗せて移す
         cols = {r[0] for r in conn.execute(text("select column_name from information_schema.columns where table_name = 'agents'"))}
-        if "subagent_rules" not in cols:
-            conn.execute(text("alter table agents add column subagent_rules json"))
-            logging.getLogger("choice").info("migrate: agents.subagent_rules を追加")
+        if "subagents" not in cols:
+            conn.execute(text("alter table agents add column subagents json"))
+            logging.getLogger("choice").info("migrate: agents.subagents を追加")
+        if "subagent_rules" in cols:
+            import json
+
+            from .services.ens import DEFAULT_SUBAGENTS
+
+            rows = conn.execute(text("select id, subagent_rules from agents where subagent_rules is not null and subagents is null")).all()
+            for aid, rules in rows:
+                rules = rules if isinstance(rules, dict) else json.loads(rules or "{}")
+                subs = [{**d, "rules": rules.get(d["role"], "")} for d in DEFAULT_SUBAGENTS]
+                conn.execute(text("update agents set subagents = :v where id = :id"), {"v": json.dumps(subs, ensure_ascii=False), "id": aid})
+            conn.execute(text("alter table agents drop column subagent_rules"))
+            logging.getLogger("choice").info("migrate: agents.subagent_rules を subagents に移して削除（%d 件）", len(rows))
 
 
 app = FastAPI(title="Choice — AI Agent Marketplace API", lifespan=lifespan)

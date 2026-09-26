@@ -1,3 +1,4 @@
+import hashlib
 import logging
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException  # noqa: F401
@@ -33,6 +34,11 @@ def profile_texts(agent: Agent, avatar: str | None = None) -> dict[str, str]:
     if agent.owner_mode == "creator":
         t["codrea.agent.creator"] = agent.parent_ens_name or agent.creator.wallet_address
     return t
+
+
+def agent_subagents(agent: Agent) -> list[dict]:
+    """所有者が定義した専門エージェントの一覧。未設定（None）は既定の 4 つ"""
+    return [dict(x) for x in (agent.subagents if agent.subagents is not None else ens.DEFAULT_SUBAGENTS)]
 
 
 def agent_on_ens(agent: Agent) -> bool:
@@ -90,7 +96,7 @@ def create_agent(body: AgentCreateIn, user: User = Depends(current_user), db: Se
     agent = Agent(
         creator_id=user.id, name=body.name, label=body.label, description=body.description, category=body.category,
         rules=body.rules, fee_bps=body.fee_bps, payout_address=(body.payout_address or user.wallet_address).lower(), status="draft",
-        parent_ens_name=parent, owner_mode=mode, subagent_rules=body.subagent_rules or None,
+        parent_ens_name=parent, owner_mode=mode, subagents=[x.model_dump() for x in body.subagents] if body.subagents is not None else None,
     )
     db.add(agent)
     db.commit()
@@ -116,7 +122,7 @@ def publish_agent(agent_id: str, bg: BackgroundTasks, subagents: bool = True, us
             db.refresh(agent)
             return {"mode": "creator", "mock": True, "txs": [], "agent": AgentOut.model_validate(agent)}
         try:
-            ns = ens.agent_namespace_calldata(name=name, owner=user.wallet_address, payout_address=agent.payout_address, texts=profile_texts(agent), subagents=subagents)
+            ns = ens.agent_namespace_calldata(name=name, owner=user.wallet_address, payout_address=agent.payout_address, texts=profile_texts(agent), subagents=agent_subagents(agent) if subagents else [])
         except Exception as e:  # noqa: BLE001
             raise HTTPException(400, str(e)) from e
         agent.status = "publishing"
@@ -128,7 +134,8 @@ def publish_agent(agent_id: str, bg: BackgroundTasks, subagents: bool = True, us
     agent.ens_error = None
     db.commit()
     db.refresh(agent)
-    worker.enqueue(db, "ens_publish", f"ens_publish:{agent.id}:{agent.status}", {"agent_id": agent.id, "label": agent.label, "payout_address": agent.payout_address, "texts": profile_texts(agent)})
+    worker.enqueue(db, "ens_publish", f"ens_publish:{agent.id}:{agent.status}", {"agent_id": agent.id, "label": agent.label, "payout_address": agent.payout_address, "texts": profile_texts(agent),
+                                                                                  "subagents": agent_subagents(agent)})
     return {"mode": "platform", "agent": AgentOut.model_validate(agent)}
 
 
@@ -176,14 +183,39 @@ def update_agent(agent_id: str, body: AgentUpdateIn, user: User = Depends(curren
     if agent.creator_id != user.id:
         raise HTTPException(403, "作成者のみ編集できます")
     before = profile_texts(agent)
+    before_subs = {x["role"]: x for x in agent_subagents(agent)}
     changes = body.model_dump(exclude_none=True)
     avatar = changes.pop("avatar", None)
+    new_subs = changes.pop("subagents", None)
     for k, v in changes.items():
         setattr(agent, k, v)
+    if new_subs is not None:
+        agent.subagents = new_subs
     db.flush()
     after = profile_texts(agent, avatar=avatar)
     diff = {k: v for k, v in after.items() if before.get(k) != v}
     out: dict = {"mode": agent.owner_mode, "changed_keys": sorted(diff)}
+    # 専門エージェントの追加・変更（rules 以外）は ENS の subname / record に反映する。削除は ENS には触らない（record はそのまま残る）
+    sub_changed = []
+    if new_subs is not None:
+        for x in new_subs:
+            b = before_subs.get(x["role"])
+            if b is None or any(b.get(k, "") != x.get(k, "") for k in ("name", "description")):
+                sub_changed.append(x)
+        out["changed_subagents"] = [x["role"] for x in sub_changed]
+        out["removed_subagents"] = sorted(set(before_subs) - {x["role"] for x in new_subs})
+    if sub_changed and agent.status == "published" and agent_on_ens(agent):
+        if agent.owner_mode == "platform":
+            key = "ens_subagents:" + agent.id + ":" + hashlib.sha256(repr(sorted((x["role"], x.get("name", ""), x.get("description", "")) for x in sub_changed)).encode()).hexdigest()[:16]
+            worker.enqueue(db, "ens_subagents", key[:200], {"agent_id": agent.id, "label": agent.label, "subagents": sub_changed})
+            out["ens_subagents"] = "queued"
+        elif get_settings().sepolia_rpc_url:
+            try:
+                out["subagent_txs"] = ens.subagents_calldata(name=f"{agent.label}.{agent.parent_ens_name}", owner=user.wallet_address, subagents=sub_changed)
+                out["ens_subagents"] = "sign"
+            except Exception as e:  # noqa: BLE001
+                db.rollback()
+                raise HTTPException(400, str(e)) from e
     if agent.status == "published" and diff:
         if agent.owner_mode == "platform":
             if agent.ens_tx_hash and not agent.ens_tx_hash.startswith("0xmock"):
@@ -222,7 +254,7 @@ def get_agent(agent_id: str, db: Session = Depends(get_db)):
     out = AgentDetailOut.model_validate(agent)
     if agent.ens_name and agent_on_ens(agent):
         out.ens_reputation_name = ens.reputation_name_of(agent.ens_name)
-        subs = [f"{r}.{agent.ens_name}" for r in ens.SUBAGENT_ROLES]
+        subs = [f"{x['role']}.{agent.ens_name}" for x in agent_subagents(agent)]
         got = ens.read_texts_many([(agent.ens_name, ens.PROFILE_KEYS), (out.ens_reputation_name, ens.REPUTATION_KEYS), *[(n, ens.SUBAGENT_KEYS) for n in subs]])
         out.ens_records = got[agent.ens_name]
         out.ens_reputation_records = got[out.ens_reputation_name]

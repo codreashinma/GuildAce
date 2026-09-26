@@ -20,7 +20,7 @@ class PlannedTask(BaseModel):
     title: str
     description: str
     type: Literal["ai", "human"]
-    role: Literal["designer", "frontend", "backend", "qa", "field", "pm"]
+    role: str = Field(description="type=ai なら専門エージェントの role のいずれか、type=human なら field")
     estimated_cost: int = Field(description="USDC 単位（整数）")
 
 
@@ -89,45 +89,54 @@ def _generate_text(system: str, prompt: str) -> str:
 # ---------------------------------------------------------------- planning
 
 
-def _mock_plan(title: str, budget_usdc: int, fee_bps: int) -> Plan:
+_MOCK_TASK_TEXT = {
+    "designer": ("画面デザイン", "主要画面のワイヤーフレームとデザイン方針"),
+    "frontend": ("フロントエンド実装", "Next.js での画面実装方針とコンポーネント設計"),
+    "backend": ("バックエンド実装", "API 設計とデータモデル"),
+    "qa": ("受け入れテスト", "完成条件に対するテスト観点と結果"),
+}
+
+
+def _mock_plan(title: str, budget_usdc: int, fee_bps: int, subagents: list[dict] | None = None) -> Plan:
+    """決定的なモック計画。所有者が定義した専門エージェント（最大 4 件）に AI タスクを 1 つずつ割り当て、Human Task を 1 つ入れる"""
+    from .ens import DEFAULT_SUBAGENTS
+
+    subs = (subagents if subagents else DEFAULT_SUBAGENTS)[:4]
     usable = budget_usdc * (10_000 - fee_bps) // 10_000
-    design = usable * 20 // 100
-    front = usable * 30 // 100
-    back = usable * 30 // 100
     field = usable * 10 // 100
-    qa = usable - design - front - back - field
-    return Plan(
-        summary=f"「{title}」をデザイン→フロント→バックエンド→現地確認→QA の 5 タスクに分解しました。",
-        tasks=[
-            PlannedTask(title="画面デザイン", description="主要画面のワイヤーフレームとデザイン方針", type="ai", role="designer", estimated_cost=design),
-            PlannedTask(title="フロントエンド実装", description="Next.js での画面実装方針とコンポーネント設計", type="ai", role="frontend", estimated_cost=front),
-            PlannedTask(title="バックエンド実装", description="API 設計とデータモデル", type="ai", role="backend", estimated_cost=back),
-            PlannedTask(title="現地の写真撮影", description="サービスで使う実店舗の外観写真を 3 枚撮影して URL を提出", type="human", role="field", estimated_cost=field),
-            PlannedTask(title="受け入れテスト", description="完成条件に対するテスト観点と結果", type="ai", role="qa", estimated_cost=qa),
-        ],
-        team=[
-            TeamMember(name="Designer Agent", role="designer", kind="ai"),
-            TeamMember(name="Frontend Agent", role="frontend", kind="ai"),
-            TeamMember(name="Backend Agent", role="backend", kind="ai"),
-            TeamMember(name="Human Task Worker", role="field", kind="human"),
-            TeamMember(name="QA Agent", role="qa", kind="ai"),
-        ],
-    )
+    rest = usable - field
+    n = len(subs)
+    tasks, team = [], []
+    for i, sub in enumerate(subs):
+        cost = rest // n if i < n - 1 else rest - (rest // n) * (n - 1)
+        t_title, t_desc = _MOCK_TASK_TEXT.get(sub["role"], (f"{sub.get('name') or sub['role']} の作業", sub.get("description") or f"{sub['role']} としての成果物"))
+        tasks.append(PlannedTask(title=t_title, description=t_desc, type="ai", role=sub["role"], estimated_cost=cost))
+        team.append(TeamMember(name=sub.get("name") or f"{sub['role']} Agent", role=sub["role"], kind="ai"))
+    # Human Task は QA の前（既定の並び）に入れる
+    pos = max(len(tasks) - 1, 0)
+    tasks.insert(pos, PlannedTask(title="現地の写真撮影", description="サービスで使う実店舗の外観写真を 3 枚撮影して URL を提出", type="human", role="field", estimated_cost=field))
+    team.insert(pos, TeamMember(name="Human Task Worker", role="field", kind="human"))
+    return Plan(summary=f"「{title}」を {'→'.join(t.title for t in tasks)} の {len(tasks)} タスクに分解しました。", tasks=tasks, team=team)
 
 
 def plan_case(*, agent_name: str, agent_rules: str, fee_bps: int, title: str, description: str, budget_usdc: int, deadline: str | None,
-              subagent_rules: dict[str, str] | None = None) -> Plan:
+              subagents: list[dict] | None = None) -> Plan:
+    """案件をタスクに分解する。type=ai のタスクの role は、所有者が定義した専門エージェント（subagents）の role に限る"""
     s = get_settings()
     if not s.gemini_enabled:
-        return _mock_plan(title, budget_usdc, fee_bps)
+        return _mock_plan(title, budget_usdc, fee_bps, subagents)
+    subs = subagents or []
+    roles = [x["role"] for x in subs]
 
     usable = budget_usdc * (10_000 - fee_bps) // 10_000
     system = (
         f"あなたは PM Agent「{agent_name}」です。以下は作成者が定めた進め方・ルールです。\n{agent_rules}\n\n"
         "あなたの役割は案件をタスクに分解し、AI 専門エージェントと人間のチームを編成することです。"
         "資金の支払い判断はしません。"
-        + ("\n\nチームの専門エージェントごとの方針（所有者が設定。担当の割り当てと説明の参考にする）:\n"
-           + "\n".join(f"- {r}: {t}" for r, t in subagent_rules.items()) if subagent_rules else "")
+        + ("\n\nチームで使える AI 専門エージェント（type=ai のタスクの role はこの中から選ぶ。team[] の name はこの名前を使う）:\n"
+           + "\n".join(f"- role={x['role']}: {x.get('name') or x['role']}" + (f" — {x['description']}" if x.get("description") else "") + (f"（方針: {x['rules'][:200]}）" if x.get("rules") else "") for x in subs)
+           if subs else "\n\n（AI 専門エージェントは定義されていません。type=ai のタスクは role=general としてください）")
+        + "\n人間に任せるタスクは type=human, role=field です。"
     )
     prompt = (
         f"案件: {title}\n説明: {description}\n納期: {deadline or '未指定'}\n"
@@ -139,6 +148,13 @@ def plan_case(*, agent_name: str, agent_rules: str, fee_bps: int, title: str, de
     for attempt in range(3):
         plan = _generate(system, prompt, Plan)
         assert isinstance(plan, Plan)
+        # role の正規化: ai は定義済みの role だけ、human は field
+        for t in plan.tasks:
+            if t.type == "human":
+                t.role = "field"
+            elif roles and t.role not in roles:
+                log.warning("plan: unknown ai role %r → %r", t.role, roles[0])
+                t.role = roles[0]
         total = sum(t.estimated_cost for t in plan.tasks)
         if total <= usable and plan.tasks:
             return plan
@@ -151,8 +167,8 @@ def plan_case(*, agent_name: str, agent_rules: str, fee_bps: int, title: str, de
 
 
 def execute_ai_task(*, agent_name: str, agent_rules: str, case_title: str, case_description: str, task_title: str, task_description: str, role: str,
-                    role_rules: str = "") -> str:
-    """AI 工程の成果物を生成する。role_rules は PM Agent の所有者が設定した、その専門エージェント（role）向けの追加プロンプト"""
+                    role_rules: str = "", role_name: str = "") -> str:
+    """AI 工程の成果物を生成する。role_rules / role_name は PM Agent の所有者が定義した、その専門エージェント（role）のプロンプトと名前"""
     s = get_settings()
     if not s.gemini_enabled:
         h = hashlib.sha256(f"{case_title}:{task_title}".encode()).hexdigest()[:8]
@@ -164,7 +180,7 @@ def execute_ai_task(*, agent_name: str, agent_rules: str, case_title: str, case_
             f"## メモ\n生成 ID: {h}\n"
         )
     system = (
-        f"あなたは PM Agent「{agent_name}」のチームに所属する {role} 専門の AI エージェントです。\n"
+        f"あなたは PM Agent「{agent_name}」のチームに所属する {role} 専門の AI エージェント「{role_name or role}」です。\n"
         f"PM の進め方・ルール:\n{agent_rules}\n"
         + (f"\n{role} 専門エージェントとしての方針（PM Agent の所有者が設定）:\n{role_rules}\n" if role_rules else "")
         + "成果物は Markdown で、具体的で発注者がそのまま検収できる粒度で書いてください。"

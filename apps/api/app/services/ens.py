@@ -55,8 +55,21 @@ UNIVERSAL_RESOLVER_ABI = [
 REPUTATION_KEYS = ["codrea.agent.rating", "codrea.agent.reviews", "codrea.agent.completed"]
 PROJECT_KEYS = ["codrea.project.title", "codrea.project.case", "codrea.project.escrow", "codrea.project.escrow_case_id", "codrea.project.client", "codrea.project.status", "codrea.project.url"]
 PROFILE_KEYS = ["description", "avatar", "url", "codrea.agent.category", "codrea.agent.fee_bps", "codrea.agent.creator", "codrea.agent.endpoint", *REPUTATION_KEYS]
-SUBAGENT_ROLES = ["designer", "frontend", "backend", "qa"]  # PM Agent 配下の専門 AI エージェント（Agent 名前空間の subname）
-SUBAGENT_KEYS = ["description", "codrea.agent.role", "codrea.agent.parent", "codrea.agent.kind"]
+# PM Agent 配下の専門 AI エージェント（Agent 名前空間の subname）。既定の 4 つは初期値で、所有者が追加・削除・編集できる（agents.subagents）
+DEFAULT_SUBAGENTS = [
+    {"role": "designer", "name": "Designer Agent", "description": "画面構成・ワイヤーフレーム・デザイン方針", "rules": ""},
+    {"role": "frontend", "name": "Frontend Agent", "description": "画面の実装方針とコンポーネント設計", "rules": ""},
+    {"role": "backend", "name": "Backend Agent", "description": "API 設計とデータモデル", "rules": ""},
+    {"role": "qa", "name": "QA Agent", "description": "受け入れテストの観点と結果", "rules": ""},
+]
+SUBAGENT_ROLES = [x["role"] for x in DEFAULT_SUBAGENTS]  # 互換用（既定の役割）
+SUBAGENT_KEYS = ["description", "codrea.agent.name", "codrea.agent.role", "codrea.agent.parent", "codrea.agent.kind"]
+
+
+def subagent_texts(sub: dict, parent_name: str) -> dict[str, str]:
+    """専門エージェント 1 件の text record。プロンプト（rules）は ENS に書かない"""
+    return {"description": (sub.get("description") or sub.get("name") or sub["role"])[:200], "codrea.agent.name": (sub.get("name") or sub["role"])[:60],
+            "codrea.agent.role": sub["role"], "codrea.agent.parent": parent_name, "codrea.agent.kind": "ai"}
 PERSON_KEYS = ["codrea.person.company", "codrea.person.name", "codrea.person.role", "codrea.person.skills", "codrea.person.location", "codrea.person.available"]
 
 # EAC（EnhancedAccessControl）: PermissionedResolver / PermissionedRegistry 共通
@@ -291,7 +304,7 @@ def _records_calldata(w3: Web3, node: bytes, texts: dict[str, str], addr: str | 
     return data
 
 
-def publish_agent(*, label: str, payout_address: str, texts: dict[str, str]) -> tuple[str, str]:
+def publish_agent(*, label: str, payout_address: str, texts: dict[str, str], subagents: list[dict] | None = None) -> tuple[str, str]:
     """subname を発行してプロフィールを書き、Agent 用のサブレジストリを用意する。(ens_name, tx_hash) を返す。"""
     s = get_settings()
     name = agent_ens_name(label)
@@ -317,15 +330,7 @@ def publish_agent(*, label: str, payout_address: str, texts: dict[str, str]) -> 
     if project.lower() != acct.address.lower() and not sub_eac.functions.hasRootRoles(REGISTRY_ROLE_REGISTRAR, project).call():
         _send(w3, sub_eac.functions.grantRootRoles(REGISTRY_ROLE_REGISTRAR, project))
     # 専門 AI エージェントを Agent 名前空間の subname として発行（designer.<agent> など）。候補検索は ENS を参照する（FR-004）
-    calls: list[bytes] = []
-    for role in SUBAGENT_ROLES:
-        if int(sub_reg.functions.getResolver(role).call(), 16) == 0:
-            _send(w3, sub_reg.functions.register(role, acct.address, "0x" + "00" * 20, Web3.to_checksum_address(s.ens_owned_resolver), V2_DEFAULT_OWNER_ROLE_BITMAP, expiry))
-            calls += _records_calldata(w3, namehash(f"{role}.{name}"), {
-                "description": f"{texts.get('description', '')[:60]} の {role} 担当 AI エージェント", "codrea.agent.role": role, "codrea.agent.parent": name, "codrea.agent.kind": "ai",
-            }, None)
-    if calls:
-        _send(w3, _resolver(w3).functions.multicall(calls))
+    _sync_subagents_onchain(w3, acct, sub_reg, name, DEFAULT_SUBAGENTS if subagents is None else subagents, expiry)
     # Reputation は別 subname + 別リゾルバ（Reputation 鍵が admin）。所有者もリゾルバも Owner から分離される
     rep = _account("reputation").address
     if rep.lower() != acct.address.lower() and s.ens_reputation_resolver:
@@ -336,6 +341,61 @@ def publish_agent(*, label: str, payout_address: str, texts: dict[str, str]) -> 
             rr = _role_resolver(w3, "reputation")
             _send(w3, rr.functions.multicall(_records_calldata(w3, namehash(reputation_name(label)), rep_texts, None, rr)), role="reputation")
     return name, tx
+
+
+def _sync_subagents_onchain(w3: Web3, acct, sub_reg, name: str, subagents: list[dict], expiry: int) -> str | None:
+    """（platform）専門エージェントの subname を無いものだけ発行し、record は全件書き直す（名前・説明の変更を反映）。削除分は触らない"""
+    s = get_settings()
+    calls: list[bytes] = []
+    for sub in subagents:
+        role = sub["role"]
+        if int(sub_reg.functions.getResolver(role).call(), 16) == 0:
+            _send(w3, sub_reg.functions.register(role, acct.address, "0x" + "00" * 20, Web3.to_checksum_address(s.ens_owned_resolver), V2_DEFAULT_OWNER_ROLE_BITMAP, expiry))
+        calls += _records_calldata(w3, namehash(f"{role}.{name}"), subagent_texts(sub, name), None)
+    if not calls:
+        return None
+    return _send(w3, _resolver(w3).functions.multicall(calls))
+
+
+def sync_subagents(*, label: str, subagents: list[dict]) -> str:
+    """（platform）公開後に専門エージェントを追加・編集したときの ENS 反映。ワーカーの ens_subagents ジョブから呼ぶ。モック時は疑似 tx"""
+    s = get_settings()
+    name = agent_ens_name(label)
+    if not s.ens_write_enabled:
+        return "0xmock" + secrets.token_hex(29)
+    w3 = _w3()
+    acct = _account()
+    reg = _subregistry(w3)
+    sub = _ensure_subregistry(w3, reg, label, name)
+    sub_reg = w3.eth.contract(address=sub, abi=V2_REGISTRY_ABI)
+    tx = _sync_subagents_onchain(w3, acct, sub_reg, name, subagents, int(time.time()) + ONE_YEAR)
+    return tx or "0xmock" + secrets.token_hex(29)
+
+
+def subagents_calldata(*, name: str, owner: str, subagents: list[dict]) -> list[dict]:
+    """（creator）専門エージェントの追加・編集を Creator のウォレットで反映する calldata。無い subname の register と、全件の record multicall"""
+    w3 = _w3()
+    owner = Web3.to_checksum_address(owner)
+    label, parent_name = name.split(".", 1)
+    sub_reg = subregistry_of(w3, name)
+    if sub_reg is None:
+        raise RuntimeError(f"{name} にサブレジストリがありません（Agent の公開時に作られます）")
+    parent_resolver_addr, _, _ = resolve_v2(w3, parent_name)
+    if parent_resolver_addr is None:
+        raise RuntimeError(f"{parent_name} にリゾルバが設定されていません")
+    pres = w3.eth.contract(address=parent_resolver_addr, abi=RESOLVER_ABI)
+    expiry = int(time.time()) + ONE_YEAR
+    zero = "0x" + "00" * 20
+    txs: list[dict] = []
+    calls: list[bytes] = []
+    for sub in subagents:
+        role = sub["role"]
+        if int(sub_reg.functions.getResolver(role).call(), 16) == 0:
+            txs.append({"to": sub_reg.address, "data": sub_reg.encode_abi("register", args=[role, owner, zero, parent_resolver_addr, V2_DEFAULT_OWNER_ROLE_BITMAP, expiry]), "label": f"{role}.{name} を発行（専門 AI エージェント）"})
+        calls += _records_calldata(w3, namehash(f"{role}.{name}"), subagent_texts(sub, name), None, pres)
+    if calls:
+        txs.append({"to": parent_resolver_addr, "data": pres.encode_abi("multicall", args=[calls]), "label": "専門 AI エージェントの record を書き込み"})
+    return txs
 
 
 def _ensure_subregistry(w3: Web3, parent_registry, parent_label: str, parent_name: str) -> str:
@@ -760,7 +820,7 @@ def setup_calldata(*, name: str, owner: str) -> dict:
 # ---------------------------------------------------------------- Creator 所有の Agent（<label>.<creator>.eth）: Creator が署名する名前空間の構築
 
 
-def agent_namespace_calldata(*, name: str, owner: str, payout_address: str, texts: dict[str, str], subagents: bool = True) -> dict:
+def agent_namespace_calldata(*, name: str, owner: str, payout_address: str, texts: dict[str, str], subagents: list[dict] | bool = True) -> dict:
     """Creator 自身の .eth の下に PM Agent を「名前空間」として公開するための tx 群（すべて Creator のウォレットが署名）。
       1. register <label>（親のサブレジストリ。owner = Creator、resolver = 親のリゾルバ）
       2. multicall setAddr / setText（プロフィール。評価キーは reputation subname 側）
@@ -828,23 +888,23 @@ def agent_namespace_calldata(*, name: str, owner: str, payout_address: str, text
         if not (deployed and int(sub_reg.functions.getResolver("reputation").call(), 16)):
             txs.append({"to": sub_addr, "data": sub_reg.encode_abi("register", args=["reputation", rep, zero, Web3.to_checksum_address(s.ens_reputation_resolver), V2_DEFAULT_OWNER_ROLE_BITMAP, expiry]),
                         "label": f"reputation.{name} を発行（所有者 = Reputation 鍵、Reputation リゾルバ）"})
-    # 7. subagents
-    if subagents:
+    # 7. subagents（所有者が定義した一覧。True なら既定の 4 つ、False / [] なら発行しない）
+    subs = DEFAULT_SUBAGENTS if subagents is True else ([] if subagents is False else subagents)
+    if subs:
         calls: list[bytes] = []
-        for role in SUBAGENT_ROLES:
+        for sub in subs:
+            role = sub["role"]
             if deployed and int(sub_reg.functions.getResolver(role).call(), 16):
                 continue
             txs.append({"to": sub_addr, "data": sub_reg.encode_abi("register", args=[role, owner, zero, parent_resolver_addr, V2_DEFAULT_OWNER_ROLE_BITMAP, expiry]), "label": f"{role}.{name} を発行（専門 AI エージェント）"})
-            calls += _records_calldata(w3, namehash(f"{role}.{name}"), {
-                "description": f"{texts.get('description', '')[:60]} の {role} 担当 AI エージェント", "codrea.agent.role": role, "codrea.agent.parent": name, "codrea.agent.kind": "ai",
-            }, None, pres)
+            calls += _records_calldata(w3, namehash(f"{role}.{name}"), subagent_texts(sub, name), None, pres)
         if calls:
             txs.append({"to": parent_resolver_addr, "data": pres.encode_abi("multicall", args=[calls]), "label": "専門 AI エージェントの record を書き込み"})
     return {"name": name, "owner": owner, "subregistry": sub_addr, "reputation_name": reputation_name_of(name) if rep and s.ens_reputation_resolver else None,
             "project_key": project, "reputation_key": rep, "txs": txs}
 
 
-def verify_agent_namespace(*, name: str) -> dict:
+def verify_agent_namespace(*, name: str, roles: list[str] | None = None) -> dict:
     """Creator が tx を送った後の確認。サブレジストリ・Project 鍵の ROLE_REGISTRAR・reputation subname・専門 Agent をオンチェーンで読む。"""
     s = get_settings()
     w3 = _w3()
@@ -856,7 +916,7 @@ def verify_agent_namespace(*, name: str) -> dict:
     if s.server_private_key and s.ens_project_resolver:
         out["project_registrar"] = bool(eac.functions.hasRootRoles(REGISTRY_ROLE_REGISTRAR, _account("project").address).call())
     out["reputation"] = bool(int(reg.functions.getResolver("reputation").call(), 16))
-    out["subagents"] = [r for r in SUBAGENT_ROLES if int(reg.functions.getResolver(r).call(), 16)]
+    out["subagents"] = [r for r in (roles if roles is not None else SUBAGENT_ROLES) if int(reg.functions.getResolver(r).call(), 16)]
     return out
 
 

@@ -185,6 +185,7 @@ class CaseCreateIn(BaseModel):
     approvers: list[str] = Field(default_factory=list, description="承認者アドレス（空なら発注者本人）")
     threshold: int = Field(default=1, ge=1, le=10)
     idkit_response: dict[str, Any] | None = None  # FR-002 依頼開始時の World 検証
+    world_signal: str | None = Field(default=None, max_length=120, description="World 検証の signal（案件 ID は API が採番するため、依頼開始だけクライアントが発行した ID を使う）")
 
 
 

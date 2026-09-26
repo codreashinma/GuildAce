@@ -85,7 +85,7 @@ cd contracts && forge test
    ```
    出力された `ENS_OWNED_RESOLVER` / `ENS_PARENT_SUBREGISTRY` を `.env` に書き、`ENS_WRITE_ENABLED=true`。
    以降、Agent を公開すると `<label>.choice.eth` が発行され、text record（description / agent.category / agent.fee_bps / agent.rating / agent.completed …）が書かれる。
-4. **World ID**: [Developer Portal](https://developer.world.org) でアプリと RP を作り、action `review` / `jury` / `human-task` を作成。`WORLD_APP_ID` / `WORLD_RP_ID` / `WORLD_RP_SIGNING_KEY` を設定し `WORLD_VERIFY_ENABLED=true`。
+4. **World ID**: [Developer Portal](https://developer.world.org) でアプリを作り World ID 4.0 を有効化（`app_id` / `rp_id` / signing key が発行される）。`WORLD_APP_ID` / `WORLD_RP_ID` / `WORLD_RP_SIGNING_KEY` を設定し `WORLD_VERIFY_ENABLED=true`。Portal に action を作る必要はない（session proof 方式のため。下記「設計上の不変条件」3）。
 5. **Gemini**: `GEMINI_API_KEY` を設定（モデルは `GEMINI_MODEL`、既定 `gemini-2.5-flash`）。
 
 ## Agent の公開先（ENS）
@@ -157,6 +157,6 @@ Sepolia 実機の通しテスト: `cd apps/api && .venv/bin/python scripts/smoke
 
 1. AI は提案・生成のみを行い、資金を動かさない。オフチェーンから送金を指示する経路は無く、支払いはコントラクトが承認数で判定する
 2. 期限だけでは資金は動かない
-3. 依頼開始・承認・レビュー・Jury 投票・Human Task 受注の 5 行為は World ID の proof が必須。nullifier を `(action, signal)` ごとに UNIQUE 保存し、同じ人間の二重実行を拒否する
+3. 依頼開始・承認・レビュー・Jury 投票・Human Task 受注の 5 行為は World ID の proof が必須。World ID 4.0 の **session proof** を使い（uniqueness proof は 1 人 1 action 1 回で 2 件目が World App に拒否されるため）、初回の人間確認で `session_id` をアカウントに保存（1 World ID = 1 アカウント）、以降は同じセッションの proof を要求する。`(action, signal, session_id)` を UNIQUE 保存して同じ人間の二重実行を拒否し、proof ごとの `session_nullifier` を UNIQUE 保存してリプレイを拒否する
 4. ENS の名前は権限ではない（承認できるのは openCase で固定した承認者だけ）。Agent の subname はプラットフォームの親名の下、会社の人員は会社が所有する名前の下に発行する
 5. オンチェーンと ENS への書き込みはチェーン連携ワーカーだけが行う（冪等キー・再送・投影）

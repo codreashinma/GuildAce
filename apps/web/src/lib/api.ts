@@ -136,6 +136,8 @@ export type AppConfig = {
   mock: { chain: boolean; ens_write: boolean; ens_roles: boolean; world: boolean; gemini: boolean };
 };
 export type RpContext = { rp_id: string; nonce: string; created_at: number; expires_at: number; signature: string };
+/** GET /world/rp-context の応答。session_id が null なら IDKit は createSession、あれば proveSession(session_id) */
+export type WorldContext = { rp_context: RpContext; session_id: `session_${string}` | null };
 
 export const USDC = 1_000_000;
 export const usdc = (n: number | string) => (Number(n) / USDC).toLocaleString("en-US", { maximumFractionDigits: 2 });

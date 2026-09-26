@@ -34,7 +34,8 @@ def _migrate() -> None:
     """create_all では変わらない既存 DB の制約を、冪等に直す。
     2026-09-26: agents.label の単独 UNIQUE を (label, coalesce(parent_ens_name,'')) の UNIQUE に変更（Creator 所有の Agent と同じラベルを許す）
     2026-09-26: agents.policy（JSON、NULL 可）を追加（WP-009 / DEC-003）。既存の行は NULL のまま = 既定の policy
-    2026-09-26: agent_runs に 1 案件 1 実行の部分一意索引を追加（WP-017）"""
+    2026-09-26: agent_runs に 1 案件 1 実行の部分一意索引を追加（WP-017）
+    2026-09-26: World ID 4.0 session proof 方式（users.world_session_id / world_verifications.proof_nullifier）"""
     with engine.begin() as conn:
         idx = {r[0]: r[1] for r in conn.execute(text("select indexname, indexdef from pg_indexes where tablename = 'agents'"))}
         if "ix_agents_label" in idx and "UNIQUE" in idx["ix_agents_label"]:
@@ -65,6 +66,16 @@ def _migrate() -> None:
                 conn.execute(text("update agents set subagents = :v where id = :id"), {"v": json.dumps(subs, ensure_ascii=False), "id": aid})
             conn.execute(text("alter table agents drop column subagent_rules"))
             logging.getLogger("choice").info("migrate: agents.subagent_rules を subagents に移して削除（%d 件）", len(rows))
+        # 2026-09-26: World ID 4.0 session proof 方式へ移行。users.world_session_id と world_verifications.proof_nullifier を追加
+        conn.execute(text("alter table users add column if not exists world_session_id varchar(160)"))
+        conn.execute(text("create unique index if not exists uq_users_world_session_id on users (world_session_id)"))
+        conn.execute(text("alter table world_verifications alter column nullifier type varchar(160)"))
+        conn.execute(text("alter table cases alter column request_nullifier type varchar(160)"))
+        conn.execute(text("alter table approvals alter column nullifier type varchar(160)"))
+        conn.execute(text("alter table reviews alter column nullifier type varchar(160)"))
+        conn.execute(text("alter table jury_votes alter column nullifier type varchar(160)"))
+        conn.execute(text("alter table world_verifications add column if not exists proof_nullifier varchar(80)"))
+        conn.execute(text("create unique index if not exists uq_world_verifications_proof_nullifier on world_verifications (proof_nullifier)"))
 
 
 app = FastAPI(title="Choice — AI Agent Marketplace API", lifespan=lifespan)

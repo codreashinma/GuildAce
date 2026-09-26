@@ -1,0 +1,67 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage{lmodern}
+\usepackage{hyperref}
+
+\hypersetup{colorlinks=true, linkcolor=black, urlcolor=blue!60!black}
+\newcommand{\code}[1]{\texttt{#1}}
+
+\title{\textbf{GuildAce $\times$ ENS}\\[0.3em]\large How we use ENS (ENSv2, Sepolia)}
+\author{Team Codrea --- ETHGlobal Tokyo}
+\date{}
+
+\begin{document}
+\maketitle
+
+GuildAce is a marketplace of ``Digital Companies'': PM Agents that take a request, break it into tasks, form a team of AI sub-agents and World-verified humans, and run the job through escrow, approval and payment. ENS is the identity and trust layer of every Digital Company. Nothing about a company --- who runs it, which specialist agents it employs, what it has worked on, how it has been rated --- lives only in our database. It is all published as ENS names and text records that anyone can resolve.
+
+We built on ENSv2 (Sepolia beta): the v2 \code{.eth} registry, per-name subregistries (UserRegistry), OwnedResolver, and the Enhanced Access Control (EAC) role system.
+
+\section{Every Digital Company is an ENS namespace}
+
+Publishing a PM Agent mints a subname under the platform's parent name, for example \code{web-pm.choice.eth}, and turns that subname into a namespace of its own. The specialist AI agents the company employs are minted as subnames beneath it (\code{designer.web-pm.choice.eth}, \code{frontend.}, \code{backend.}, \code{qa.}), its ratings live at \code{reputation.web-pm.choice.eth}, and every job it runs gets its own project subname such as \code{project-270.web-pm.choice.eth}.
+
+The company's own record set --- \code{description}, \code{avatar}, \code{url}, \code{codrea.agent.category}, \code{codrea.agent.fee\_bps}, \code{codrea.agent.creator} and \code{codrea.agent.endpoint} --- is the public profile the Marketplace renders. The Marketplace card, the Agent page and the team-formation view read these values directly from Sepolia rather than from our database.
+
+Each specialist sub-agent carries \code{codrea.agent.role}, \code{codrea.agent.parent} and \code{codrea.agent.kind = ai}. The PM Agent's planner only assigns AI tasks to roles that actually exist as subnames under its name, so the team a client sees is literally the ENS tree.
+
+Each job mints a project subname with \code{codrea.project.title}, \code{codrea.project.case}, \code{codrea.project.escrow}, \code{codrea.project.escrow\_case\_id}, \code{codrea.project.client}, \code{codrea.project.status} and \code{codrea.project.url}. A company's track record is therefore enumerable on-chain: list its subnames and follow the escrow case ids.
+
+\section{Separation of powers with ENSv2 EAC roles}
+
+A Digital Company is operated by an AI, so we did not want a single key that can rewrite everything. Authority is split across three keys, and the split is enforced by ENSv2 roles rather than by application logic.
+
+The Owner key --- the platform operator, or the Creator for creator-owned names --- mints the company name, sets its resolver and subregistry, and writes the profile. The Reputation key can write only \code{codrea.agent.rating}, \code{codrea.agent.reviews} and \code{codrea.agent.completed} on the \code{reputation} subname through the Reputation resolver; it cannot touch the profile or mint subnames. The Project key holds \code{ROLE\_REGISTRAR} on the company's subregistry and nothing else, so it can mint \code{project-*} subnames and write \code{codrea.project.*} through the Project resolver, but it cannot change the company resolver, edit the profile or ratings, or mint directly under the parent name.
+
+The role table is read live from the subregistry's \code{hasRootRoles} and shown on the Agent page, so a client can verify that ratings can only be written by the reputation key and that project history can only be appended, never edited by the agent that runs the company. When the role keys are not configured the API reports \code{mock.ens\_roles = true} and the UI displays it, so a demo can never silently fake this.
+
+\section{Bring your own name: creator-owned Digital Companies}
+
+A Creator can publish a company under their own \code{.eth} instead of the platform's parent, for example \code{web-pm.shinmatest.eth}. In that mode our server never holds a key for the name.
+
+We first check ownership on the v2 registry and whether the name already has a subregistry and resolver. If it does not, we return calldata that deploys an OwnedResolver and a UserRegistry through the ENSv2 VerifiableFactory, with the CREATE2 address predicted up front, and the Creator signs it from their wallet. If the \code{.eth} itself is unregistered, the UI walks through commit, a sixty-second wait and register with the same wallet.
+
+Publishing is then up to eleven transactions signed by the Creator: \code{register} and a \code{multicall} for the profile, deployment of the company's own subregistry and \code{setSubregistry}, a \code{grantRootRoles(ROLE\_REGISTRAR)} to the platform's Project key scoped to this one subregistry, minting of the \code{reputation} subname owned by the Reputation key, and minting of the specialist sub-agents. Before the company is marked published, the API re-reads the receipt and the text records on-chain; a self-reported transaction hash is never trusted.
+
+The result is a company whose identity the platform cannot revoke, while ratings and project history still come from the platform's restricted keys.
+
+\section{Humans are on ENS too}
+
+Companies that supply human workers register their staff as subnames under the company's \code{.eth}, for example \code{dan.field-co.eth}, with \code{codrea.person.role}, \code{skills}, \code{location}, \code{available} and \code{company}. The PM Agent's team-formation step searches only ENS-backed candidates --- specialist sub-agents by role and human members by record --- and nominates a person for each human task. The nomination reason and the candidate's ENS records are shown to the client. Approvers, jury members and reviewers are displayed by ENS name through a reverse lookup over the names we issued.
+
+\section{Read paths and verification}
+
+The resolve endpoint walks from the \code{.eth} registry to the subregistry and the resolver and returns owner, registry, resolver, address and text records. It also calls the resolver's ENSIP-10 \code{resolve(bytes,bytes)} and reports whether the wildcard answer matches the direct read; the Sepolia UniversalResolver does not yet see v2 names, so we ship our own consistency check. A names endpoint lists every name we issued --- companies, sub-agents, reputation, projects and people --- with the minting transaction, and the ENS page renders it. Each job also has a public, authentication-free audit timeline that interleaves the \code{openCase}, \code{fund}, \code{submit}, \code{approve}, \code{pay}, \code{dispute} and \code{resolve} transactions with the ENS names minted for the job, with every address resolved to its ENS name. Reads are batched through Multicall3, so an Agent page with five subnames and about twenty records costs a single \code{eth\_call}.
+
+\section{Contracts and addresses (Sepolia)}
+
+We use the ENSv2 \code{.eth} registry at \code{0xBDC85dD5b15D7ecb354cd7cb6f2c50b4f2c4F0E2}, the ENSv2 registrar at \code{0xa88553F454b77203B0D036A05c894d555EAAa2Cc}, the VerifiableFactory at \code{0x10dC6333CDFe1FCEf624c6e0a8221b91804Cd7ef}, the OwnedResolver implementation at \code{0x9EAe5C2730a7dD16BDD1DeE6421a1B91e3B0365e} and the UserRegistry implementation at \code{0x624a25d67B59D587752EbEc8DdeD8827dAe52050}. The platform parent name is \code{choice.eth}. The Owner, Reputation and Project keys are \code{0x9f8A\ldots7171}, \code{0x7543\ldots4845} and \code{0xBFE9\ldots eD25}. Live examples include \code{web-pm.choice.eth}, \code{designer.web-pm.choice.eth}, \code{reputation.web-pm.choice.eth}, the creator-owned \code{web-pm.shinmatest.eth} and the human worker \code{dan.field-co.eth}.
+
+\section*{Why ENS}
+
+An AI-run company needs the things a human-run company gets from a registry of companies, a r\'esum\'e and references: a stable name, a list of who works there, a record of what it has done and how it was judged, and guarantees about who is allowed to write each of those. ENSv2's subregistries and role-based access control let us express exactly that on-chain: one namespace per company, one subname per employee and per project, and separate keys for identity, reputation and project history. GuildAce does not use ENS as a vanity name; it uses ENS as the company registry of the agent economy.
+
+\end{document}

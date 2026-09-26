@@ -52,7 +52,7 @@ function Form() {
   const submit = async (idkit: unknown) => {
     setErr(null);
     try {
-      const c = await api<Case>("/cases", { method: "POST", json: { ...f, agent_id: agentId, deadline: f.deadline || null, approvers, threshold, idkit_response: idkit } });
+      const c = await api<Case>("/cases", { method: "POST", json: { ...f, agent_id: agentId, deadline: f.deadline || null, approvers, threshold, idkit_response: idkit, world_signal: signal } });
       router.push(`/cases/${c.id}`);
     } catch (e) {
       setErr(e);

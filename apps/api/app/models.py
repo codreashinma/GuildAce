@@ -36,6 +36,7 @@ class User(TimestampMixin, Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     wallet_address: Mapped[str] = mapped_column(String(42), unique=True, index=True)
     display_name: Mapped[str | None] = mapped_column(String(120))
+    world_session_id: Mapped[str | None] = mapped_column(String(160), unique=True)  # World ID 4.0 の session_id（初回の人間確認で保存。1 World ID = 1 アカウント）
 
 
 class Agent(TimestampMixin, Base):
@@ -85,7 +86,7 @@ class Case(TimestampMixin, Base):
     open_tx_hash: Mapped[str | None] = mapped_column(String(66))  # 発注者が送った openCase
     project_ens_name: Mapped[str | None] = mapped_column(String(255))  # project-<n>.<agent>.choice.eth
     project_ens_tx_hash: Mapped[str | None] = mapped_column(String(66))
-    request_nullifier: Mapped[str | None] = mapped_column(String(80))  # 依頼開始時の World 検証
+    request_nullifier: Mapped[str | None] = mapped_column(String(160))  # 依頼開始時の World 検証
     error: Mapped[str | None] = mapped_column(Text)
 
     client: Mapped[User] = relationship()
@@ -187,7 +188,7 @@ class Review(TimestampMixin, Base):
     target_id: Mapped[str] = mapped_column(String(36), index=True)
     rating: Mapped[int] = mapped_column(Integer)
     comment: Mapped[str] = mapped_column(Text, default="")
-    nullifier: Mapped[str] = mapped_column(String(80))
+    nullifier: Mapped[str] = mapped_column(String(160))
 
     reviewer: Mapped[User] = relationship()
     case: Mapped[Case] = relationship()
@@ -215,7 +216,7 @@ class JuryVote(TimestampMixin, Base):
     dispute_id: Mapped[str] = mapped_column(ForeignKey("disputes.id"), index=True)
     voter_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
     vote: Mapped[str] = mapped_column(String(10))  # release | refund
-    nullifier: Mapped[str] = mapped_column(String(80))
+    nullifier: Mapped[str] = mapped_column(String(160))
 
     dispute: Mapped[Dispute] = relationship(back_populates="votes")
     voter: Mapped[User] = relationship()
@@ -228,7 +229,8 @@ class WorldVerification(TimestampMixin, Base):
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     action: Mapped[str] = mapped_column(String(40))
     signal: Mapped[str] = mapped_column(String(120))
-    nullifier: Mapped[str] = mapped_column(String(80))
+    nullifier: Mapped[str] = mapped_column(String(160))  # 同じ人間を表すキー。World ID 4.0 では session_id（モック時は mock:...）
+    proof_nullifier: Mapped[str | None] = mapped_column(String(80), unique=True)  # proof ごとの session_nullifier（リプレイ防止）
 
 
 class Approval(TimestampMixin, Base):
@@ -240,7 +242,7 @@ class Approval(TimestampMixin, Base):
     approver_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
     deliverable_hash: Mapped[str] = mapped_column(String(66))
     signature: Mapped[str] = mapped_column(Text)
-    nullifier: Mapped[str] = mapped_column(String(80))
+    nullifier: Mapped[str] = mapped_column(String(160))
 
     task: Mapped[Task] = relationship(back_populates="approvals")
     approver: Mapped[User] = relationship()

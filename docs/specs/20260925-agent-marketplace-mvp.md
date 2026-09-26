@@ -115,8 +115,9 @@ AI Agent（PM Agent）が案件を受け、タスク分解・チーム編成・�
 - 前提: 案件が `completed` または `resolved`。投稿者は案件の当事者（発注者、または Human Task worker）。
 - 入力: 星（1〜5）、コメント、World ID proof。
 - 処理:
-  1. フロントで IDKit v4 `IDKitRequestWidget`（preset `proofOfHuman`、action `review`、signal = `caseId`）。`rp_context` は `GET /world/rp-context?action=review` で API が `signRequest` して返す。
-  2. `POST /reviews` に proof を同送。API が `https://developer.world.org/api/v4/verify/{rp_id}` で検証し、`nullifier` を `world_verifications(action, signal, nullifier)` に UNIQUE 保存。重複は 409（同じ人間が同じ案件に二重投稿できない）。
+  1. フロントで IDKit v4 `IDKitSessionWidget`（constraints `proof_of_human`、signal = `caseId`）。`rp_context`（action なしの RP 署名）と保存済み `session_id` は `GET /world/rp-context` で API が返す。`session_id` が無ければ createSession、あれば proveSession。
+  2. `POST /reviews` に proof を同送。API が `https://developer.world.org/api/v4/verify/{rp_id}` で検証し、`signal_hash` の一致と `session_id` の一致を確認して `world_verifications(action, signal, session_id)` に UNIQUE 保存。重複は 409（同じ人間が同じ案件に二重投稿できない）。proof ごとの `session_nullifier` も UNIQUE 保存してリプレイを拒否する。
+  - 補足（2026-09-26）: World ID 4.0 の uniqueness proof（action 付き）は「1 人につき 1 action 1 回」で World App が 2 回目を拒否するため、action 固定 + signal 可変の旧設計から session proof 方式へ変更した。
   3. `reviews` 保存。対象が Agent の場合は平均・件数を再計算して ENS `agent.rating` / `agent.reviews` を `setText` で更新。
 - 出力: Agent 詳細のレビュー一覧（「World で人間確認済み」バッジ付き）。
 - エッジ: proof 検証失敗は 400 で理由を表示。当事者以外は 403。
@@ -166,7 +167,7 @@ event Resolved(bytes32 indexed caseId);
 | バックエンド | Python 3.12, FastAPI, SQLAlchemy 2 + Alembic, PostgreSQL 16, `google-genai`（Gemini、モデルは env `GEMINI_MODEL`、既定 `gemini-2.5-flash`）, `web3.py`（ENS 書き込み・Escrow resolve・receipt 検証）, `siwe`, PyJWT |
 | チェーン | Sepolia。Escrow / MockUSDC を Foundry でデプロイ。RPC は env |
 | ENS | ENSv2 Sepolia ベータ（UniversalResolverV2 `0x5d25c1d6acbb71b7a28aa7899618a3412a8303e3`、PublicResolverV2 `0xd7e590ad0e92a6ac1d81f4483a9b951d3585a50f`、ETHRegistrar `0xabe76f6c8dfced81aa5a2bb8034202a7136b94ca`）。親名はプラットフォーム用に 1 つ登録（登録料は MockUSDC）。読み取りは viem、書き込みは API のサーバー署名者 |
-| World | IDKit v4 + RP 署名（`RP_SIGNING_KEY`）+ Developer Portal verify API v4。action は `review` / `jury` / `human-task` の 3 つを Portal に作成 |
+| World | IDKit v4 session proof（`IDKitSessionWidget` / `proof_of_human`）+ RP 署名（`RP_SIGNING_KEY`、action なし）+ Developer Portal verify API v4。Portal への action 登録は不要 |
 | AI | すべて `apps/api/app/agents/` に集約。PM Agent の「進め方・ルール」を system prompt として注入。出力は JSON schema で強制 |
 | 認証 | SIWE + JWT（HS256、24h） |
 | 環境変数 | `.env.example` に全項目と取得手順（Sepolia ETH、Alchemy RPC、ENS 親名登録、World Portal の app_id / action / RP key、Gemini API key） |

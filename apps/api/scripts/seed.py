@@ -32,6 +32,15 @@ def main() -> None:
     print("client: ", client.address, client.acct.key.to_0x_hex())
     print("worker: ", worker.address, worker.acct.key.to_0x_hex())
 
+    # デモログイン（DEV_LOGIN_ENABLED）が有効なら、Agent の作成者を「Agent 作成者」ロールにする（デモログインで Agent 管理と収益が見える）
+    try:
+        r = httpx.post(f"{BASE}/auth/dev-login", json={"role": "creator"}, timeout=30)
+        if r.status_code == 200:
+            creator.http.headers["Authorization"] = f"Bearer {r.json()['token']}"
+            print("creator = デモログイン「Agent 作成者」:", r.json()["user"]["wallet_address"])
+    except Exception:  # noqa: BLE001
+        pass
+
     # デモログイン（DEV_LOGIN_ENABLED）が有効なら、「Human Task worker」ロールの固定アドレスを Dan にする
     try:
         r = httpx.post(f"{BASE}/auth/dev-login", json={"role": "worker"}, timeout=30)
@@ -105,9 +114,44 @@ def main() -> None:
         client.wait(f"/cases/{case['id']}", "status", {"completed"}, timeout=120)
         client.post("/reviews", {"case_id": case["id"], "rating": 5, "comment": "良いコミュニケーションでした！タスク分解が的確。"}, expect=201)
         print("demo case completed + reviewed:", case["id"])
+
+        # --- 収益・運用のデモ用: 差し戻し → Jury 3 票で返金（PM 管理費は「裁定済・受取 0」になる）
+        juries = []
+        for role in ("jury1", "jury2", "jury3"):
+            r = httpx.post(f"{BASE}/auth/dev-login", json={"role": role}, timeout=30)
+            if r.status_code != 200:
+                break
+            j = Client(BASE)
+            j.http.headers["Authorization"] = f"Bearer {r.json()['token']}"
+            juries.append(j)
+        if len(juries) == 3:
+            case2 = client.post("/cases", {"agent_id": web["id"], "title": "社内ポータルのリニューアル", "description": "既存ポータルの UI 刷新と検索改善。予算 120 USDC", "budget_usdc": 120, "idkit_response": None}, expect=201)
+            case2 = client.wait(f"/cases/{case2['id']}", "status", {"awaiting_approval", "planning_failed"}, timeout=120)
+            if case2["status"] == "awaiting_approval":
+                client.post(f"/cases/{case2['id']}/opened", {"tx_hash": fake_tx()})
+                for _ in range(120):
+                    c2 = client.get(f"/cases/{case2['id']}")
+                    if all(t["chain_status"] in ("submitted", "funded") for t in c2["tasks"]) and any(t["chain_status"] == "submitted" for t in c2["tasks"]):
+                        break
+                    time.sleep(1)
+                d = client.post(f"/cases/{case2['id']}/dispute", {"reason": "検索機能が仕様どおりに動いていない。デザインも依頼と違う"}, expect=201)
+                for j, v in zip(juries, ("refund", "release", "refund")):
+                    d = j.post(f"/disputes/{d['id']}/vote", {"vote": v})
+                client.wait(f"/cases/{case2['id']}", "status", {"resolved"}, timeout=120)
+                print("demo case refunded by jury:", case2["id"])
+        else:
+            print("デモログインが無効なので返金案件はスキップ")
+
+        # --- 進行中の案件（PM 管理費が「預託中」に出る）
+        case3 = client.post("/cases", {"agent_id": web["id"], "title": "採用サイトの LP 制作", "description": "エンジニア採用向け LP を 1 ページ。予算 80 USDC", "budget_usdc": 80, "idkit_response": None}, expect=201)
+        case3 = client.wait(f"/cases/{case3['id']}", "status", {"awaiting_approval", "planning_failed"}, timeout=120)
+        if case3["status"] == "awaiting_approval":
+            client.post(f"/cases/{case3['id']}/opened", {"tx_hash": fake_tx()})
+            print("demo case in progress:", case3["id"])
     else:
         print("chain が有効なので案件は承認待ちのまま:", case["id"])
     print("seed done")
+    print("運用画面（/ops/jobs）用の失敗ジョブは scripts/seed_ops.py で作れます（DB に直接書くので DATABASE_URL を渡す）")
 
 
 if __name__ == "__main__":

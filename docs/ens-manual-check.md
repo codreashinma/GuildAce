@@ -92,6 +92,26 @@
 - 一方、v2 のリゾルバ実装（OwnedResolver / 役割リゾルバ）は `supportsInterface(0x9061b923)` = true で、`resolve(dnsEncode(name), text(node,key))` が直読みと同じ値を返す（`web-pm.choice.eth` の `codrea.agent.category` = `web`、`project-831.web-pm.choice.eth` の `codrea.project.title` も一致）。
 - 本アプリはレジストリ直読みを正としつつ、`GET /ens/resolve` の `wildcard` で ENSIP-10 経路の一致を毎回確認して表示する（画面 `/ens`）。
 
+## 6. Creator 所有の Agent（Creator の .eth の下に名前空間を作る）の実機確認（2026-09-26）
+
+`scripts/smoke_creator.py` で、一時鍵（Creator）が自分の `.eth` を登録し、API が返す calldata に署名して Agent を名前空間として公開した。プラットフォームの鍵は一切使っていない（Reputation 鍵の初期 record 書き込みだけは worker）。
+
+| 項目 | 値 / tx |
+|---|---|
+| Creator（一時鍵） | `0x326B82D8426C643a36eD7679C8900E55188b4c60` |
+| `codrea-cr-2433ff.eth` 登録 | commit `0xf990fb3b…` → register `0x507b9ff3…`（テスト用トークン 8000021） |
+| セルフサービス準備（`/ens/setup-calldata`、4 tx） | OwnedResolver `0xcD38EC6c…`（deploy `0x1a25ab7a…`、setResolver `0x9c39c06d…`）、UserRegistry `0x7047e725…`（deploy `0x9c72c482…`、setSubregistry `0x998736ee…`） |
+| Agent 公開（`/agents/{id}/publish`、11 tx） | `web-pm-cr-1ea4.codrea-cr-2433ff.eth`（register `0x48c9d32c…`、profile `0x32b9f1a9…`） |
+| Agent のサブレジストリ | `0x4BDAA8f196abE082fd61cb807…`（deploy `0x56913aa4…`、setSubregistry `0x95ef15a3…`） |
+| Project 鍵に ROLE_REGISTRAR | `0x304d4d64…`（EAC `grantRootRoles`。Creator が root） |
+| reputation subname | `reputation.web-pm-cr-1ea4.codrea-cr-2433ff.eth`（`0x1b49d15d…`、所有者 = Reputation 鍵、Reputation リゾルバ） |
+| 専門 Agent | designer / frontend / backend / qa（`0xfdf54ee9…` ほか、record `0x364cfcc7…`） |
+| 権限表（`GET /agents/{id}` の `ens_roles`） | Owner = Creator、Reputation、Project の 3 役割すべて verified=True |
+| ENSIP-10 | `/ens/resolve` の `wildcard.matches = true` |
+| 案件の project subname | `project-270.web-pm-cr-1ea4.codrea-cr-2433ff.eth`（openCase `0x46f6e78c…` 後に worker が Project 鍵で Creator のサブレジストリに発行。所有者 = Project 鍵、`codrea.project.title` 等を Project リゾルバに書き込み） |
+
+platform（`choice.eth`）と creator（Creator の `.eth`）で、名前空間の構造とプラットフォーム鍵の権限範囲は同一。違いは「誰が root か」だけ。
+
 ## トラブルシュート
 
 - `execution reverted` で register が落ちる: commit から 60 秒未満、または `approve` 額不足。`ens_setup.py` を再実行すれば登録済み判定でスキップされる。

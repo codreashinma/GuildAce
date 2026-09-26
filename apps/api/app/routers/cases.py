@@ -273,7 +273,9 @@ def team(case_id: str, db: Session = Depends(get_db)):
 
     case = _load(db, case_id)
     agent_name = case.agent.ens_name or ens.agent_ens_name(case.agent.label)
-    real = bool(case.agent.ens_tx_hash and not case.agent.ens_tx_hash.startswith("0xmock") and case.agent.owner_mode == "platform")
+    from .agents import agent_on_ens
+
+    real = agent_on_ens(case.agent)
     members = db.query(Member).all()
     out = []
     for t in case.tasks:
@@ -329,9 +331,11 @@ def opened(case_id: str, body: CaseOpenedIn, bg: BackgroundTasks, user: User = D
     for t in case.tasks:
         worker.enqueue(db, "fund_task", f"fund:{t.id}", {"task_db_id": t.id, "case_id_hex": case.escrow_case_id, "task_id_hex": t.escrow_task_id, "amount": str(int(t.estimated_cost))})
     s = get_settings()
+    from .agents import agent_on_ens
+
     worker.enqueue(db, "ens_project", f"ens_project:{case.id}", {
-        "case_db_id": case.id, "agent_label": case.agent.label, "project_label": project_label(case),
-        "agent_mock": not case.agent.ens_tx_hash or case.agent.ens_tx_hash.startswith("0xmock") or case.agent.owner_mode == "creator",
+        "case_db_id": case.id, "agent_label": case.agent.label, "project_label": project_label(case), "agent_name": case.agent.ens_name,
+        "agent_mock": not agent_on_ens(case.agent),
         "texts": {"codrea.project.title": case.title, "codrea.project.case": case.id, "codrea.project.escrow": s.escrow_address or "mock", "codrea.project.escrow_case_id": case.escrow_case_id,
                   "codrea.project.client": user.wallet_address, "codrea.project.status": "in_progress", "codrea.project.url": f"{s.app_url}/cases/{case.id}"},
     })

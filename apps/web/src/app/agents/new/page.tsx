@@ -15,6 +15,7 @@ export default function NewAgent() {
   const [mode, setMode] = useState<"platform" | "creator">("platform");
   const [ownName, setOwnName] = useState("");
   const [ownOk, setOwnOk] = useState<{ ok: boolean; checking: boolean }>({ ok: false, checking: false });
+  const [subagents, setSubagents] = useState(true);
   const onOwnStatus = useCallback((s: { ok: boolean; checking: boolean }) => setOwnOk(s), []);
   const [err, setErr] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
@@ -26,7 +27,7 @@ export default function NewAgent() {
     setBusy(true);
     try {
       const a = await api<Agent>("/agents", { method: "POST", json: { ...f, payout_address: f.payout_address || null, parent_ens_name: mode === "creator" ? ownName : null } });
-      if (publish) await doPublish(a.id);
+      if (publish) await doPublish(a.id, { subagents });
       router.push(`/agents/${a.id}`);
     } catch (e) {
       setErr(e);
@@ -57,6 +58,17 @@ export default function NewAgent() {
             <>
               <input className={`${inputCls} mt-2`} placeholder="nakamine.eth（Sepolia ENSv2 で所有している名前）" value={ownName} onChange={(e) => setOwnName(e.target.value.toLowerCase())} />
               <EnsNameCheck name={ownName} onStatus={onOwnStatus} />
+              <div className="mt-2 rounded-md border border-dashed border-neutral-300 p-3 text-xs text-neutral-600">
+                <div className="font-medium text-neutral-900">公開時にあなたのウォレットで署名する内容（Agent を名前空間にする）</div>
+                <ol className="mt-1 list-decimal space-y-0.5 pl-4">
+                  <li>subname の発行とプロフィール（text record）</li>
+                  <li>Agent 自身のサブレジストリ（root = あなた）を作り、名前に設定</li>
+                  <li>プラットフォームの Project 鍵に「project subname の発行」だけを許可（EAC ROLE_REGISTRAR）</li>
+                  <li>reputation subname を Reputation 鍵の所有で発行（評価はこの鍵だけが書ける）</li>
+                  <li><label className="inline-flex items-center gap-1"><input type="checkbox" checked={subagents} onChange={(e) => setSubagents(e.target.checked)} />専門 AI エージェント（designer / frontend / backend / qa）の subname も発行する（+5 tx）</label></li>
+                </ol>
+                <div className="mt-1 text-neutral-500">合計 {subagents ? "最大 11" : "最大 6"} 本の tx。名前とレコードの所有者はあなたのままで、プラットフォームには限定した権限だけを渡します。</div>
+              </div>
             </>
           )}
         </Field>

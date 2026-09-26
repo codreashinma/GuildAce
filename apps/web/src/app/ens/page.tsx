@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { api } from "@/lib/api";
@@ -21,10 +22,15 @@ const KIND: Record<NameRow["kind"], { label: string; who: string }> = {
 
 /** G2/G3: プラットフォームが ENSv2（Sepolia）に発行した名前の一覧と、任意の名前の実レコード確認。ENS 賞のデモ・監査向け */
 export default function EnsPage() {
+  return <Suspense fallback={<p className="text-sm text-neutral-500">読み込み中…</p>}><EnsPageInner /></Suspense>;
+}
+
+function EnsPageInner() {
   const { config } = useAuth();
+  const initial = useSearchParams().get("name")?.toLowerCase() ?? "";
   const { data } = useQuery({ queryKey: ["ens-names"], queryFn: () => api<Names>("/ens/names"), refetchInterval: 15_000 });
-  const [q, setQ] = useState("");
-  const [name, setName] = useState<string | null>(null);
+  const [q, setQ] = useState(initial);
+  const [name, setName] = useState<string | null>(initial || null);
   const [filter, setFilter] = useState<NameRow["kind"] | "all">("all");
   const rows = (data?.names ?? []).filter((r) => filter === "all" || r.kind === filter);
   const real = rows.filter((r) => !r.mock).length;
@@ -42,6 +48,13 @@ export default function EnsPage() {
         {name && (
           <div className="space-y-2">
             <EnsRecords name={name} title={name} />
+            {wc.data?.resolver && (
+              <p className="text-xs text-neutral-500">
+                Etherscan: <a className="underline underline-offset-2" href={`https://sepolia.etherscan.io/address/${wc.data.resolver}#readContract`} target="_blank" rel="noreferrer">resolver</a>
+                {wc.data.registry && <> · <a className="underline underline-offset-2" href={`https://sepolia.etherscan.io/address/${wc.data.registry}#readContract`} target="_blank" rel="noreferrer">registry</a></>}
+                {wc.data.subregistry && <> · <a className="underline underline-offset-2" href={`https://sepolia.etherscan.io/address/${wc.data.subregistry}#readContract`} target="_blank" rel="noreferrer">subregistry</a></>}
+              </p>
+            )}
             {wc.data?.wildcard && (
               <p className="text-xs text-neutral-600">
                 ENSIP-10 <Mono>resolve(bytes,bytes)</Mono>: {wc.data.wildcard.supported ? "対応" : "非対応"}

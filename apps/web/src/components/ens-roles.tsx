@@ -10,7 +10,7 @@ export function EnsRolesTable({ roles, subregistry }: { roles: EnsRole[]; subreg
       <h2 className="mb-1 font-semibold">権限管理 <span className="text-xs font-normal text-neutral-500">ENSv2 Enhanced Access Control。値は Sepolia から読んだ実データ</span></h2>
       <p className="mb-3 text-xs text-neutral-500">名前を持つことと権限を持つことは別。Reputation 鍵は評価キーの setText だけ、Project 鍵は project subname の register と codrea.project.* の setText だけができ、それ以外は revert します。</p>
       {roles.length === 0 ? (
-        <p className="text-sm text-neutral-500">役割を取得できませんでした（RPC 未設定、モック公開、または Creator 所有の名前）。</p>
+        <p className="text-sm text-neutral-500">役割を取得できませんでした（RPC 未設定、モック公開、または名前空間が未構築）。</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-xs">

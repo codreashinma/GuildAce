@@ -82,8 +82,9 @@ export function TxLink({ hash, label = "tx" }: { hash: string | null; label?: st
   return <a className="whitespace-nowrap text-xs text-neutral-900 underline underline-offset-2 hover:text-neutral-600" href={`https://sepolia.etherscan.io/tx/${hash}`} target="_blank" rel="noreferrer">{label}: <span className="font-mono">{hash.slice(0, 10)}…</span> ↗</a>;
 }
 
+/** ENS 名のリンク。ENSv2 beta の名前は ENS App（v1）では表示できないため、Sepolia から実レコードを読む /ens 画面へ */
 export function EnsLink({ name }: { name: string }) {
-  return <a className="whitespace-nowrap font-mono text-sm text-neutral-900 underline underline-offset-2 hover:text-neutral-600" href={`https://sepolia.app.ens.domains/${name}`} target="_blank" rel="noreferrer">{name}</a>;
+  return <a className="whitespace-nowrap font-mono text-sm text-neutral-900 underline underline-offset-2 hover:text-neutral-600" href={`/ens?name=${encodeURIComponent(name)}`} title="ENS 上の値を見る">{name}</a>;
 }
 
 export function Empty({ children }: { children: React.ReactNode }) {

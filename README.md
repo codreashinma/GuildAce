@@ -83,7 +83,14 @@ cd contracts && forge test
 Agent 作成時に公開先を選べる。
 
 - **プラットフォームの親名**（既定）: `<label>.choice.eth`。運用ウォレット（チェーン連携ワーカー）が subname を発行し record を書く。
-- **Creator 自身の ENS 名**: `<label>.<creator>.eth`。接続ウォレットがその名前の所有者かを ENSv2 で確認し、`register` と `multicall` の calldata を API が返す。Creator のウォレットが 2 本の tx に署名する。名前の所有者は Creator。名前にサブレジストリとリゾルバが無い場合は、作成画面の事前確認に「自分のウォレットでリゾルバとサブレジストリを用意する」が出る（`/ens/setup-calldata`）。Agent の編集（`/agents/[id]/edit`）は Creator が `multicall` に署名して record を更新する。評価・完了数の record 更新はプラットフォームに権限が無いため DB のみ（EAC で Reputation 役割を委任するまでの暫定）。
+- **Creator 自身の ENS 名**: `<label>.<creator>.eth`。接続ウォレットがその名前の所有者かを ENSv2 で確認し、API は Creator が署名する calldata だけを返す（鍵は使わない）。名前にサブレジストリとリゾルバが無い場合は、作成画面の事前確認に「自分のウォレットでリゾルバとサブレジストリを用意する」が出る（`/ens/setup-calldata`）。公開時は platform と同じ名前空間を Creator 側の鍵で構築する（最大 11 tx）:
+  1. `register` と `multicall`（プロフィール）
+  2. Agent 自身のサブレジストリ（UserRegistry、root = Creator）をデプロイして `setSubregistry`
+  3. プラットフォームの Project 鍵に `grantRootRoles(ROLE_REGISTRAR)`（EAC: この Agent の下で project subname を発行することだけを許す）
+  4. `reputation.<label>.<creator>.eth` を Reputation 鍵の所有・Reputation リゾルバで発行（評価はこの鍵だけが書ける）
+  5. 専門 AI エージェント（designer / frontend / backend / qa）の subname と record（任意）
+
+  `ens-written` の受領時にサブレジストリ・権限・reputation をオンチェーンで確認し、評価 record の初期値を Reputation 鍵で書く。以降、評価・完了数は platform と同じく `reputation.<agent>` に反映され、案件の project subname も Project 鍵が Creator のサブレジストリに発行する。プロフィールの編集（`/agents/[id]/edit`）は Creator が `multicall` に署名する。実機確認は `scripts/smoke_creator.py`。
 
 ## ENS の読み取りと確認（`/ens/*`）
 

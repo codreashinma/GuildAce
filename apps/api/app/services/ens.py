@@ -123,6 +123,39 @@ def agent_ens_name(label: str) -> str:
     return f"{label}.{get_settings().ens_parent_name}"
 
 
+def reputation_name_of(agent_name: str) -> str:
+    return f"reputation.{agent_name}"
+
+
+def subregistry_of(w3: Web3, name: str):
+    """name の子（subname）を登録するレジストリ（name に設定されたサブレジストリ）。無ければ None。
+    .eth レジストリから順に getSubregistry を辿る。"""
+    s = get_settings()
+    labels = name.lower().split(".")
+    if labels[-1] != "eth" or len(labels) < 2:
+        return None
+    registry = Web3.to_checksum_address(s.ensv2_eth_registry)
+    for label in reversed(labels[:-1]):
+        reg = w3.eth.contract(address=registry, abi=V2_REGISTRY_ABI)
+        sub = reg.functions.getSubregistry(label).call()
+        if int(sub, 16) == 0:
+            return None
+        registry = Web3.to_checksum_address(sub)
+    return w3.eth.contract(address=registry, abi=V2_REGISTRY_ABI)
+
+
+def owner_of(w3: Web3, name: str) -> str | None:
+    """name の所有者（親レジストリの getState.latestOwner）。未登録は None。"""
+    labels = name.lower().split(".")
+    if len(labels) < 2:
+        return None
+    parent = subregistry_of(w3, ".".join(labels[1:])) if len(labels) > 2 else w3.eth.contract(address=Web3.to_checksum_address(get_settings().ensv2_eth_registry), abi=V2_REGISTRY_ABI)
+    if parent is None:
+        return None
+    status, _, owner, _, _ = parent.functions.getState(_labelhash_int(labels[0])).call()
+    return owner if status == 2 else None
+
+
 def _w3() -> Web3:
     return Web3(Web3.HTTPProvider(get_settings().sepolia_rpc_url))
 
@@ -273,19 +306,19 @@ def _ensure_subregistry(w3: Web3, parent_registry, parent_label: str, parent_nam
     return sub
 
 
-def publish_project(*, agent_label: str, project_label: str, texts: dict[str, str]) -> tuple[str, str]:
-    """案件ごとの subname（project-<n>.<agent>.choice.eth）を発行し、record を書く（FR-027）。"""
+def publish_project(*, agent_label: str, project_label: str, texts: dict[str, str], agent_name: str | None = None) -> tuple[str, str]:
+    """案件ごとの subname（project-<n>.<agent>）を発行し、record を書く（FR-027）。
+    Project 鍵は Agent のサブレジストリで ROLE_REGISTRAR を持つ（platform は公開時に付与、creator は Creator が付与）。"""
     s = get_settings()
-    name = f"{project_label}.{agent_ens_name(agent_label)}"
+    agent = agent_name or agent_ens_name(agent_label)
+    name = f"{project_label}.{agent}"
     if not s.ens_write_enabled:
         return name, "0xmock" + secrets.token_hex(29)
     w3 = _w3()
     project = _account("project")
-    parent_reg = _subregistry(w3)  # choice.eth のサブレジストリ（Agent を登録している）
-    sub = parent_reg.functions.getSubregistry(agent_label).call()
-    if int(sub, 16) == 0:
-        raise RuntimeError(f"{agent_ens_name(agent_label)} にサブレジストリがありません（Agent の公開時に作られます）")
-    reg = w3.eth.contract(address=sub, abi=V2_REGISTRY_ABI)
+    reg = subregistry_of(w3, agent)
+    if reg is None:
+        raise RuntimeError(f"{agent} にサブレジストリがありません（Agent の公開時に作られます）")
     # Project 鍵は ROLE_REGISTRAR しか持たないので、register と codrea.project.* の setText 以外は revert する
     pr = _role_resolver(w3, "project")
     if int(reg.functions.getResolver(project_label).call(), 16) == 0:
@@ -296,16 +329,20 @@ def publish_project(*, agent_label: str, project_label: str, texts: dict[str, st
     return name, tx
 
 
-def update_texts(label: str, texts: dict[str, str]) -> str | None:
-    """text record の更新。評価キーだけなら Reputation 鍵で署名する（EAC でそのキー以外は書けない）。"""
+def update_texts(label: str, texts: dict[str, str], agent_name: str | None = None) -> str | None:
+    """text record の更新。評価キーだけなら Reputation 鍵で reputation.<agent> に書く（EAC でそのキー以外は書けない）。
+    agent_name を渡すと Creator 所有の Agent（<label>.<creator>.eth）。その場合プロフィールは Creator にしか書けないので評価キー以外は拒否する。"""
     s = get_settings()
     if not s.ens_write_enabled:
         return None
     w3 = _w3()
+    name = agent_name or agent_ens_name(label)
     if texts and all(k in REPUTATION_KEYS for k in texts) and s.ens_reputation_resolver:
         rr = _role_resolver(w3, "reputation")
-        return _send(w3, rr.functions.multicall(_records_calldata(w3, namehash(reputation_name(label)), texts, None, rr)), role="reputation")
-    node = namehash(agent_ens_name(label))
+        return _send(w3, rr.functions.multicall(_records_calldata(w3, namehash(reputation_name_of(name)), texts, None, rr)), role="reputation")
+    if agent_name:
+        raise RuntimeError("Creator 所有の Agent のプロフィールはプラットフォームからは書けません（Creator が署名します）")
+    node = namehash(name)
     return _send(w3, _resolver(w3).functions.multicall(_records_calldata(w3, node, texts, None)))
 
 
@@ -466,16 +503,23 @@ def agent_roles(name: str, label: str) -> list[dict]:
       Project    … <agent> サブレジストリの ROLE_REGISTRAR（ルート役割だがこの Agent に閉じる）と Project リゾルバの root admin
     verified = 「できる」が True かつ「できない」が False。"""
     s = get_settings()
-    if not s.sepolia_rpc_url or not s.ens_owned_resolver:
+    if not s.sepolia_rpc_url:
         return []
     w3 = _w3()
     addrs = role_addresses()
-    owner, rep, proj = addrs["owner"], addrs["reputation"], addrs["project"]
+    rep, proj = addrs["reputation"], addrs["project"]
     T, A = RESOLVER_ROLE_SET_TEXT, RESOLVER_ROLE_SET_ADDR
-    main = w3.eth.contract(address=Web3.to_checksum_address(s.ens_owned_resolver), abi=EAC_ABI)
     out = []
     try:
-        parent_reg = _subregistry(w3)
+        # 名前から親レジストリ・共有リゾルバ・Owner（名前の所有者）を決める。platform なら ops 鍵、creator なら Creator のウォレット
+        parent_reg = subregistry_of(w3, name.split(".", 1)[1])
+        if parent_reg is None:
+            return []
+        main_addr, _, _ = resolve_v2(w3, name)
+        owner = owner_of(w3, name) or addrs["owner"]
+        if not main_addr or not owner:
+            return []
+        main = w3.eth.contract(address=main_addr, abi=EAC_ABI)
         sub = parent_reg.functions.getSubregistry(label).call()
         sub_eac = w3.eth.contract(address=sub, abi=EAC_ABI) if int(sub, 16) else None
         sub_reg = w3.eth.contract(address=sub, abi=V2_REGISTRY_ABI) if int(sub, 16) else None
@@ -484,22 +528,22 @@ def agent_roles(name: str, label: str) -> list[dict]:
         proj_res = w3.eth.contract(address=Web3.to_checksum_address(s.ens_project_resolver), abi=EAC_ABI) if s.ens_project_resolver else None
 
         out.append({
-            "role": "Owner（PM Agent / Creator）", "account": owner, "where": f"{name} → 共有リゾルバ {s.ens_owned_resolver[:10]}…",
+            "role": "Owner（PM Agent / Creator）", "account": owner, "where": f"{name} → 共有リゾルバ {main_addr[:10]}…",
             "can": "プロフィール（description, codrea.agent.*）の更新、subname の発行", "cannot": "reputation.* と project-* のレコード更新（別リゾルバ）",
             "verified": bool(main.functions.hasRootRoles(T | A, owner).call() and rep_res and not rep_res.functions.hasRootRoles(T, owner).call()),
             "checks": {"main.setText": main.functions.hasRootRoles(T, owner).call(), "reputation-resolver.setText": rep_res.functions.hasRootRoles(T, owner).call() if rep_res else None},
         })
         out.append({
-            "role": "Reputation", "account": rep, "where": f"{reputation_name(label)} → Reputation リゾルバ {s.ens_reputation_resolver[:10]}…",
+            "role": "Reputation", "account": rep, "where": f"{reputation_name_of(name)} → Reputation リゾルバ {s.ens_reputation_resolver[:10]}…",
             "can": "codrea.agent.rating / reviews / completed の更新（reputation subname のみ）", "cannot": "Agent のプロフィール更新、subname の発行",
-            "subname": reputation_name(label) if int(rep_res_addr, 16) else None,
+            "subname": reputation_name_of(name) if int(rep_res_addr, 16) else None,
             "verified": bool(rep_res and rep_res.functions.hasRootRoles(T, rep).call() and not main.functions.hasRootRoles(T, rep).call() and int(rep_res_addr, 16) and rep.lower() != owner.lower()),
             "checks": {"reputation-resolver.setText": rep_res.functions.hasRootRoles(T, rep).call() if rep_res else None, "main.setText": main.functions.hasRootRoles(T, rep).call(),
                        "subregistry.register": sub_eac.functions.hasRootRoles(REGISTRY_ROLE_REGISTRAR, rep).call() if sub_eac else None, "reputation subname resolver set": bool(int(rep_res_addr, 16))},
         })
         out.append({
             "role": "Project Agent", "account": proj, "where": f"{name} サブレジストリ {sub[:10] if int(sub, 16) else '-'}… / Project リゾルバ {s.ens_project_resolver[:10]}…",
-            "can": "project-* subname の発行（ROLE_REGISTRAR）と codrea.project.* の更新（Project リゾルバ）", "cannot": "Agent のリゾルバ変更、プロフィールや評価の更新、choice.eth 直下への発行",
+            "can": "project-* subname の発行（ROLE_REGISTRAR）と codrea.project.* の更新（Project リゾルバ）", "cannot": "Agent のリゾルバ変更、プロフィールや評価の更新、親名直下への発行",
             "subregistry": sub if int(sub, 16) else None,
             "verified": bool(sub_eac and sub_eac.functions.hasRootRoles(REGISTRY_ROLE_REGISTRAR, proj).call() and not sub_eac.functions.hasRootRoles(ROLE_SET_RESOLVER, proj).call()
                              and proj_res and proj_res.functions.hasRootRoles(T, proj).call() and not main.functions.hasRootRoles(T, proj).call()
@@ -587,4 +631,108 @@ def setup_calldata(*, name: str, owner: str) -> dict:
 
     out["txs"] = txs
     out["ready"] = not txs
+    return out
+
+
+
+# ---------------------------------------------------------------- Creator 所有の Agent（<label>.<creator>.eth）: Creator が署名する名前空間の構築
+
+
+def agent_namespace_calldata(*, name: str, owner: str, payout_address: str, texts: dict[str, str], subagents: bool = True) -> dict:
+    """Creator 自身の .eth の下に PM Agent を「名前空間」として公開するための tx 群（すべて Creator のウォレットが署名）。
+      1. register <label>（親のサブレジストリ。owner = Creator、resolver = 親のリゾルバ）
+      2. multicall setAddr / setText（プロフィール。評価キーは reputation subname 側）
+      3. deployProxy UserRegistry（Agent のサブレジストリ。root = Creator）
+      4. setSubregistry（親のサブレジストリに設定。anyId = labelhash）
+      5. grantRootRoles(ROLE_REGISTRAR, Project 鍵)（EAC: Project 鍵は project-* の発行だけ。この Agent に閉じる）
+      6. register reputation（owner = Reputation 鍵、resolver = Reputation リゾルバ。評価は Reputation 鍵だけが書ける）
+      7. register designer / frontend / backend / qa（専門 AI エージェント）+ multicall record（任意）
+    platform の publish_agent と同じ構造を Creator 側の鍵で組み立てる。揃っている段階はスキップ。"""
+    from eth_abi import encode
+
+    s = get_settings()
+    if not s.sepolia_rpc_url:
+        raise RuntimeError("RPC 未設定のため calldata を生成できません")
+    w3 = _w3()
+    owner = Web3.to_checksum_address(owner)
+    label, parent_name = name.split(".", 1)
+    parent_reg = subregistry_of(w3, parent_name)
+    if parent_reg is None:
+        raise RuntimeError(f"{parent_name} にサブレジストリがありません（/ens/setup-calldata で用意できます）")
+    parent_resolver_addr, _, _ = resolve_v2(w3, parent_name)
+    if parent_resolver_addr is None:
+        raise RuntimeError(f"{parent_name} にリゾルバが設定されていません（/ens/setup-calldata で用意できます）")
+    pres = w3.eth.contract(address=parent_resolver_addr, abi=RESOLVER_ABI)
+    expiry = int(time.time()) + ONE_YEAR
+    zero = "0x" + "00" * 20
+    txs: list[dict] = []
+    node = namehash(name)
+
+    # 1. register
+    status, _, cur_owner, _, _ = parent_reg.functions.getState(_labelhash_int(label)).call()
+    if status == 2:
+        if cur_owner.lower() != owner.lower():
+            raise RuntimeError(f"{name} は既に別の所有者（{cur_owner}）が登録しています")
+    else:
+        txs.append({"to": parent_reg.address, "data": parent_reg.encode_abi("register", args=[label, owner, zero, parent_resolver_addr, V2_DEFAULT_OWNER_ROLE_BITMAP, expiry]), "label": f"{name} を発行"})
+    # 2. profile
+    main_texts = {k: v for k, v in texts.items() if k not in REPUTATION_KEYS} if s.ens_reputation_resolver else texts
+    txs.append({"to": parent_resolver_addr, "data": pres.encode_abi("multicall", args=[_records_calldata(w3, node, main_texts, payout_address, pres)]), "label": "プロフィール（text record）を書き込み"})
+    # 3. agent subregistry
+    factory = w3.eth.contract(address=Web3.to_checksum_address(s.ensv2_verifiable_factory), abi=FACTORY_ABI)
+    existing_sub = parent_reg.functions.getSubregistry(label).call()
+    if int(existing_sub, 16):
+        sub_addr = existing_sub
+    else:
+        salt = int.from_bytes(keccak(encode(["bytes32", "bytes32", "uint256"], [keccak(text="UserRegistry"), node, 0])), "big")
+        init = w3.eth.contract(abi=USER_REGISTRY_INIT_ABI).encode_abi("initialize", args=[owner, ALL_ROLES])
+        fn = factory.functions.deployProxy(Web3.to_checksum_address(s.ensv2_subregistry_impl), salt, bytes.fromhex(init[2:]))
+        sub_addr = fn.call({"from": owner})
+        if w3.eth.get_code(sub_addr) in (b"", b"\x00"):
+            txs.append({"to": factory.address, "data": factory.encode_abi("deployProxy", args=[Web3.to_checksum_address(s.ensv2_subregistry_impl), salt, bytes.fromhex(init[2:])]),
+                        "label": f"Agent のサブレジストリをデプロイ（root = あなた）→ {sub_addr}"})
+        txs.append({"to": parent_reg.address, "data": parent_reg.encode_abi("setSubregistry", args=[_labelhash_int(label), sub_addr]), "label": f"{name} にサブレジストリを設定（Agent を名前空間にする）"})
+    sub_reg = w3.eth.contract(address=sub_addr, abi=V2_REGISTRY_ABI)
+    sub_eac = w3.eth.contract(address=sub_addr, abi=EAC_ABI)
+    deployed = int(existing_sub, 16) != 0
+    # 5. Project 鍵に ROLE_REGISTRAR
+    project = _account("project").address if s.server_private_key else None
+    if project and s.ens_project_resolver:
+        if not (deployed and sub_eac.functions.hasRootRoles(REGISTRY_ROLE_REGISTRAR, project).call()):
+            txs.append({"to": sub_addr, "data": sub_eac.encode_abi("grantRootRoles", args=[REGISTRY_ROLE_REGISTRAR, project]), "label": f"Project 鍵（{project[:8]}…）に project subname の発行権限だけを付与（EAC ROLE_REGISTRAR）"})
+    # 6. reputation subname
+    rep = _account("reputation").address if s.server_private_key else None
+    if rep and s.ens_reputation_resolver:
+        if not (deployed and int(sub_reg.functions.getResolver("reputation").call(), 16)):
+            txs.append({"to": sub_addr, "data": sub_reg.encode_abi("register", args=["reputation", rep, zero, Web3.to_checksum_address(s.ens_reputation_resolver), V2_DEFAULT_OWNER_ROLE_BITMAP, expiry]),
+                        "label": f"reputation.{name} を発行（所有者 = Reputation 鍵、Reputation リゾルバ）"})
+    # 7. subagents
+    if subagents:
+        calls: list[bytes] = []
+        for role in SUBAGENT_ROLES:
+            if deployed and int(sub_reg.functions.getResolver(role).call(), 16):
+                continue
+            txs.append({"to": sub_addr, "data": sub_reg.encode_abi("register", args=[role, owner, zero, parent_resolver_addr, V2_DEFAULT_OWNER_ROLE_BITMAP, expiry]), "label": f"{role}.{name} を発行（専門 AI エージェント）"})
+            calls += _records_calldata(w3, namehash(f"{role}.{name}"), {
+                "description": f"{texts.get('description', '')[:60]} の {role} 担当 AI エージェント", "codrea.agent.role": role, "codrea.agent.parent": name, "codrea.agent.kind": "ai",
+            }, None, pres)
+        if calls:
+            txs.append({"to": parent_resolver_addr, "data": pres.encode_abi("multicall", args=[calls]), "label": "専門 AI エージェントの record を書き込み"})
+    return {"name": name, "owner": owner, "subregistry": sub_addr, "reputation_name": reputation_name_of(name) if rep and s.ens_reputation_resolver else None,
+            "project_key": project, "reputation_key": rep, "txs": txs}
+
+
+def verify_agent_namespace(*, name: str) -> dict:
+    """Creator が tx を送った後の確認。サブレジストリ・Project 鍵の ROLE_REGISTRAR・reputation subname・専門 Agent をオンチェーンで読む。"""
+    s = get_settings()
+    w3 = _w3()
+    reg = subregistry_of(w3, name)
+    out = {"subregistry": reg.address if reg is not None else None, "project_registrar": False, "reputation": False, "subagents": []}
+    if reg is None:
+        return out
+    eac = w3.eth.contract(address=reg.address, abi=EAC_ABI)
+    if s.server_private_key and s.ens_project_resolver:
+        out["project_registrar"] = bool(eac.functions.hasRootRoles(REGISTRY_ROLE_REGISTRAR, _account("project").address).call())
+    out["reputation"] = bool(int(reg.functions.getResolver("reputation").call(), 16))
+    out["subagents"] = [r for r in SUBAGENT_ROLES if int(reg.functions.getResolver(r).call(), 16)]
     return out

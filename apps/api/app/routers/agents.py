@@ -35,13 +35,26 @@ def profile_texts(agent: Agent, avatar: str | None = None) -> dict[str, str]:
     return t
 
 
+def agent_on_ens(agent: Agent) -> bool:
+    """ENS 上に実在する（モック公開でない）Agent か。Creator 所有はサブレジストリ（名前空間）が確認できたものだけ"""
+    real = bool(agent.ens_tx_hash and not agent.ens_tx_hash.startswith("0xmock"))
+    return real and (agent.owner_mode == "platform" or bool(agent.ens_subregistry))
+
+
 def ens_update_job(db: Session, agent: Agent, texts: dict[str, str]) -> None:
     """ENS の text record 更新を worker に投入する（値ごとに冪等）。
-    Creator 所有の名前はプラットフォームに書き込み権限が無いため DB のみ更新（EAC で Reputation 役割を委任するまでの暫定）"""
+    Creator 所有の名前はプロフィールを Creator しか書けないので、Reputation 鍵が書ける評価キー（reputation.<agent>）だけを投入する"""
     if agent.owner_mode == "creator":
-        return
+        if not agent.ens_subregistry:
+            return
+        texts = {k: v for k, v in texts.items() if k in ens.REPUTATION_KEYS}
+        if not texts:
+            return
     key = "ens_update:" + agent.label + ":" + ",".join(f"{k}={v}" for k, v in sorted(texts.items()))
-    worker.enqueue(db, "ens_update", key[:200], {"label": agent.label, "texts": texts})
+    payload = {"label": agent.label, "texts": texts}
+    if agent.owner_mode == "creator":
+        payload["agent_name"] = agent.ens_name
+    worker.enqueue(db, "ens_update", key[:200], payload)
 
 
 @router.get("", response_model=list[AgentOut])
@@ -86,14 +99,14 @@ def create_agent(body: AgentCreateIn, user: User = Depends(current_user), db: Se
 
 
 @router.post("/{agent_id}/publish")
-def publish_agent(agent_id: str, bg: BackgroundTasks, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    """公開。platform: worker が choice.eth の下に発行。creator: Creator が署名する calldata を返す。"""
+def publish_agent(agent_id: str, bg: BackgroundTasks, subagents: bool = True, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """公開。platform: worker が choice.eth の下に発行。creator: Creator が署名する calldata（名前空間の構築込み）を返す。"""
     agent = db.get(Agent, agent_id)
     if agent is None:
         raise HTTPException(404)
     if agent.creator_id != user.id:
         raise HTTPException(403)
-    if agent.status == "published":
+    if agent.status == "published" and (agent.owner_mode == "platform" or agent.ens_subregistry and not agent.ens_error):
         return {"mode": agent.owner_mode, "agent": AgentOut.model_validate(agent)}
     if agent.owner_mode == "creator":
         name = f"{agent.label}.{agent.parent_ens_name}"
@@ -103,13 +116,14 @@ def publish_agent(agent_id: str, bg: BackgroundTasks, user: User = Depends(curre
             db.refresh(agent)
             return {"mode": "creator", "mock": True, "txs": [], "agent": AgentOut.model_validate(agent)}
         try:
-            txs = ens.member_calldata(company_name=agent.parent_ens_name, label=agent.label, owner=user.wallet_address, texts=profile_texts(agent))
+            ns = ens.agent_namespace_calldata(name=name, owner=user.wallet_address, payout_address=agent.payout_address, texts=profile_texts(agent), subagents=subagents)
         except Exception as e:  # noqa: BLE001
             raise HTTPException(400, str(e)) from e
         agent.status = "publishing"
         db.commit()
         db.refresh(agent)
-        return {"mode": "creator", "mock": False, "txs": txs, "ens_name": name, "agent": AgentOut.model_validate(agent)}
+        return {"mode": "creator", "mock": False, "txs": ns["txs"], "ens_name": name, "subregistry": ns["subregistry"], "reputation_name": ns["reputation_name"],
+                "project_key": ns["project_key"], "reputation_key": ns["reputation_key"], "agent": AgentOut.model_validate(agent)}
     agent.status = "publishing"
     agent.ens_error = None
     db.commit()
@@ -127,14 +141,27 @@ def agent_ens_written(agent_id: str, body: TxIn, user: User = Depends(current_us
     name = f"{agent.label}.{agent.parent_ens_name}"
     # 自己申告の tx hash を信用せず、レシートと text record をオンチェーンで確認する
     try:
-        ens.verify_written(name=name, tx_hash=body.tx_hash, sender=user.wallet_address, key="codrea.agent.category")
+        v = ens.verify_written(name=name, tx_hash=body.tx_hash, sender=user.wallet_address, key="codrea.agent.category")
     except ValueError as e:
         agent.ens_error = str(e)
         db.commit()
         raise HTTPException(400, str(e)) from e
     agent.ens_name, agent.ens_tx_hash, agent.status, agent.ens_error = name, body.tx_hash, "published", None
+    if not v.get("mock"):
+        # 名前空間（サブレジストリ・Project 鍵の権限・reputation subname）が揃っていれば記録し、評価 record の初期値を Reputation 鍵で書く
+        try:
+            ns = ens.verify_agent_namespace(name=name)
+        except Exception as e:  # noqa: BLE001
+            ns = {"subregistry": None, "error": str(e)[:120]}
+        agent.ens_subregistry = ns.get("subregistry")
+        if not ns.get("subregistry"):
+            agent.ens_error = "名前空間（サブレジストリ）が未設定です。再公開で残りの tx に署名してください"
+        elif not ns.get("reputation"):
+            agent.ens_error = "reputation subname が未発行です。再公開で残りの tx に署名してください"
     db.commit()
     db.refresh(agent)
+    if agent.ens_subregistry:
+        ens_update_job(db, agent, {k: v for k, v in profile_texts(agent).items() if k in ens.REPUTATION_KEYS})
     return agent
 
 
@@ -165,15 +192,21 @@ def update_agent(agent_id: str, body: AgentUpdateIn, user: User = Depends(curren
                 out["ens"] = "mock"
         else:
             name = f"{agent.label}.{agent.parent_ens_name}"
-            if not get_settings().sepolia_rpc_url:
+            rep = {k: v for k, v in diff.items() if k in ens.REPUTATION_KEYS}
+            prof = {k: v for k, v in diff.items() if k not in ens.REPUTATION_KEYS}
+            if rep:
+                ens_update_job(db, agent, rep)
+            if not get_settings().sepolia_rpc_url or not agent_on_ens(agent):
                 out["ens"], out["txs"] = "mock", []
-            else:
+            elif prof:
                 try:
-                    out["txs"] = ens.records_calldata_for(name=name, texts=diff)
+                    out["txs"] = ens.records_calldata_for(name=name, texts=prof)
                     out["ens"] = "sign"
                 except Exception as e:  # noqa: BLE001
                     db.rollback()
                     raise HTTPException(400, str(e)) from e
+            else:
+                out["ens"] = "queued"
     db.commit()
     db.refresh(agent)
     out["agent"] = AgentOut.model_validate(agent)
@@ -186,9 +219,9 @@ def get_agent(agent_id: str, db: Session = Depends(get_db)):
     if agent is None:
         raise HTTPException(404)
     out = AgentDetailOut.model_validate(agent)
-    if agent.ens_name and agent.owner_mode == "platform" and agent.ens_tx_hash and not agent.ens_tx_hash.startswith("0xmock"):
+    if agent.ens_name and agent_on_ens(agent):
         out.ens_records = ens.read_texts(agent.ens_name)
-        out.ens_reputation_name = ens.reputation_name(agent.label)
+        out.ens_reputation_name = ens.reputation_name_of(agent.ens_name)
         out.ens_reputation_records = ens.read_texts(out.ens_reputation_name, ens.REPUTATION_KEYS)
         out.ens_subagents = {f"{r}.{agent.ens_name}": ens.read_texts(f"{r}.{agent.ens_name}", ens.SUBAGENT_KEYS) for r in ens.SUBAGENT_ROLES}
         out.ens_roles = ens.agent_roles(agent.ens_name, agent.label)

@@ -116,15 +116,15 @@ def _ens_publish(p: dict) -> tuple[str, dict]:
 
 
 def _ens_update(p: dict) -> tuple[str, dict]:
-    tx = ens.update_texts(p["label"], p["texts"]) or chain.mock_tx_hash()
+    tx = ens.update_texts(p["label"], p["texts"], agent_name=p.get("agent_name")) or chain.mock_tx_hash()
     return tx, {}
 
 
 def _ens_project(p: dict) -> tuple[str, dict]:
     if p.get("agent_mock"):
         # Agent がモック公開（ENS 上に無い）なら project subname もモック
-        return chain.mock_tx_hash(), {"project_ens_name": f"{p['project_label']}.{ens.agent_ens_name(p['agent_label'])}"}
-    name, tx = ens.publish_project(agent_label=p["agent_label"], project_label=p["project_label"], texts=p["texts"])
+        return chain.mock_tx_hash(), {"project_ens_name": f"{p['project_label']}.{p.get('agent_name') or ens.agent_ens_name(p['agent_label'])}"}
+    name, tx = ens.publish_project(agent_label=p["agent_label"], project_label=p["project_label"], texts=p["texts"], agent_name=p.get("agent_name"))
     return tx, {"project_ens_name": name}
 
 

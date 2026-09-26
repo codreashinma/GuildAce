@@ -26,12 +26,12 @@ export function NotificationBell() {
         {urgent > 0 && <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-sm bg-white px-1 text-[10px] tabular-nums text-neutral-900">{urgent}</span>}
       </button>
       {open && (
-        <div className="absolute right-0 mt-2 w-80 rounded-md border border-neutral-900 bg-white p-2 shadow-[4px_4px_0_0_#171717]">
-          <div className="px-2 py-1 text-xs font-semibold text-neutral-500">Notifications</div>
-          {notices.length === 0 ? <p className="px-2 py-3 text-sm text-neutral-500">No notifications</p> : (
+        <div className="absolute right-0 mt-2 w-80 rounded-md border border-neutral-900 bg-white p-2 text-black shadow-[4px_4px_0_0_#171717]">
+          <div className="px-2 py-1 text-xs font-semibold text-black">Notifications</div>
+          {notices.length === 0 ? <p className="px-2 py-3 text-sm text-black">No notifications</p> : (
             <ul className="max-h-80 overflow-auto">
               {notices.map((n) => (
-                <li key={n.id}><Link href={n.href} onClick={() => setOpen(false)} className="flex gap-2 rounded-md px-2 py-2 text-sm hover:bg-neutral-100"><span className="mt-0.5 inline-flex h-5 shrink-0 items-center rounded-sm border border-neutral-900 px-1 text-[10px] font-semibold">{ICON[n.kind]}</span><span className="min-w-0"><div className="font-medium">{n.title}</div><div className="truncate text-xs text-neutral-500">{n.body}</div></span></Link></li>
+                <li key={n.id}><Link href={n.href} onClick={() => setOpen(false)} className="flex gap-2 rounded-md px-2 py-2 text-sm hover:bg-neutral-100"><span className="mt-0.5 inline-flex h-5 shrink-0 items-center rounded-sm border border-neutral-900 px-1 text-[10px] font-semibold">{ICON[n.kind]}</span><span className="min-w-0"><div className="font-medium">{n.title}</div><div className="truncate text-xs text-black">{n.body}</div></span></Link></li>
               ))}
             </ul>
           )}

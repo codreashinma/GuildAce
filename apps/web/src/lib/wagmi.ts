@@ -10,7 +10,7 @@ const projectId = process.env.NEXT_PUBLIC_WC_PROJECT_ID || "choice-dev";
 // Coinbase Wallet は依存（@coinbase/cdp-sdk → @x402）が Next のビルドで解決できないため外している
 const connectors = connectorsForWallets(
   [{ groupName: "Wallets", wallets: [metaMaskWallet, rabbyWallet, injectedWallet, walletConnectWallet] }],
-  { appName: "Choice — AI Agent Marketplace", projectId },
+  { appName: "GuildAce — Digital Company Marketplace", projectId },
 );
 
 export const wagmiConfig = createConfig({

@@ -81,7 +81,7 @@ def _migrate() -> None:
         conn.execute(text("alter table users add column if not exists role varchar(20)"))
 
 
-app = FastAPI(title="Choice — AI Agent Marketplace API", lifespan=lifespan)
+app = FastAPI(title="GuildAce — Digital Company Marketplace API", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_settings().cors_origin_list,

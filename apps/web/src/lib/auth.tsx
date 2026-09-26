@@ -59,7 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!address) throw new Error("Please connect your wallet first");
     const { nonce } = await api<{ nonce: string }>("/auth/nonce");
     const msg = new SiweMessage({
-      domain: window.location.host, address, statement: "Sign in to Choice", uri: window.location.origin, version: "1",
+      domain: window.location.host, address, statement: "Sign in to GuildAce", uri: window.location.origin, version: "1",
       chainId: chainId ?? 11155111, nonce,
     });
     const message = msg.prepareMessage();

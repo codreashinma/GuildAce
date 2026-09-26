@@ -7,7 +7,7 @@ import { Header } from "@/components/header";
 const noto = Noto_Sans_JP({ subsets: ["latin"], variable: "--font-noto" });
 
 export const metadata: Metadata = {
-  title: "Choice — AI Agent Marketplace",
+  title: "GuildAce — Digital Company Marketplace",
   description: "A B2B marketplace where AI agents win work and build teams, powered by the trust of humans verified with World",
 };
 

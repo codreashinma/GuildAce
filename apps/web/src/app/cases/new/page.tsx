@@ -24,7 +24,7 @@ function Form() {
   const sp = useSearchParams();
   const { me } = useAuth();
   const { data: agents } = useQuery({ queryKey: ["agents", "all"], queryFn: () => api<Agent[]>("/agents") });
-  const [prompt, setPrompt] = useState("I want to build a restaurant booking web service in 3 days. Budget is 12 USDC. I also want photos of the actual restaurant.");
+  const [prompt, setPrompt] = useState("I want to build a website in 3 days. Budget is 12 USDC. I also want photos of the actual store.");
   const [f, setF] = useState({ agent_id: sp.get("agent") ?? "", title: "", description: "", budget_usdc: 12, deadline: "" });
   const [approvers, setApprovers] = useState<string[]>([]);
   const [threshold, setThreshold] = useState(1);

@@ -41,7 +41,7 @@ def world(db, ens_records):
 
     def agent(label, rating, count, **kw):
         a = Agent(creator_id=kw.pop("creator_id", creator.id), name=label, label=label, category="web", payout_address=creator.wallet_address,
-                  status=kw.pop("status", "published"), ens_name=f"{label}.choice.eth", ens_tx_hash=kw.pop("tx", REAL_TX),
+                  status=kw.pop("status", "published"), ens_name=f"{label}.guildace.eth", ens_tx_hash=kw.pop("tx", REAL_TX),
                   rating_avg=rating, rating_count=count, description=INJECTION, **kw)
         db.add(a)
         records[a.ens_name] = {"codrea.agent.category": "web", "description": INJECTION, "url": "https://evil.example"}
@@ -82,7 +82,7 @@ def _names(r: SearchResult):
 
 def test_order_is_deterministic_and_follows_design(db, world):
     r1, r2 = search_candidates(db, world.id), search_candidates(db, world.id)
-    assert _names(r1) == _names(r2) == ["taro.photo.eth", "c-agent.choice.eth", "a-agent.choice.eth", "b-agent.choice.eth", "new-agent.choice.eth"]
+    assert _names(r1) == _names(r2) == ["taro.photo.eth", "c-agent.guildace.eth", "a-agent.guildace.eth", "b-agent.guildace.eth", "new-agent.guildace.eth"]
     assert not r1.truncated
 
 
@@ -92,11 +92,11 @@ def test_output_matches_6_3_schema(db, world):
     for c in out["candidates"]:
         assert set(c) == {"ens_name", "domain", "creator_ens_name", "reputation_score", "human_review_count"}
     by = {c["ens_name"]: c for c in out["candidates"]}
-    assert by["a-agent.choice.eth"] == {"ens_name": "a-agent.choice.eth", "domain": "web", "creator_ens_name": "choice.eth",
+    assert by["a-agent.guildace.eth"] == {"ens_name": "a-agent.guildace.eth", "domain": "web", "creator_ens_name": "guildace.eth",
                                         "reputation_score": 4.5, "human_review_count": 10}
     assert by["taro.photo.eth"] == {"ens_name": "taro.photo.eth", "domain": "カメラマン", "creator_ens_name": "photo.eth",
                                     "reputation_score": 4.9, "human_review_count": None}
-    assert by["new-agent.choice.eth"]["reputation_score"] is None
+    assert by["new-agent.guildace.eth"]["reputation_score"] is None
 
 
 def test_cg008_no_free_text_is_read_or_returned(db, world, ens_records):
@@ -118,14 +118,14 @@ def test_excluded_candidates(db, world):
 
 def test_unreadable_ens_name_is_skipped(db, world, ens_records):
     records, _ = ens_records
-    del records["c-agent.choice.eth"]
-    assert "c-agent.choice.eth" not in _names(search_candidates(db, world.id))
+    del records["c-agent.guildace.eth"]
+    assert "c-agent.guildace.eth" not in _names(search_candidates(db, world.id))
 
 
 def test_truncated_when_over_limit(db, world, monkeypatch):
     monkeypatch.setattr(get_settings(), "agent_max_candidates", 2)
     r = search_candidates(db, world.id)
-    assert _names(r) == ["taro.photo.eth", "c-agent.choice.eth"] and r.truncated
+    assert _names(r) == ["taro.photo.eth", "c-agent.guildace.eth"] and r.truncated
 
 
 def test_zero_candidates(db, ens_records):
@@ -158,12 +158,12 @@ def _subagent_records(records, parent, roles=("designer", "frontend", "backend",
 
 def test_pm_subagents_on_ens_are_candidates(db, world, ens_records):
     records, asked = ens_records
-    _subagent_records(records, "draft-agent.choice.eth")
+    _subagent_records(records, "draft-agent.guildace.eth")
     by = {c.ens_name: c for c in search_candidates(db, world.id).candidates}
-    assert by["designer.draft-agent.choice.eth"].model_dump() == {
-        "ens_name": "designer.draft-agent.choice.eth", "domain": "designer", "creator_ens_name": "draft-agent.choice.eth",
+    assert by["designer.draft-agent.guildace.eth"].model_dump() == {
+        "ens_name": "designer.draft-agent.guildace.eth", "domain": "designer", "creator_ens_name": "draft-agent.guildace.eth",
         "reputation_score": None, "human_review_count": None}
-    assert {"frontend.draft-agent.choice.eth", "backend.draft-agent.choice.eth", "qa.draft-agent.choice.eth"} <= set(by)
+    assert {"frontend.draft-agent.guildace.eth", "backend.draft-agent.guildace.eth", "qa.draft-agent.guildace.eth"} <= set(by)
     assert INJECTION not in repr([c.model_dump() for c in by.values()])  # CG-008: description は読まない
     assert "description" not in {k for _, keys in asked for k in keys}
 
@@ -175,16 +175,16 @@ def test_pm_subagents_even_when_pm_is_clients_own(db, world, ens_records):
     pm.creator_id = world.client_id
     db.commit()
     _subagent_records(records, pm.ens_name, roles=("designer",))
-    assert "designer.draft-agent.choice.eth" in _names(search_candidates(db, world.id))
+    assert "designer.draft-agent.guildace.eth" in _names(search_candidates(db, world.id))
 
 
 def test_pm_subagents_are_verified_on_ens(db, world, ens_records):
     records, _ = ens_records
-    _subagent_records(records, "draft-agent.choice.eth", roles=("designer",), **{"codrea.agent.parent": "other.choice.eth"})
-    _subagent_records(records, "draft-agent.choice.eth", roles=("frontend",), **{"codrea.agent.kind": "human"})
-    _subagent_records(records, "draft-agent.choice.eth", roles=("backend",), **{"codrea.agent.role": ""})
+    _subagent_records(records, "draft-agent.guildace.eth", roles=("designer",), **{"codrea.agent.parent": "other.guildace.eth"})
+    _subagent_records(records, "draft-agent.guildace.eth", roles=("frontend",), **{"codrea.agent.kind": "human"})
+    _subagent_records(records, "draft-agent.guildace.eth", roles=("backend",), **{"codrea.agent.role": ""})
     names = _names(search_candidates(db, world.id))
-    assert not any(n.endswith(".draft-agent.choice.eth") for n in names)
+    assert not any(n.endswith(".draft-agent.guildace.eth") for n in names)
 
 
 def test_pm_subagents_follow_owner_defined_roles(db, world, ens_records):
@@ -193,8 +193,8 @@ def test_pm_subagents_follow_owner_defined_roles(db, world, ens_records):
     pm.subagents = [{"role": "photo", "name": "Photo Agent", "description": "", "rules": ""}]
     db.commit()
     _subagent_records(records, pm.ens_name, roles=("photo", "designer"))
-    names = [n for n in _names(search_candidates(db, world.id)) if n.endswith(".draft-agent.choice.eth")]
-    assert names == ["photo.draft-agent.choice.eth"]
+    names = [n for n in _names(search_candidates(db, world.id)) if n.endswith(".draft-agent.guildace.eth")]
+    assert names == ["photo.draft-agent.guildace.eth"]
 
 
 def test_no_pm_subagents_when_pm_not_on_ens(db, world, ens_records):
@@ -203,7 +203,7 @@ def test_no_pm_subagents_when_pm_not_on_ens(db, world, ens_records):
     pm.ens_tx_hash = "0xmock1"
     db.commit()
     _subagent_records(records, pm.ens_name)
-    assert not any(n.endswith(".draft-agent.choice.eth") for n in _names(search_candidates(db, world.id)))
+    assert not any(n.endswith(".draft-agent.guildace.eth") for n in _names(search_candidates(db, world.id)))
 
 
 # ---------------------------------------------------------------- ツールとして（GRD-001）

@@ -43,7 +43,7 @@ export default function MePage() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
-          <h2 className="font-semibold">ENS 名 <span className="text-xs font-normal text-neutral-500">{config?.ens_parent_name ?? "choice.eth"} や会社・Creator の .eth の下に発行された名前</span></h2>
+          <h2 className="font-semibold">ENS 名 <span className="text-xs font-normal text-neutral-500">{config?.ens_parent_name ?? "guildace.eth"} や会社・Creator の .eth の下に発行された名前</span></h2>
           {s.ens_names.length === 0 ? <p className="mt-3 text-sm text-neutral-500">まだありません。会社の人員として登録されるか、Agent の受取先に自分のアドレスを指定すると名前が付きます。</p> : (
             <ul className="mt-3 space-y-2">
               {s.ens_names.map((n) => (

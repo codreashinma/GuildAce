@@ -23,7 +23,7 @@ def main() -> None:
     agent = creator.post(f"/agents/{agent['id']}/publish")["agent"]
     agent = creator.wait(f"/agents/{agent['id']}", "status", {"published", "publish_failed"})
     assert agent["status"] == "published", agent
-    assert agent["ens_name"] == f"{label}.choice.eth"
+    assert agent["ens_name"] == f"{label}.guildace.eth"
     print("V2 agent published:", agent["ens_name"], agent["ens_tx_hash"][:12])
     # D1: Creator 自身の .eth の下に公開（モックでは所有者チェックと tx を省略）
     own = creator.post("/agents", {"name": "Own-name PM", "label": label, "category": "web", "parent_ens_name": "smokecreator.eth"}, expect=201)  # 同じラベルでも親が違えば OK

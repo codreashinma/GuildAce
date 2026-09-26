@@ -12,7 +12,7 @@ from app.models import Agent, AgentOutput, AgentRun, Case, Company, HumanTask, M
 from app.services import chain, worker
 from app.services.gemini import USDC
 
-AI = "design-bot.choice.eth"
+AI = "design-bot.guildace.eth"
 HUMAN = "hanako.photo.eth"
 AI_ONLY = {"version": 1, "domain": "web", "workflow": {"phases": [{"key": "designer", "title": "デザイン"}, {"key": "frontend", "title": "実装"}]},
            "human_roles": []}

@@ -11,7 +11,7 @@ BUDGET = 1_000_000  # 手数料 2 % を除いた 980,000 が上限
 USABLE = 980_000
 CREATOR_WALLET = "0x" + "e2" * 20
 MEMBER_WALLET = "0x" + "e3" * 20
-AI = "design-bot.choice.eth"
+AI = "design-bot.guildace.eth"
 HUMAN = "hanako.photo.eth"
 TASKS = [{"seq": 1, "phase": "designer", "title": "画面設計"}, {"seq": 2, "phase": "field", "title": "店舗の撮影"}]
 

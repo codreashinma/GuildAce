@@ -2,7 +2,7 @@
 
 使い方:
   .venv/bin/python scripts/ens_check.py                    # 親名 + DB にある Agent / 人員の名前をまとめて確認
-  .venv/bin/python scripts/ens_check.py web-pm.choice.eth  # 任意の名前を確認
+  .venv/bin/python scripts/ens_check.py web-pm.guildace.eth  # 任意の名前を確認
 鍵は不要。SEPOLIA_RPC_URL が無ければ公開 RPC を使う。"""
 
 import sys

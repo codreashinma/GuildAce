@@ -107,7 +107,7 @@ def create_agent(body: AgentCreateIn, user: User = Depends(current_user), db: Se
 
 @router.post("/{agent_id}/publish")
 def publish_agent(agent_id: str, bg: BackgroundTasks, subagents: bool = True, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    """公開。platform: worker が choice.eth の下に発行。creator: Creator が署名する calldata（名前空間の構築込み）を返す。"""
+    """公開。platform: worker が guildace.eth の下に発行。creator: Creator が署名する calldata（名前空間の構築込み）を返す。"""
     agent = db.get(Agent, agent_id)
     if agent is None:
         raise HTTPException(404)

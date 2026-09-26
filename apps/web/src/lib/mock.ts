@@ -7,7 +7,7 @@ import type { Case, Task } from "./api";
 /** FR-027: プロジェクトごとの subname */
 export function projectSubname(c: Case): string {
   const n = parseInt(c.id.replace(/-/g, "").slice(0, 6), 16) % 1000;
-  return `project-${n}.${c.agent.label}.choice.eth`;  // API と同じ導出（openCase 後に実発行）
+  return `project-${n}.${c.agent.label}.guildace.eth`;  // API と同じ導出（openCase 後に実発行）
 }
 
 /** FR-006: タスク別契約（モック）。API の task から契約条件を組み立てる */

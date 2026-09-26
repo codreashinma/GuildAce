@@ -37,12 +37,12 @@ function EnsPageInner() {
   const wc = useEnsResolve(name);
   return (
     <div className="space-y-6">
-      <PageTitle title="ENS 名前空間" sub={`${config?.ens_parent_name ?? "choice.eth"} の下に発行した名前と、Sepolia 上の実レコード。役割ごとに別の鍵・別のリゾルバで管理しています（ENSv2 EAC / Permissioned Resolver）`} />
+      <PageTitle title="ENS 名前空間" sub={`${config?.ens_parent_name ?? "guildace.eth"} の下に発行した名前と、Sepolia 上の実レコード。役割ごとに別の鍵・別のリゾルバで管理しています（ENSv2 EAC / Permissioned Resolver）`} />
 
       <Card className="space-y-2">
         <h2 className="font-semibold">名前を調べる <span className="text-xs font-normal text-neutral-500">レジストリを .eth から辿って読み取り、ENSIP-10 の resolve() でも同じ値が返るかを確認します</span></h2>
         <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); setName(q.trim().toLowerCase() || null); }}>
-          <input className={inputCls} placeholder="web-pm.choice.eth" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input className={inputCls} placeholder="web-pm.guildace.eth" value={q} onChange={(e) => setQ(e.target.value)} />
           <button className="whitespace-nowrap rounded-md bg-neutral-900 px-4 py-2 text-sm text-white" type="submit">読む</button>
         </form>
         {name && (

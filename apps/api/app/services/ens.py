@@ -1,5 +1,5 @@
 """ENSv2（Sepolia beta）連携。
-- 公開: 親名 choice.eth のサブレジストリに subname を register し、OwnedResolver に text record を書く
+- 公開: 親名 guildace.eth のサブレジストリに subname を register し、OwnedResolver に text record を書く
 - 更新: 評価・完了数などの text record を更新
 - 読み取り: UniversalResolver 経由で text record を読む
 ENS_WRITE_ENABLED=false のときはモック（tx hash を生成せず ens_name だけ確定）。
@@ -735,7 +735,7 @@ def agent_roles_uncached(name: str, label: str) -> list[dict]:
             "verified": bool(has_sub and g("sub.REG.proj") and not g("sub.SETRES.proj") and proj_res_a and g("projres.T.proj") and not g("main.T.proj")
                              and not g("parent.REG.proj") and proj.lower() != owner.lower()),
             "checks": {"agent-subregistry.register": g("sub.REG.proj"), "agent-subregistry.setResolver": g("sub.SETRES.proj"),
-                       "project-resolver.setText": g("projres.T.proj"), "main.setText": g("main.T.proj"), "choice.eth-subregistry.register": g("parent.REG.proj")},
+                       "project-resolver.setText": g("projres.T.proj"), "main.setText": g("main.T.proj"), "guildace.eth-subregistry.register": g("parent.REG.proj")},
         })
     except Exception as e:  # noqa: BLE001
         out.append({"role": "error", "error": str(e)[:200]})

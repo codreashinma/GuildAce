@@ -47,7 +47,7 @@ export default function NewAgent() {
   };
 
   if (!me) return <p className="text-sm text-neutral-500">ウォレットを接続して Sign in してください。</p>;
-  const parent = mode === "creator" ? (ownName || "<your-name>.eth") : (config?.ens_parent_name ?? "choice.eth");
+  const parent = mode === "creator" ? (ownName || "<your-name>.eth") : (config?.ens_parent_name ?? "guildace.eth");
   const ens = `${f.label || "<PM Agent のラベル>"}.${parent}`;
   const pErrs = policyErrors(err);
 
@@ -59,7 +59,7 @@ export default function NewAgent() {
         <Field label="公開先（ENS の親名）" hint="Creator 自身の .eth の下に置くと、名前の所有者は Creator になり、発行と record 書き込みは自分のウォレットで署名します">
           <div className="grid gap-2 sm:grid-cols-2">
             <button type="button" onClick={() => setMode("platform")} className={`rounded-md border p-3 text-left text-sm ${mode === "platform" ? "border-neutral-900 shadow-[2px_2px_0_0_#171717]" : "border-neutral-300"}`}>
-              <div className="font-medium">プラットフォームの親名</div><div className="mt-0.5 font-mono text-xs text-neutral-600">&lt;label&gt;.{config?.ens_parent_name ?? "choice.eth"}</div><div className="mt-1 text-xs text-neutral-500">ウォレット署名不要。運用ウォレットが発行</div>
+              <div className="font-medium">プラットフォームの親名</div><div className="mt-0.5 font-mono text-xs text-neutral-600">&lt;label&gt;.{config?.ens_parent_name ?? "guildace.eth"}</div><div className="mt-1 text-xs text-neutral-500">ウォレット署名不要。運用ウォレットが発行</div>
             </button>
             <button type="button" onClick={() => setMode("creator")} className={`rounded-md border p-3 text-left text-sm ${mode === "creator" ? "border-neutral-900 shadow-[2px_2px_0_0_#171717]" : "border-neutral-300"}`}>
               <div className="font-medium">自分の ENS 名の下</div><div className="mt-0.5 font-mono text-xs text-neutral-600">&lt;label&gt;.&lt;your-name&gt;.eth</div><div className="mt-1 text-xs text-neutral-500">所有者を ENSv2 で確認。2 本の tx に署名</div>

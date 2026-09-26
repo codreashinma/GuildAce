@@ -55,7 +55,7 @@ if int(sub, 16):
     st = reg.functions.getState(int.from_bytes(ens.keccak(text="reputation"), "big")).call()
     simulate("project", reg.functions.setResolver(st[3], addrs["project"]), "setResolver(reputation subname)", False)
 parent = ens._subregistry(w3)
-simulate("project", parent.functions.register("hijack", addrs["project"], "0x" + "00" * 20, proj_res.address, ens.V2_DEFAULT_OWNER_ROLE_BITMAP, int(time.time()) + 3600), "register(hijack.choice.eth)", False)
+simulate("project", parent.functions.register("hijack", addrs["project"], "0x" + "00" * 20, proj_res.address, ens.V2_DEFAULT_OWNER_ROLE_BITMAP, int(time.time()) + 3600), "register(hijack.guildace.eth)", False)
 print("\n[API 用の役割表]")
 for r in ens.agent_roles(name, label):
     print(" ", r.get("role"), "verified =", r.get("verified"), r.get("checks", r.get("error")))

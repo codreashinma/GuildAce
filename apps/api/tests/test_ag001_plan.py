@@ -11,7 +11,7 @@ from app.agents.ag001_orchestrator import run_planning
 from app.models import Agent, AgentOutput, AgentRun, AgentToolCall, Case, Company, Member, Task, User
 
 BUDGET = 1_000_000
-AI = "design-bot.choice.eth"
+AI = "design-bot.guildace.eth"
 HUMAN = "hanako.photo.eth"
 POLICY = {"version": 1, "domain": "web", "workflow": {"phases": [{"key": "designer", "title": "デザイン"}, {"key": "field", "title": "撮影"}]},
           "human_roles": []}

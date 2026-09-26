@@ -55,7 +55,7 @@ class Agent(TimestampMixin, Base):
     payout_address: Mapped[str] = mapped_column(String(42))
     ens_name: Mapped[str | None] = mapped_column(String(255), index=True)
     ens_tx_hash: Mapped[str | None] = mapped_column(String(66))
-    parent_ens_name: Mapped[str | None] = mapped_column(String(255))  # None = プラットフォームの親名（choice.eth）
+    parent_ens_name: Mapped[str | None] = mapped_column(String(255))  # None = プラットフォームの親名（guildace.eth）
     ens_subregistry: Mapped[str | None] = mapped_column(String(42))  # Agent 配下（project subname）のサブレジストリ
     owner_mode: Mapped[str] = mapped_column(String(10), default="platform")  # platform | creator（Creator 自身の .eth の下。Creator が署名）
     status: Mapped[str] = mapped_column(String(20), default="draft", index=True)
@@ -85,7 +85,7 @@ class Case(TimestampMixin, Base):
     approvers: Mapped[list | None] = mapped_column(JSON, default=list)  # 承認者アドレス（openCase で固定）
     threshold: Mapped[int] = mapped_column(Integer, default=1)
     open_tx_hash: Mapped[str | None] = mapped_column(String(66))  # 発注者が送った openCase
-    project_ens_name: Mapped[str | None] = mapped_column(String(255))  # project-<n>.<agent>.choice.eth
+    project_ens_name: Mapped[str | None] = mapped_column(String(255))  # project-<n>.<agent>.guildace.eth
     project_ens_tx_hash: Mapped[str | None] = mapped_column(String(66))
     request_nullifier: Mapped[str | None] = mapped_column(String(160))  # 依頼開始時の World 検証
     error: Mapped[str | None] = mapped_column(Text)

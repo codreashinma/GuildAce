@@ -77,7 +77,7 @@ function EditForm({ a }: { a: Agent }) {
       <BackLink href={`/agents/${a.id}`}>Agent 詳細</BackLink>
       <PageTitle title="PM Agent を編集" sub="変更した項目だけ ENS の text record を再書き込みします。ラベルと公開先は変更できません" />
       <Card className="space-y-4">
-        <div className="text-xs text-neutral-500">ENS 名 <Mono className="text-neutral-900">{a.ens_name ?? `${a.label}.${a.parent_ens_name ?? "choice.eth"}`}</Mono>{a.owner_mode === "creator" && <span className="ml-2">（Creator 所有: 更新はあなたのウォレットで署名）</span>}</div>
+        <div className="text-xs text-neutral-500">ENS 名 <Mono className="text-neutral-900">{a.ens_name ?? `${a.label}.${a.parent_ens_name ?? "guildace.eth"}`}</Mono>{a.owner_mode === "creator" && <span className="ml-2">（Creator 所有: 更新はあなたのウォレットで署名）</span>}</div>
         <Field label="名前"><input className={inputCls} value={f.name} onChange={(e) => set("name", e.target.value)} /></Field>
         <Field label="説明" hint="ENS: description"><textarea className={inputCls} rows={3} value={f.description} onChange={(e) => set("description", e.target.value)} /></Field>
         <div className="grid grid-cols-2 gap-4">
@@ -91,7 +91,7 @@ function EditForm({ a }: { a: Agent }) {
           </Field>
         </div>
         <Field label="進め方・ルール" hint="PM Agent の system prompt。ENS には書きません"><textarea className={inputCls} rows={5} value={f.rules} onChange={(e) => set("rules", e.target.value)} /></Field>
-        <SubagentsEditor value={subs} onChange={setSubs} published={a.status === "published"} defaultOpen agentEns={a.ens_name ?? `${a.label}.${a.parent_ens_name ?? "choice.eth"}`} />
+        <SubagentsEditor value={subs} onChange={setSubs} published={a.status === "published"} defaultOpen agentEns={a.ens_name ?? `${a.label}.${a.parent_ens_name ?? "guildace.eth"}`} />
         <PolicyEditor value={policy} onChange={setPolicy} errors={policyErrors(err)} />
         {Object.keys(policyErrors(err)).length > 0 ? <p className="text-sm font-medium text-neutral-900">工程・人間の使い方の入力を確かめてください（⚠ の項目）</p> : <ErrorBox error={err} />}
         {done && <p className="text-sm text-neutral-900">{done}</p>}

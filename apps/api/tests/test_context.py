@@ -131,12 +131,12 @@ def test_cg008_candidates_keep_only_structured_fields(small_context):
 
 
 def test_ctx007_is_cut_by_count_and_counts_go_to_ctx005(small_context):
-    cands = [{"ens_name": f"agent-{i:04d}.choice.eth", "domain": "web-saas", "reputation_score": 4.0, "human_review_count": i} for i in range(1000)]
+    cands = [{"ens_name": f"agent-{i:04d}.guildace.eth", "domain": "web-saas", "reputation_score": 4.0, "human_review_count": i} for i in range(1000)]
     ctx = build_ag003(budget_amount="100", human_roles=[], tasks=[{"seq": 1, "phase": "design", "title": "t"}], candidates=cands, schema=Out)
     t = [x for x in ctx.truncations if x.ctx_id == "CTX-007"][0]
     assert t.unit == "items" and t.before == 1000 and 0 < t.after < 1000
     assert f"候補の総数: 1000 件 / 提示: {t.after} 件" in ctx.contents
-    assert "agent-0000.choice.eth" in ctx.contents  # 並び順の先頭（評価の高い順）が残る
+    assert "agent-0000.guildace.eth" in ctx.contents  # 並び順の先頭（評価の高い順）が残る
 
 
 def test_shrink_follows_chapter6_order():

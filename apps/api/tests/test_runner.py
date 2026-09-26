@@ -8,7 +8,7 @@ from app.agents import ag003_team, control, runner, tool_search, trace
 from app.db import engine
 from app.models import Agent, AgentOutput, AgentRun, Case, Company, Dispute, Member, Task, User
 
-AI = "design-bot.choice.eth"
+AI = "design-bot.guildace.eth"
 HUMAN = "hanako.photo.eth"
 POLICY = {"version": 1, "domain": "web", "workflow": {"phases": [{"key": "designer", "title": "デザイン"}, {"key": "field", "title": "撮影"}]},
           "human_roles": []}

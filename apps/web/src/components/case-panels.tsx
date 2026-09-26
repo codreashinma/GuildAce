@@ -136,7 +136,7 @@ export function ProgressPanel({ c }: { c: Case }) {
 
 /** FR-027 / FR-028: プロジェクト subname と ENSv2 の権限 */
 export function EnsPanel({ c }: { c: Case }) {
-  const agentName = c.agent.ens_name ?? `${c.agent.label}.choice.eth`;
+  const agentName = c.agent.ens_name ?? `${c.agent.label}.guildace.eth`;
   const { data: agent } = useQuery({ queryKey: ["agent", c.agent.id], queryFn: () => api<AgentDetail>(`/agents/${c.agent.id}`), staleTime: 60_000 });
   return (
     <>

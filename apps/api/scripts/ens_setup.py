@@ -2,7 +2,7 @@
 
 やること:
   1. サーバー署名者用の OwnedResolver を VerifiableFactory でデプロイ（既にあればスキップ）
-  2. 親名（既定 choice.eth）を ETHRegistrar で commit/reveal 登録（既に登録済みならスキップ。登録料は ENS のテスト用 USDC。mint は誰でも可）
+  2. 親名（既定 guildace.eth）を ETHRegistrar で commit/reveal 登録（既に登録済みならスキップ。登録料は ENS のテスト用 USDC。mint は誰でも可）
   3. 親名用の UserRegistry（サブレジストリ）をデプロイし、親名に設定（既にあればスキップ）
 最後に .env に書く ENS_OWNED_RESOLVER / ENS_PARENT_SUBREGISTRY を出力する。
 

@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     usdc_address: str = ""
 
     # --- ENS (ENSv2 Sepolia beta) ---
-    ens_parent_name: str = "choice.eth"
+    ens_parent_name: str = "guildace.eth"
     ens_write_enabled: bool = False
     ens_universal_resolver: str = "0xeEeEEEeE14D718C2B47D9923Deab1335E144EeEe"
     ensv2_eth_registry: str = "0xBDC85dD5b15D7ecb354cd7cb6f2c50b4f2c4F0E2"

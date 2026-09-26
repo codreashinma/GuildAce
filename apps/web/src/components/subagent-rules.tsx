@@ -38,7 +38,7 @@ export function SubagentsEditor({ value, onChange, published = false, defaultOpe
       {open && (
         <div className="space-y-3 border-t border-neutral-200 px-3 py-3">
           <p className="text-xs text-neutral-500">
-            PM Agent が案件を分解するときの AI 担当です。「ENS ラベル」がそのまま subname の先頭になり（<span className="font-mono">&lt;ラベル&gt;.{agentEns ?? "<PM Agent のラベル>.choice.eth"}</span>）、PM Agent の公開時に一緒に発行されます。名前と説明は record に書き、プロンプトは ENS には書かずにその役割の system prompt に足します。
+            PM Agent が案件を分解するときの AI 担当です。「ENS ラベル」がそのまま subname の先頭になり（<span className="font-mono">&lt;ラベル&gt;.{agentEns ?? "<PM Agent のラベル>.guildace.eth"}</span>）、PM Agent の公開時に一緒に発行されます。名前と説明は record に書き、プロンプトは ENS には書かずにその役割の system prompt に足します。
             {published && " 公開済みの Agent では、追加・名前や説明の変更は ENS にも反映されます（プラットフォーム公開はワーカーが、Creator 所有は自分のウォレットで署名）。削除は一覧から外れるだけで ENS の subname は残ります。"}
           </p>
           {value.length === 0 && <p className="text-xs text-neutral-700">専門エージェントがありません。すべての AI タスクは role=general として PM Agent 自身が実行します。</p>}
@@ -49,7 +49,7 @@ export function SubagentsEditor({ value, onChange, published = false, defaultOpe
                 <input id={`sub-name-${i}`} className={inputCls} placeholder="例: Designer Agent" value={x.name} onChange={(e) => upd(i, "name", e.target.value)} />
                 <Button variant="ghost" onClick={() => remove(i)}>削除</Button>
               </div>
-              <div className="truncate font-mono text-[11px] text-neutral-500" title={`${x.role || "<ラベル>"}.${agentEns ?? "<PM Agent のラベル>.choice.eth"}`}>ENS: {x.role || "<ラベル>"}.{agentEns ?? "<PM Agent のラベル>.choice.eth"}</div>
+              <div className="truncate font-mono text-[11px] text-neutral-500" title={`${x.role || "<ラベル>"}.${agentEns ?? "<PM Agent のラベル>.guildace.eth"}`}>ENS: {x.role || "<ラベル>"}.{agentEns ?? "<PM Agent のラベル>.guildace.eth"}</div>
               <input id={`sub-desc-${i}`} className={inputCls} placeholder="説明（ENS の description。200 文字まで）" maxLength={200} value={x.description} onChange={(e) => upd(i, "description", e.target.value)} />
               <textarea id={`sub-rules-${i}`} className={inputCls} rows={3} maxLength={4000} placeholder={"この役割の成果物に何を含めるか、技術スタック、形式など（system prompt に追加。ENS には書きません）"} value={x.rules} onChange={(e) => upd(i, "rules", e.target.value)} />
             </div>

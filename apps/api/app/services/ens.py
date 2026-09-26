@@ -12,6 +12,7 @@ import time
 
 from eth_utils import keccak
 from web3 import Web3
+from web3.exceptions import ContractLogicError
 
 from ..config import get_settings
 
@@ -783,10 +784,14 @@ def setup_calldata(*, name: str, owner: str) -> dict:
     if int(resolver, 16):
         out["resolver"] = {"address": resolver, "exists": True}
     else:
-        salt = int.from_bytes(keccak(encode(["bytes32", "address", "uint256"], [keccak(text="OwnedResolver"), owner, 0])), "big")
+        # salt は名前ごとに変える（以前は owner だけだったため、同じウォレットの 2 つ目の名前で CREATE2 のアドレスが衝突し deployProxy の eth_call が revert した）
+        salt = int.from_bytes(keccak(encode(["bytes32", "address", "bytes32"], [keccak(text="OwnedResolver"), owner, namehash(name)])), "big")
         init = w3.eth.contract(abi=RESOLVER_INIT_ABI).encode_abi("initialize", args=[owner, ALL_ROLES, []])
         fn = factory.functions.deployProxy(Web3.to_checksum_address(s.ensv2_resolver_impl), salt, bytes.fromhex(init[2:]))
-        predicted = fn.call({"from": owner})
+        try:
+            predicted = fn.call({"from": owner})
+        except ContractLogicError as e:
+            raise ValueError(f"{name} 用のリゾルバの予定アドレスを計算できませんでした（同じ salt で既にデプロイ済みの可能性）。ens_setup.py か ens-cli で用意してください: {e}") from e
         deployed = w3.eth.get_code(predicted) not in (b"", b"\x00")
         if not deployed:
             txs.append({"to": factory.address, "data": factory.encode_abi("deployProxy", args=[Web3.to_checksum_address(s.ensv2_resolver_impl), salt, bytes.fromhex(init[2:])]),
@@ -803,7 +808,10 @@ def setup_calldata(*, name: str, owner: str) -> dict:
         salt = int.from_bytes(keccak(encode(["bytes32", "bytes32", "uint256"], [keccak(text="UserRegistry"), namehash(name), 0])), "big")
         init = w3.eth.contract(abi=USER_REGISTRY_INIT_ABI).encode_abi("initialize", args=[owner, ALL_ROLES])
         fn = factory.functions.deployProxy(Web3.to_checksum_address(s.ensv2_subregistry_impl), salt, bytes.fromhex(init[2:]))
-        predicted = fn.call({"from": owner})
+        try:
+            predicted = fn.call({"from": owner})
+        except ContractLogicError as e:
+            raise ValueError(f"{name} 用のサブレジストリの予定アドレスを計算できませんでした（同じ salt で既にデプロイ済みの可能性）: {e}") from e
         deployed = w3.eth.get_code(predicted) not in (b"", b"\x00")
         if not deployed:
             txs.append({"to": factory.address, "data": factory.encode_abi("deployProxy", args=[Web3.to_checksum_address(s.ensv2_subregistry_impl), salt, bytes.fromhex(init[2:])]),

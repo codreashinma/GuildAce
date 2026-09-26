@@ -50,7 +50,7 @@ API-72,紛争,GET,/disputes/{id},不要,紛争詳細（論点サマリー・投�
 API-73,紛争,POST,/disputes/{id}/vote,要,Jury 投票。当事者除外・World 検証（action=jury）・1 人 1 票。3 票で多数決し worker が resolve を工程ごとに送信,入力: vote（release / refund）/ idkit_response。出力: DisputeOut,F2,"FR-018, FR-019",済,,
 API-80,運用,GET,/ops/jobs,要（運用者）,chain_jobs の一覧（状態・試行回数・エラー・tx）,出力: ChainJob[],G1,ADR-006,未,,低
 API-81,運用,POST,/ops/jobs/{id}/retry,要（運用者）,失敗ジョブの再投入,出力: ChainJob,G1,ADR-006,未,,低
-API-90,マイページ,GET,/me/summary,要,所属会社・受取履歴・World 検証済み行為をまとめて返す,出力: 集計,A4,-,未,,低
+API-90,マイページ,GET,/me/summary,要,自分のウォレットに紐づく ENS 名（人員・Agent 受取・会社管理者）・World 検証済み行為の回数・所属会社・作成 Agent・関わった案件数・受取履歴（payee = 自分の paid / resolved 工程）,出力: MeSummaryOut,A4,-,済,nullifier・署名は返さない。routers/me.py,
 API-100,ENS,GET,/ens/resolve?name=,不要,任意の ENS 名の所有者・レジストリ・リゾルバ・addr・text record を Sepolia から読む（scripts/ens_check.py の API 化）,入力: name。出力: owner / registry / resolver / addr / texts,"G3, B5, E1, B2, G3","FR-026, FR-027, NFR-004",済,"レジストリ直読み（registry-walk）に加え、リゾルバの ENSIP-10 resolve(bytes,bytes) でも同じ値が返るかを wildcard として同梱。60 秒キャッシュ",
 API-101,ENS,GET,/ens/check-owner?name=,要,入力中の名前が接続ウォレットの所有か（ENSv2 .eth レジストリの latestOwner）を事前確認,入力: name。出力: owner / is_mine / status,"D1, E1","FR-026, 追補1 F9",済,認証必須。/ens/resolve の owner と接続ウォレットを比較（status: ok / unregistered / unconfigured）,
 API-102,ENS,GET,/ens/readiness?name=,不要,名前にサブレジストリとリゾルバが設定済みかを返す。無いと subname 発行が revert する,入力: name。出力: registered / subregistry / resolver / ready,"D1, E1","FR-026, FR-027",済,registered / subregistry / resolver の 3 点と missing・next_steps を返す,

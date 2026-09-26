@@ -91,6 +91,17 @@ export type CaseAudit = {
   case_id: string; title: string; status: string; escrow_case_id: string; approvers: string[]; threshold: number; project_ens_name: string | null; agent_ens_name: string | null;
   events: AuditEvent[]; actors: Record<string, AuditActor>; counts: { events: number; onchain: number; mock: number; failed: number; named_actors: number };
 };
+export type MeSummary = {
+  user: { id: string; wallet_address: string; display_name: string | null; created_at: string };
+  primary_ens: MeEnsName | null; ens_names: MeEnsName[];
+  world_actions: { action: string; label: string; count: number; last_at: string | null }[];
+  companies: { id: string; name: string; ens_name: string; ens_verified: boolean; relation: "admin" | "member"; member_name: string | null; member_ens: string | null; available: boolean | null }[];
+  agents: { id: string; name: string; status: string; ens_name: string | null; owner_mode: string; rating_avg: number; rating_count: number; completed_count: number }[];
+  cases: { as_client: number; as_approver: number; as_worker: number; as_jury: number };
+  earnings: { case_id: string; case_title: string; task_id: string; task_title: string; role: "pm" | "human" | "ai"; amount: string; chain_status: string; tx_hash: string | null; at: string | null }[];
+  earnings_total: string; reviews_received: { count: number; avg: number | null };
+};
+export type MeEnsName = { name: string; kind: "person" | "agent-payout" | "company-admin"; verified: boolean; tx_hash: string | null; link: string; note: string | null };
 export type AppConfig = {
   chain_id: number; escrow_address: string; usdc_address: string; ens_parent_name: string; ens_universal_resolver: string;
   world_app_id: string; world_rp_id: string;

@@ -257,11 +257,12 @@ def create_case(body: CaseCreateIn, bg: BackgroundTasks, user: User = Depends(cu
     if agent is None or agent.status != "published":
         raise HTTPException(400, "公開済みの PM Agent を選んでください")
     case_id = str(uuid.uuid4())
-    # FR-002: 依頼の開始は World で人間性を確認する（signal = 依頼ごとの ID）
-    nullifier = verify_and_record(db, user, action="request", signal=case_id, idkit_response=body.idkit_response)
+    # 入力の検証は World の検証より前に行う。World 側は action ごとの検証回数を数えるので、こちらの 400 で proof を消費させない
     approvers = [a.lower() for a in body.approvers] or [user.wallet_address]
     if body.threshold > len(approvers):
         raise HTTPException(400, "必要承認数が承認者数を超えています")
+    # FR-002: 依頼の開始は World で人間性を確認する（signal = 依頼ごとの ID）
+    nullifier = verify_and_record(db, user, action="request", signal=case_id, idkit_response=body.idkit_response)
     case = Case(id=case_id, client_id=user.id, agent_id=agent.id, title=body.title, description=body.description,
                 budget=body.budget_usdc * USDC, deadline=body.deadline, status="planning", escrow_case_id=chain.escrow_case_id(case_id),
                 approvers=approvers, threshold=body.threshold, request_nullifier=nullifier)

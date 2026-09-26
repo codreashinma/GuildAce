@@ -31,7 +31,7 @@ function Form() {
   const [extra, setExtra] = useState("");
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [err, setErr] = useState<unknown>(null);
-  const [signal] = useState(() => crypto.randomUUID());
+  const [signal, setSignal] = useState(() => crypto.randomUUID());
   const agentId = f.agent_id || agents?.[0]?.id || "";
   const agent = agents?.find((a) => a.id === agentId);
 
@@ -56,6 +56,7 @@ function Form() {
       router.push(`/cases/${c.id}`);
     } catch (e) {
       setErr(e);
+      setSignal(crypto.randomUUID());  // 失敗した proof は使い回さない。次は新しい signal と rp_context で確認する
       throw e;
     }
   };

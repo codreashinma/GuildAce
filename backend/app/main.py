@@ -1,10 +1,16 @@
 import re
 from typing import Any
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from starlette.concurrency import run_in_threadpool
 
 from app.config import settings
+from app.proof_store import (
+    DuplicateWorldIDProofUse,
+    WorldIDProofStoreUnavailable,
+    consume_verified_world_id_proof,
+)
 from app.world_id import WorldIDVerificationError, verify_world_proof
 
 
@@ -39,11 +45,14 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+# Demo-only endpoint.
+# Production approval must authenticate the user, check permissions,
+# and save both the approval and proof use in one transaction.
 @app.post("/world/verify/{action}/{scope}")
 async def verify_world_id(
     action: str,
     scope: str,
-    payload: dict[str, Any],
+    request: Request,
 ) -> JSONResponse:
     if action not in ALLOWED_ACTIONS:
         return no_store_json(
@@ -59,6 +68,26 @@ async def verify_world_id(
             {
                 "verified": False,
                 "error": "invalid_scope",
+            },
+            status_code=400,
+        )
+
+    try:
+        payload = await request.json()
+    except (UnicodeDecodeError, ValueError):
+        return no_store_json(
+            {
+                "verified": False,
+                "error": "invalid_payload",
+            },
+            status_code=400,
+        )
+
+    if not isinstance(payload, dict):
+        return no_store_json(
+            {
+                "verified": False,
+                "error": "invalid_payload",
             },
             status_code=400,
         )
@@ -80,9 +109,31 @@ async def verify_world_id(
             status_code=error.status_code,
         )
 
+    try:
+        await run_in_threadpool(
+            consume_verified_world_id_proof,
+            result,
+        )
+    except DuplicateWorldIDProofUse:
+        return no_store_json(
+            {
+                "verified": False,
+                "error": "duplicate_proof",
+            },
+            status_code=409,
+        )
+    except WorldIDProofStoreUnavailable:
+        return no_store_json(
+            {
+                "verified": False,
+                "error": "proof_store_unavailable",
+            },
+            status_code=503,
+        )
+
     return no_store_json(
         {
             "verified": True,
-            **result,
+            "action": result["action"],
         }
     )

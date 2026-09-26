@@ -39,7 +39,7 @@ export default function WorldVerifyPage() {
 
     try {
       const response = await fetch(
-        "/world/rp-context?action=approve&scope=task-123",
+        "/world/rp-context?action=approve&scope=submission-replay-demo-001",
         { cache: "no-store" },
       );
       const data = (await response.json()) as RpContextResponse;

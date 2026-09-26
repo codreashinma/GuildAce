@@ -187,6 +187,27 @@ def test_rejects_legacy_orb_proof(
     assert fake_client.posted_json is None
 
 
+def test_rejects_multiple_human_proofs(
+    fake_client: type[FakeAsyncClient],
+) -> None:
+    payload = make_valid_payload()
+    payload["responses"].append(
+        payload["responses"][0].copy()
+    )
+
+    with pytest.raises(WorldIDVerificationError) as error:
+        asyncio.run(
+            verify_world_proof(
+                payload,
+                expected_action=EXPECTED_ACTION,
+                expected_environment="production",
+            )
+        )
+
+    assert error.value.code == "invalid_payload"
+    assert fake_client.posted_json is None
+
+
 def test_handles_world_rate_limit(
     fake_client: type[FakeAsyncClient],
 ) -> None:

@@ -50,7 +50,10 @@ async def verify_world_proof(
         raise WorldIDVerificationError("environment_mismatch")
 
     submitted_responses = payload.get("responses")
-    if not isinstance(submitted_responses, list) or not submitted_responses:
+    if (
+        not isinstance(submitted_responses, list)
+        or len(submitted_responses) != 1
+    ):
         raise WorldIDVerificationError("invalid_payload")
 
     if any(

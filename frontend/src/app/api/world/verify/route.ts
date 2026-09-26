@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 const DEMO_ACTION = "approve";
-const DEMO_SCOPE = "task-123";
+const DEMO_SCOPE = "submission-replay-demo-001";
 
 function noStoreJson(
   content: Record<string, unknown>,

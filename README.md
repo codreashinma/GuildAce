@@ -119,6 +119,18 @@ subname 発行と record 書き込みは会社管理者のウォレットが署�
 
 Sepolia 実機の通しテスト: `cd apps/api && .venv/bin/python scripts/smoke_chain.py`
 
+## 公開環境（2026-09-26）
+
+| 役割 | URL | 備考 |
+|---|---|---|
+| Web | https://choice-dun.vercel.app | Vercel プロジェクト `choice`（`apps/web`）。`choice-codrea.vercel.app` はチーム SSO 保護付きなので使わない |
+| API | https://choice-api-rcr5.onrender.com | Render Web Service `choice-api`（Docker、Free、Singapore）。Free はアイドルで停止するため審査前に `/health` を叩いて起こす |
+| DB | Render PostgreSQL 16 `choice-db`（Free、Singapore） | ローカルのデモデータを復元済み。Free は 30 日で失効 |
+
+- Render はチームのリポジトリ（プライベート）を取得できないため、ミラー `codreashinma/team_codrea_ethglocal` からデプロイしている。反映は `git push deploy feature/agent-marketplace-mvp`（`deploy` リモート）。
+- Web の再デプロイは `cd apps/web && vercel --prod`。API の URL は Vercel の環境変数 `NEXT_PUBLIC_API_URL`。
+- API の環境変数は Render のダッシュボード（`DATABASE_URL` は外部接続 + `sslmode=require`、`CORS_ORIGINS` / `APP_URL` = Web の URL、`DEV_LOGIN_ENABLED=false`）。
+
 ## デモ・公開前チェックリスト
 
 - `JWT_SECRET` をランダムな値にする（既定値のままだと API 起動時に警告が出る）

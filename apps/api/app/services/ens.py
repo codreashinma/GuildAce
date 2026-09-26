@@ -98,9 +98,63 @@ def dns_encode(name: str) -> bytes:
     return out + b"\x00"
 
 
+MULTICALL3 = "0xcA11bde05977b3631167028862bE2a173976CA11"  # Sepolia を含む主要チェーン共通のアドレス
+MULTICALL3_ABI = [{"type": "function", "name": "aggregate3", "stateMutability": "payable",
+                   "inputs": [{"name": "calls", "type": "tuple[]", "components": [{"name": "target", "type": "address"}, {"name": "allowFailure", "type": "bool"}, {"name": "callData", "type": "bytes"}]}],
+                   "outputs": [{"name": "returnData", "type": "tuple[]", "components": [{"name": "success", "type": "bool"}, {"name": "returnData", "type": "bytes"}]}]}]
+
+
+def multicall(w3: Web3, calls: list[tuple[str, str]]) -> list[tuple[bool, bytes]]:
+    """複数の view 呼び出しを Multicall3 の aggregate3 で 1 回の eth_call にまとめる。calls = [(to, calldata hex)]。
+    Render → RPC の往復（約 0.5 秒）が呼び出し数ぶん直列に積み上がるのを防ぐ。個々の失敗は (False, b"") で返る。"""
+    if not calls:
+        return []
+    mc = w3.eth.contract(address=Web3.to_checksum_address(MULTICALL3), abi=MULTICALL3_ABI)
+    res = mc.functions.aggregate3([(Web3.to_checksum_address(to), True, bytes.fromhex(data[2:])) for to, data in calls]).call()
+    return [(bool(ok), bytes(raw)) for ok, raw in res]
+
+
+def decode_text(w3: Web3, ok: bool, raw: bytes) -> str:
+    if not ok or len(raw) < 64:
+        return ""
+    try:
+        (v,) = w3.codec.decode(["string"], raw)
+        return v
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def decode_bool(ok: bool, raw: bytes) -> bool:
+    return bool(ok and len(raw) >= 32 and int.from_bytes(raw[:32], "big"))
+
+
+# レジストリ走査（.eth → サブレジストリ → リゾルバ）の結果。構造はほぼ変わらないので 5 分キャッシュ（見つかった場合のみ）。書き込み後は invalidate_walk で消す
+_walk_cache: dict[str, tuple[float, tuple[str, str, str]]] = {}
+WALK_TTL = 300.0
+
+
+def invalidate_walk(name: str | None = None) -> None:
+    if name is None:
+        _walk_cache.clear()
+        return
+    n = name.lower()
+    for k in [k for k in _walk_cache if k == n or k.endswith("." + n)]:
+        _walk_cache.pop(k, None)
+
+
 def resolve_v2(w3: Web3, name: str) -> tuple[str | None, str | None, str | None]:
     """ENSv2 のレジストリを .eth から順にたどり、(resolver, 親レジストリ, 最終ラベル) を返す。
-    Universal Resolver が v2 名を解決しない期間があるため、レジストリを直接歩く。"""
+    Universal Resolver が v2 名を解決しない期間があるため、レジストリを直接歩く。リゾルバが見つかった結果だけ 5 分キャッシュする。"""
+    hit = _walk_cache.get(name.lower())
+    if hit and time.time() - hit[0] < WALK_TTL:
+        return hit[1]
+    out = _resolve_v2_uncached(w3, name)
+    if out[0]:
+        _walk_cache[name.lower()] = (time.time(), out)  # type: ignore[assignment]
+    return out
+
+
+def _resolve_v2_uncached(w3: Web3, name: str) -> tuple[str | None, str | None, str | None]:
     s = get_settings()
     labels = name.split(".")
     if labels[-1] != "eth" or len(labels) < 2:
@@ -363,17 +417,58 @@ def read_texts(name: str, keys: list[str] | None = None, ttl: float = 60.0) -> d
         resolver_addr, _, _ = resolve_v2(w3, name)
         if resolver_addr is None:
             return {}
-        r = w3.eth.contract(address=resolver_addr, abi=RESOLVER_ABI)
-        node = namehash(name)
-        out = {}
-        for k in keys or PROFILE_KEYS:
-            v = r.functions.text(node, k).call()
-            if v:
-                out[k] = v
+        out = _texts_via_multicall(w3, [(resolver_addr, name, list(keys or PROFILE_KEYS))])[name]
         _read_cache[ck] = (time.time(), dict(out))
         return out
     except Exception:
         return {}
+
+
+def _texts_via_multicall(w3: Web3, items: list[tuple[str, str, list[str]]]) -> dict[str, dict[str, str]]:
+    """[(resolver, name, keys)] の text record を 1 回の eth_call で読む。"""
+    r = w3.eth.contract(abi=RESOLVER_ABI)
+    calls: list[tuple[str, str]] = []
+    index: list[tuple[str, str]] = []
+    for resolver_addr, name, keys in items:
+        node = namehash(name)
+        for k in keys:
+            calls.append((resolver_addr, r.encode_abi("text", args=[node, k])))
+            index.append((name, k))
+    out: dict[str, dict[str, str]] = {name: {} for _, name, _ in items}
+    for (name, k), (ok, raw) in zip(index, multicall(w3, calls), strict=True):
+        v = decode_text(w3, ok, raw)
+        if v:
+            out[name][k] = v
+    return out
+
+
+def read_texts_many(items: list[tuple[str, list[str]]], ttl: float = 60.0) -> dict[str, dict[str, str]]:
+    """複数の名前の text record をまとめて読む（Agent 詳細: 本体 + reputation + 専門 Agent 4 名を 1 回の eth_call で）。
+    レジストリ走査はキャッシュ、リゾルバが無い名前は空 dict。"""
+    s = get_settings()
+    out: dict[str, dict[str, str]] = {name: {} for name, _ in items}
+    if not s.sepolia_rpc_url:
+        return out
+    todo: list[tuple[str, str, list[str]]] = []
+    try:
+        w3 = _w3()
+        for name, keys in items:
+            ck = (name, tuple(keys))
+            hit = _read_cache.get(ck)
+            if hit and time.time() - hit[0] < ttl:
+                out[name] = dict(hit[1])
+                continue
+            resolver_addr, _, _ = resolve_v2(w3, name)
+            if resolver_addr:
+                todo.append((resolver_addr, name, list(keys)))
+        if todo:
+            got = _texts_via_multicall(w3, todo)
+            for _, name, keys in todo:
+                out[name] = got[name]
+                _read_cache[(name, tuple(keys))] = (time.time(), dict(got[name]))
+    except Exception:  # noqa: BLE001
+        logging.getLogger(__name__).exception("read_texts_many failed")
+    return out
 
 
 # ---------------------------------------------------------------- 会社所有の名前（会社管理者が署名する）
@@ -498,8 +593,8 @@ def records_calldata_for(*, name: str, texts: dict[str, str], addr: str | None =
 _roles_cache: dict[str, tuple[float, list[dict]]] = {}
 
 
-def agent_roles(name: str, label: str, ttl: float = 60.0) -> list[dict]:
-    """agent_roles_uncached の 60 秒キャッシュ。権限表は 15〜25 回の eth_call になるため、Agent 詳細の表示ごとには読まない。"""
+def agent_roles(name: str, label: str, ttl: float = 300.0) -> list[dict]:
+    """agent_roles_uncached の 5 分キャッシュ。権限表は 15〜25 回の eth_call になるため、Agent 詳細の表示ごとには読まない。"""
     hit = _roles_cache.get(name)
     if hit and time.time() - hit[0] < ttl:
         return [dict(r) for r in hit[1]]
@@ -533,40 +628,53 @@ def agent_roles_uncached(name: str, label: str) -> list[dict]:
         owner = owner_of(w3, name) or addrs["owner"]
         if not main_addr or not owner:
             return []
-        main = w3.eth.contract(address=main_addr, abi=EAC_ABI)
         sub = parent_reg.functions.getSubregistry(label).call()
-        sub_eac = w3.eth.contract(address=sub, abi=EAC_ABI) if int(sub, 16) else None
-        sub_reg = w3.eth.contract(address=sub, abi=V2_REGISTRY_ABI) if int(sub, 16) else None
+        has_sub = bool(int(sub, 16))
+        sub_reg = w3.eth.contract(address=sub, abi=V2_REGISTRY_ABI) if has_sub else None
         rep_res_addr = sub_reg.functions.getResolver("reputation").call() if sub_reg else "0x" + "00" * 20
-        rep_res = w3.eth.contract(address=Web3.to_checksum_address(s.ens_reputation_resolver), abi=EAC_ABI) if s.ens_reputation_resolver else None
-        proj_res = w3.eth.contract(address=Web3.to_checksum_address(s.ens_project_resolver), abi=EAC_ABI) if s.ens_project_resolver else None
+        rep_res_a = Web3.to_checksum_address(s.ens_reputation_resolver) if s.ens_reputation_resolver else None
+        proj_res_a = Web3.to_checksum_address(s.ens_project_resolver) if s.ens_project_resolver else None
+        eac = w3.eth.contract(abi=EAC_ABI)
+
+        # hasRootRoles の問い合わせを全部集めて 1 回の eth_call にする（従来は 15〜25 回直列）
+        queries: dict[str, tuple[str, int, str]] = {
+            "main.T.owner": (main_addr, T, owner), "main.TA.owner": (main_addr, T | A, owner),
+            "main.T.rep": (main_addr, T, rep), "main.T.proj": (main_addr, T, proj),
+            "parent.REG.proj": (parent_reg.address, REGISTRY_ROLE_REGISTRAR, proj),
+        }
+        if rep_res_a:
+            queries |= {"repres.T.owner": (rep_res_a, T, owner), "repres.T.rep": (rep_res_a, T, rep)}
+        if proj_res_a:
+            queries |= {"projres.T.proj": (proj_res_a, T, proj)}
+        if has_sub:
+            queries |= {"sub.REG.rep": (sub, REGISTRY_ROLE_REGISTRAR, rep), "sub.REG.proj": (sub, REGISTRY_ROLE_REGISTRAR, proj), "sub.SETRES.proj": (sub, ROLE_SET_RESOLVER, proj)}
+        names = list(queries)
+        results = multicall(w3, [(queries[k][0], eac.encode_abi("hasRootRoles", args=[queries[k][1], Web3.to_checksum_address(queries[k][2])])) for k in names])
+        v: dict[str, bool | None] = {k: decode_bool(ok, raw) for k, (ok, raw) in zip(names, results, strict=True)}
+        g = v.get  # 未問い合わせ（リゾルバ未設定など）は None
 
         out.append({
             "role": "Owner（PM Agent / Creator）", "account": owner, "where": f"{name} → 共有リゾルバ {main_addr[:10]}…",
             "can": "プロフィール（description, codrea.agent.*）の更新、subname の発行", "cannot": "reputation.* と project-* のレコード更新（別リゾルバ）",
-            "verified": bool(main.functions.hasRootRoles(T | A, owner).call() and rep_res and not rep_res.functions.hasRootRoles(T, owner).call()),
-            "checks": {"main.setText": main.functions.hasRootRoles(T, owner).call(), "reputation-resolver.setText": rep_res.functions.hasRootRoles(T, owner).call() if rep_res else None},
+            "verified": bool(g("main.TA.owner") and rep_res_a and not g("repres.T.owner")),
+            "checks": {"main.setText": g("main.T.owner"), "reputation-resolver.setText": g("repres.T.owner")},
         })
         out.append({
             "role": "Reputation", "account": rep, "where": f"{reputation_name_of(name)} → Reputation リゾルバ {s.ens_reputation_resolver[:10]}…",
             "can": "codrea.agent.rating / reviews / completed の更新（reputation subname のみ）", "cannot": "Agent のプロフィール更新、subname の発行",
             "subname": reputation_name_of(name) if int(rep_res_addr, 16) else None,
-            "verified": bool(rep_res and rep_res.functions.hasRootRoles(T, rep).call() and not main.functions.hasRootRoles(T, rep).call() and int(rep_res_addr, 16) and rep.lower() != owner.lower()),
-            "checks": {"reputation-resolver.setText": rep_res.functions.hasRootRoles(T, rep).call() if rep_res else None, "main.setText": main.functions.hasRootRoles(T, rep).call(),
-                       "subregistry.register": sub_eac.functions.hasRootRoles(REGISTRY_ROLE_REGISTRAR, rep).call() if sub_eac else None, "reputation subname resolver set": bool(int(rep_res_addr, 16))},
+            "verified": bool(rep_res_a and g("repres.T.rep") and not g("main.T.rep") and int(rep_res_addr, 16) and rep.lower() != owner.lower()),
+            "checks": {"reputation-resolver.setText": g("repres.T.rep"), "main.setText": g("main.T.rep"),
+                       "subregistry.register": g("sub.REG.rep"), "reputation subname resolver set": bool(int(rep_res_addr, 16))},
         })
         out.append({
-            "role": "Project Agent", "account": proj, "where": f"{name} サブレジストリ {sub[:10] if int(sub, 16) else '-'}… / Project リゾルバ {s.ens_project_resolver[:10]}…",
+            "role": "Project Agent", "account": proj, "where": f"{name} サブレジストリ {sub[:10] if has_sub else '-'}… / Project リゾルバ {s.ens_project_resolver[:10]}…",
             "can": "project-* subname の発行（ROLE_REGISTRAR）と codrea.project.* の更新（Project リゾルバ）", "cannot": "Agent のリゾルバ変更、プロフィールや評価の更新、親名直下への発行",
-            "subregistry": sub if int(sub, 16) else None,
-            "verified": bool(sub_eac and sub_eac.functions.hasRootRoles(REGISTRY_ROLE_REGISTRAR, proj).call() and not sub_eac.functions.hasRootRoles(ROLE_SET_RESOLVER, proj).call()
-                             and proj_res and proj_res.functions.hasRootRoles(T, proj).call() and not main.functions.hasRootRoles(T, proj).call()
-                             and not w3.eth.contract(address=parent_reg.address, abi=EAC_ABI).functions.hasRootRoles(REGISTRY_ROLE_REGISTRAR, proj).call() and proj.lower() != owner.lower()),
-            "checks": {"agent-subregistry.register": sub_eac.functions.hasRootRoles(REGISTRY_ROLE_REGISTRAR, proj).call() if sub_eac else None,
-                       "agent-subregistry.setResolver": sub_eac.functions.hasRootRoles(ROLE_SET_RESOLVER, proj).call() if sub_eac else None,
-                       "project-resolver.setText": proj_res.functions.hasRootRoles(T, proj).call() if proj_res else None,
-                       "main.setText": main.functions.hasRootRoles(T, proj).call(),
-                       "choice.eth-subregistry.register": w3.eth.contract(address=parent_reg.address, abi=EAC_ABI).functions.hasRootRoles(REGISTRY_ROLE_REGISTRAR, proj).call()},
+            "subregistry": sub if has_sub else None,
+            "verified": bool(has_sub and g("sub.REG.proj") and not g("sub.SETRES.proj") and proj_res_a and g("projres.T.proj") and not g("main.T.proj")
+                             and not g("parent.REG.proj") and proj.lower() != owner.lower()),
+            "checks": {"agent-subregistry.register": g("sub.REG.proj"), "agent-subregistry.setResolver": g("sub.SETRES.proj"),
+                       "project-resolver.setText": g("projres.T.proj"), "main.setText": g("main.T.proj"), "choice.eth-subregistry.register": g("parent.REG.proj")},
         })
     except Exception as e:  # noqa: BLE001
         out.append({"role": "error", "error": str(e)[:200]})

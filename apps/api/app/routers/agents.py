@@ -139,6 +139,7 @@ def agent_ens_written(agent_id: str, body: TxIn, user: User = Depends(current_us
     if agent is None or agent.creator_id != user.id or agent.owner_mode != "creator":
         raise HTTPException(400, "対象の Agent ではありません")
     name = f"{agent.label}.{agent.parent_ens_name}"
+    ens.invalidate_walk(name)  # Creator が今送った tx でリゾルバ・サブレジストリが変わっている可能性があるため、走査キャッシュを捨てる
     # 自己申告の tx hash を信用せず、レシートと text record をオンチェーンで確認する
     try:
         v = ens.verify_written(name=name, tx_hash=body.tx_hash, sender=user.wallet_address, key="codrea.agent.category")
@@ -220,10 +221,12 @@ def get_agent(agent_id: str, db: Session = Depends(get_db)):
         raise HTTPException(404)
     out = AgentDetailOut.model_validate(agent)
     if agent.ens_name and agent_on_ens(agent):
-        out.ens_records = ens.read_texts(agent.ens_name)
         out.ens_reputation_name = ens.reputation_name_of(agent.ens_name)
-        out.ens_reputation_records = ens.read_texts(out.ens_reputation_name, ens.REPUTATION_KEYS)
-        out.ens_subagents = {f"{r}.{agent.ens_name}": ens.read_texts(f"{r}.{agent.ens_name}", ens.SUBAGENT_KEYS) for r in ens.SUBAGENT_ROLES}
+        subs = [f"{r}.{agent.ens_name}" for r in ens.SUBAGENT_ROLES]
+        got = ens.read_texts_many([(agent.ens_name, ens.PROFILE_KEYS), (out.ens_reputation_name, ens.REPUTATION_KEYS), *[(n, ens.SUBAGENT_KEYS) for n in subs]])
+        out.ens_records = got[agent.ens_name]
+        out.ens_reputation_records = got[out.ens_reputation_name]
+        out.ens_subagents = {n: got[n] for n in subs}
         out.ens_roles = ens.agent_roles(agent.ens_name, agent.label)
     elif agent.ens_name:
         out.ens_records = ens.read_texts(agent.ens_name)

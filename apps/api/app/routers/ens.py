@@ -68,36 +68,19 @@ def resolve_name(name: str, ttl: float = 60.0) -> dict:
     return out
 
 
-MULTICALL3 = "0xcA11bde05977b3631167028862bE2a173976CA11"  # Sepolia にもデプロイ済みの標準アドレス
-MULTICALL3_ABI = [{"type": "function", "name": "aggregate3", "stateMutability": "payable",
-                   "inputs": [{"name": "calls", "type": "tuple[]", "components": [{"name": "target", "type": "address"}, {"name": "allowFailure", "type": "bool"}, {"name": "callData", "type": "bytes"}]}],
-                   "outputs": [{"name": "returnData", "type": "tuple[]", "components": [{"name": "success", "type": "bool"}, {"name": "returnData", "type": "bytes"}]}]}]
-
-
 def _read_records(w3, resolver_addr: str, name: str) -> tuple[str | None, dict[str, str]]:
-    """addr と全 text key を Multicall3 の 1 回の eth_call で読む（Render → RPC の往復が 1 回で済む）。失敗時は 1 件ずつ読む。"""
+    """addr と全 text key を Multicall3 の 1 回の eth_call で読む。失敗時は 1 件ずつ読む。"""
     r = w3.eth.contract(address=resolver_addr, abi=ens.RESOLVER_ABI)
     node = ens.namehash(name)
     try:
-        mc = w3.eth.contract(address=Web3.to_checksum_address(MULTICALL3), abi=MULTICALL3_ABI)
-        calls = [(resolver_addr, True, bytes.fromhex(r.encode_abi("addr", args=[node])[2:]))]
-        calls += [(resolver_addr, True, bytes.fromhex(r.encode_abi("text", args=[node, k])[2:])) for k in ALL_TEXT_KEYS]
-        results = mc.functions.aggregate3(calls).call()
+        calls = [(resolver_addr, r.encode_abi("addr", args=[node]))] + [(resolver_addr, r.encode_abi("text", args=[node, k])) for k in ALL_TEXT_KEYS]
+        results = ens.multicall(w3, calls)
         addr = None
         ok, raw = results[0]
         if ok and len(raw) >= 32:
             (a,) = w3.codec.decode(["address"], raw)
             addr = Web3.to_checksum_address(a) if int(a, 16) else None
-        texts: dict[str, str] = {}
-        for k, (ok, raw) in zip(ALL_TEXT_KEYS, results[1:], strict=True):
-            if not ok or len(raw) < 64:
-                continue
-            try:
-                (v,) = w3.codec.decode(["string"], raw)
-            except Exception:  # noqa: BLE001
-                continue
-            if v:
-                texts[k] = v
+        texts = {k: v for k, (ok, raw) in zip(ALL_TEXT_KEYS, results[1:], strict=True) if (v := ens.decode_text(w3, ok, raw))}
         return addr, texts
     except Exception:  # noqa: BLE001
         pass
@@ -210,6 +193,7 @@ def setup_calldata(name: str = Query(min_length=5, max_length=255), user=Depends
     except Exception as e:  # noqa: BLE001
         raise HTTPException(502, f"Sepolia からの読み取りに失敗しました: {type(e).__name__}") from e
     _cache.pop(n, None)
+    ens.invalidate_walk(n)
     return {"mock": False, **out}
 
 
@@ -284,4 +268,5 @@ def register_calldata(name: str = Query(min_length=5, max_length=255), phase: st
     except Exception as e:  # noqa: BLE001
         raise HTTPException(502, f"Sepolia からの読み取りに失敗しました: {type(e).__name__}") from e
     _cache.pop(n, None)
+    ens.invalidate_walk(n)
     return {"mock": False, **out}

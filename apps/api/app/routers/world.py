@@ -9,7 +9,7 @@ from ..models import User, WorldVerification
 from ..services import world
 
 router = APIRouter(prefix="/world", tags=["world"])
-log = logging.getLogger("choice.world")
+log = logging.getLogger("guildace.world")
 
 
 @router.get("/rp-context")

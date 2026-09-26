@@ -19,9 +19,9 @@ services:
       - key: OPS_ADDRESSES
         sync: false   # 運用者のウォレット（カンマ区切り）。/ops/jobs を使える
       - key: CORS_ORIGINS
-        sync: false   # 例: https://choice.vercel.app
+        sync: false   # 例: https://guildace.vercel.app
       - key: APP_URL
-        sync: false   # 例: https://choice.vercel.app
+        sync: false   # 例: https://guildace.vercel.app
       - key: API_URL
         sync: false   # 例: https://choice-api.onrender.com
       - key: SEPOLIA_RPC_URL

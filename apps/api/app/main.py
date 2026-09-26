@@ -18,7 +18,7 @@ async def lifespan(_: FastAPI):
     Base.metadata.create_all(bind=engine)  # MVP: マイグレーションの代わりに create_all
     _migrate()
     s = get_settings()
-    log = logging.getLogger("choice")
+    log = logging.getLogger("guildace")
     if s.jwt_secret == "dev-secret-change-me":
         log.warning("JWT_SECRET が既定値のままです。公開環境では必ずランダムな値に変えてください（トークン偽造が可能）")
     if s.dev_login_enabled and s.chain_enabled:
@@ -42,10 +42,10 @@ def _migrate() -> None:
         if "ix_agents_label" in idx and "UNIQUE" in idx["ix_agents_label"]:
             conn.execute(text("drop index ix_agents_label"))
             conn.execute(text("create index ix_agents_label on agents (label)"))
-            logging.getLogger("choice").info("migrate: agents.label の単独 UNIQUE を解除")
+            logging.getLogger("guildace").info("migrate: agents.label の単独 UNIQUE を解除")
         if "uq_agents_label_parent" not in idx:
             conn.execute(text("create unique index uq_agents_label_parent on agents (label, coalesce(parent_ens_name, ''))"))
-            logging.getLogger("choice").info("migrate: uq_agents_label_parent を作成")
+            logging.getLogger("guildace").info("migrate: uq_agents_label_parent を作成")
         conn.execute(text("alter table agents add column if not exists policy json"))
         conn.execute(text("create unique index if not exists uq_agent_runs_one_active on agent_runs "
                           "(coalesce(case_id, ''), coalesce(dispute_id, ''), mode) "
@@ -54,7 +54,7 @@ def _migrate() -> None:
         cols = {r[0] for r in conn.execute(text("select column_name from information_schema.columns where table_name = 'agents'"))}
         if "subagents" not in cols:
             conn.execute(text("alter table agents add column subagents json"))
-            logging.getLogger("choice").info("migrate: agents.subagents を追加")
+            logging.getLogger("guildace").info("migrate: agents.subagents を追加")
         if "subagent_rules" in cols:
             import json
 
@@ -66,7 +66,7 @@ def _migrate() -> None:
                 subs = [{**d, "rules": rules.get(d["role"], "")} for d in DEFAULT_SUBAGENTS]
                 conn.execute(text("update agents set subagents = :v where id = :id"), {"v": json.dumps(subs, ensure_ascii=False), "id": aid})
             conn.execute(text("alter table agents drop column subagent_rules"))
-            logging.getLogger("choice").info("migrate: agents.subagent_rules を subagents に移して削除（%d 件）", len(rows))
+            logging.getLogger("guildace").info("migrate: agents.subagent_rules を subagents に移して削除（%d 件）", len(rows))
         # 2026-09-26: World ID 4.0 session proof 方式へ移行。users.world_session_id と world_verifications.proof_nullifier を追加
         conn.execute(text("alter table users add column if not exists world_session_id varchar(160)"))
         conn.execute(text("create unique index if not exists uq_users_world_session_id on users (world_session_id)"))

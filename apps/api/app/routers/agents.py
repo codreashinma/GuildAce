@@ -84,7 +84,7 @@ def my_agents(user: User = Depends(current_user), db: Session = Depends(get_db))
 def create_agent(body: AgentCreateIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
     parent, mode = None, "platform"
     if db.query(Agent).filter(Agent.label == body.label, func.coalesce(Agent.parent_ens_name, "") == (body.parent_ens_name or "")).first():
-        raise HTTPException(409, f"{body.label}.{body.parent_ens_name or get_settings().ens_parent_name} は既に使われています")
+        raise HTTPException(409, f"{body.label}.{body.parent_ens_name or get_settings().ens_parent_name} is already taken")
     if body.parent_ens_name:
         # D1: Creator 自身の .eth の下に公開する。所有者が接続ウォレットか ENSv2 で確認する。
         # 未登録・RPC エラーは拒否（RPC 未設定 = モックのときだけ確認なしで通す）
@@ -145,7 +145,7 @@ def agent_ens_written(agent_id: str, body: TxIn, user: User = Depends(current_us
     """Creator 所有の Agent: ブラウザで register / multicall を送った後に tx hash を報告する"""
     agent = db.get(Agent, agent_id)
     if agent is None or agent.creator_id != user.id or agent.owner_mode != "creator":
-        raise HTTPException(400, "対象の Agent ではありません")
+        raise HTTPException(400, "Not the target Agent")
     name = f"{agent.label}.{agent.parent_ens_name}"
     ens.invalidate_walk(name)  # Creator が今送った tx でリゾルバ・サブレジストリが変わっている可能性があるため、走査キャッシュを捨てる
     # 自己申告の tx hash を信用せず、レシートと text record をオンチェーンで確認する
@@ -164,9 +164,9 @@ def agent_ens_written(agent_id: str, body: TxIn, user: User = Depends(current_us
             ns = {"subregistry": None, "error": str(e)[:120]}
         agent.ens_subregistry = ns.get("subregistry")
         if not ns.get("subregistry"):
-            agent.ens_error = "名前空間（サブレジストリ）が未設定です。再公開で残りの tx に署名してください"
+            agent.ens_error = "Namespace (Subregistry) is not configured. Publish again to sign the remaining tx"
         elif not ns.get("reputation"):
-            agent.ens_error = "reputation subname が未発行です。再公開で残りの tx に署名してください"
+            agent.ens_error = "Reputation subname has not been issued. Publish again to sign the remaining tx"
     db.commit()
     db.refresh(agent)
     if agent.ens_subregistry:
@@ -182,7 +182,7 @@ def update_agent(agent_id: str, body: AgentUpdateIn, user: User = Depends(curren
     if agent is None:
         raise HTTPException(404)
     if agent.creator_id != user.id:
-        raise HTTPException(403, "作成者のみ編集できます")
+        raise HTTPException(403, "Only the creator can edit this")
     before = profile_texts(agent)
     before_subs = {x["role"]: x for x in agent_subagents(agent)}
     changes = body.model_dump(exclude_none=True)
@@ -282,7 +282,7 @@ def earnings(agent_id: str, user: User = Depends(current_user), db: Session = De
     if agent is None:
         raise HTTPException(404)
     if agent.creator_id != user.id:
-        raise HTTPException(403, "Creator 本人だけが見られます")
+        raise HTTPException(403, "Only the Creator can view this")
     rows: list[EarningRowOut] = []
     paid = pending = resolved_total = 0
     q = (db.query(Task, Case).join(Case, Task.case_id == Case.id).filter(Case.agent_id == agent.id, Task.role == "pm", Task.title == PM_FEE_TITLE)

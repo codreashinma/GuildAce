@@ -7,14 +7,14 @@ import { Card, Mono } from "./ui";
 export function EnsRolesTable({ roles, subregistry }: { roles: EnsRole[]; subregistry?: string | null }) {
   return (
     <Card>
-      <h2 className="mb-1 font-semibold">権限管理 <span className="text-xs font-normal text-neutral-500">ENSv2 Enhanced Access Control。値は Sepolia から読んだ実データ</span></h2>
-      <p className="mb-3 text-xs text-neutral-500">名前を持つことと権限を持つことは別。Reputation 鍵は評価キーの setText だけ、Project 鍵は project subname の register と codrea.project.* の setText だけができ、それ以外は revert します。</p>
+      <h2 className="mb-1 font-semibold">Permissions <span className="text-xs font-normal text-neutral-500">ENSv2 Enhanced Access Control. Values are live data read from Sepolia</span></h2>
+      <p className="mb-3 text-xs text-neutral-500">Owning a name and holding permissions are separate. The Reputation key can only setText on rating keys; the Project key can only register project subnames and setText on codrea.project.*. Anything else reverts.</p>
       {roles.length === 0 ? (
-        <p className="text-sm text-neutral-500">役割を取得できませんでした（RPC 未設定、モック公開、または名前空間が未構築）。</p>
+        <p className="text-sm text-neutral-500">Could not fetch Roles (RPC not configured, mock publish, or Namespace not set up).</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
-            <thead className="whitespace-nowrap text-left text-neutral-500"><tr><th className="py-1 pr-3">ロール</th><th className="pr-3">アカウント</th><th className="pr-3">できること</th><th className="pr-3">できないこと</th><th>検証</th></tr></thead>
+            <thead className="whitespace-nowrap text-left text-neutral-500"><tr><th className="py-1 pr-3">Role</th><th className="pr-3">Account</th><th className="pr-3">Can</th><th className="pr-3">Cannot</th><th>Verification</th></tr></thead>
             <tbody>
               {roles.map((r) => (
                 <tr key={r.role} className="border-t border-neutral-100 align-top [&>td]:py-1.5 [&>td]:pr-3">
@@ -23,7 +23,7 @@ export function EnsRolesTable({ roles, subregistry }: { roles: EnsRole[]; subreg
                   <td className="min-w-48">{r.can ?? r.error}</td>
                   <td className="min-w-40 text-neutral-600">{r.cannot ?? "-"}</td>
                   <td className="whitespace-nowrap">
-                    {r.verified === undefined ? "-" : r.verified ? <span className="rounded-sm border border-neutral-900 bg-neutral-900 px-1.5 text-[10px] text-white">確認済</span> : <span className="rounded-sm border border-neutral-400 px-1.5 text-[10px] text-neutral-600">未分離</span>}
+                    {r.verified === undefined ? "-" : r.verified ? <span className="rounded-sm border border-neutral-900 bg-neutral-900 px-1.5 text-[10px] text-white">Verified</span> : <span className="rounded-sm border border-neutral-400 px-1.5 text-[10px] text-neutral-600">Not isolated</span>}
                     {r.checks && (
                       <ul className="mt-1 space-y-0.5 font-mono text-[10px] text-neutral-500">
                         {Object.entries(r.checks).map(([k, v]) => <li key={k}>{k}: {v === null ? "?" : v ? "true" : "false"}</li>)}
@@ -36,7 +36,7 @@ export function EnsRolesTable({ roles, subregistry }: { roles: EnsRole[]; subreg
           </table>
         </div>
       )}
-      {subregistry && <p className="mt-2 text-xs text-neutral-500">Agent のサブレジストリ: <Mono>{subregistry}</Mono>（project-* subname はここに登録される）</p>}
+      {subregistry && <p className="mt-2 text-xs text-neutral-500">Agent Subregistry: <Mono>{subregistry}</Mono> (project-* subnames are registered here)</p>}
     </Card>
   );
 }

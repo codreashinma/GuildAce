@@ -53,7 +53,7 @@ def open_dispute(case_id: str, body: DisputeCreateIn, bg: BackgroundTasks, user:
     if case.client_id != user.id:
         raise HTTPException(403)
     if case.status not in ("delivered", "in_progress"):
-        raise HTTPException(400, "進行中または納品済みの案件のみ差し戻せます")
+        raise HTTPException(400, "Only in-progress or delivered Cases can be sent back")
     d = Dispute(case_id=case.id, reason=body.reason, status="open")
     case.status = "disputed"
     db.add(d)
@@ -89,13 +89,13 @@ def vote(dispute_id: str, body: JuryVoteIn, user: User = Depends(current_user), 
     if d is None:
         raise HTTPException(404)
     if d.status != "open":
-        raise HTTPException(400, "この紛争は終了しています")
+        raise HTTPException(400, "This Dispute has ended")
     case = _load(db, d.case_id)
     parties = {case.client_id, case.agent.creator_id} | {t.human_task.worker_id for t in case.tasks if t.human_task and t.human_task.worker_id}
     if user.id in parties:
-        raise HTTPException(403, "当事者は投票できません")
+        raise HTTPException(403, "Parties to the Case cannot vote")
     if any(v.voter_id == user.id for v in d.votes):
-        raise HTTPException(409, "既に投票済みです")
+        raise HTTPException(409, "You have already voted")
     nullifier = verify_and_record(db, user, action="jury", signal=d.id, idkit_response=body.idkit_response)
     d.votes.append(JuryVote(voter_id=user.id, vote=body.vote, nullifier=nullifier))
     db.commit()

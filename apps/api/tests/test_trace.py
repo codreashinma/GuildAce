@@ -35,7 +35,7 @@ def test_redact_removes_secret_shapes(secret, marker):
 def test_input_summary_keeps_only_length_and_head():
     text = "EC サイトを作りたい。" + "詳しい要件" * 200
     s = trace.summarize_input(text)
-    assert s.startswith(f"{len(text)} 文字: ") and s.endswith("…")
+    assert s.startswith(f"{len(text)} chars: ") and s.endswith("…")
     assert "詳しい要件" * 20 not in s  # 全文を残さない
     assert len(s) < 80
 

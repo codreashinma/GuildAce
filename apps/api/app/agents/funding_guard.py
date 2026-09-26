@@ -107,37 +107,37 @@ def check(db: Session, task_id: str, revision: int) -> FundingDecision:
     """送金の要求を受理してよいか。金額と送金先は引数に無く、tasks から読む。"""
     task = db.get(Task, task_id, populate_existing=True)
     if task is None:
-        return FundingDecision(False, ["GRD-009: タスクがありません"])
+        return FundingDecision(False, ["GRD-009: Task not found"])
     case = db.get(Case, task.case_id, populate_existing=True)
     reasons: list[str] = []
 
     # GRD-009 (1): 送金の中身はすべて tasks と承諾済みのチーム案から
     approved_revision = (case.plan_json or {}).get("team_proposal_revision")
     if approved_revision is None or revision != approved_revision:
-        reasons.append("GRD-009: 版が承諾済みのチーム案と一致しません")
+        reasons.append("GRD-009: The revision does not match the accepted team proposal")
     if not task.escrow_task_id or not case.escrow_case_id:
-        reasons.append("GRD-009: Escrow のタスクが決まっていません")
+        reasons.append("GRD-009: The Escrow task has not been determined")
     amount = int(task.estimated_cost)
 
     # GRD-011: HIL-002 で承諾済み（openCase が確認され、承諾より後の状態）
     if not case.open_tx_hash or case.status not in (*APPROVED_STATUSES, *SETTLED_STATUSES):
-        reasons.append("GRD-011: 案件が承諾されていません")
+        reasons.append("GRD-011: The case has not been accepted")
 
     # GRD-010: 権限が失効していない
     if active_grant(db, case.id) is None:
-        reasons.append("GRD-010: 送金操作権限がありません（未発行・期限切れ・停止・案件の完了）")
+        reasons.append("GRD-010: No transfer permission (not issued, expired, stopped, or case completed)")
 
     # GRD-009 (2): 1 タスク 1 回、直近 24 時間の上限
     if _funded_before(db, task):
-        reasons.append("GRD-009: このタスクの送金は済んでいます（1 タスク 1 回）")
+        reasons.append("GRD-009: This task has already been funded (once per task)")
     limit = get_settings().funding_limit_24h
     if sent_in_24h(db) + amount > limit:
-        reasons.append(f"GRD-009: 直近 24 時間の送金額の上限を超えます（上限 {limit}）")
+        reasons.append(f"GRD-009: Exceeds the transfer limit for the last 24 hours (limit: {limit})")
 
     # GRD-007: 停止中でない
     s = control.state(db, case.id)
     if s.stopped:
-        reasons.append(f"GRD-007: 停止中です（{s.scope}）")
+        reasons.append(f"GRD-007: Stopped ({s.scope})")
 
     if reasons:
         return FundingDecision(False, reasons)

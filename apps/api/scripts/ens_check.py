@@ -23,12 +23,12 @@ def show(w3: Web3, name: str) -> None:
     labels = name.split(".")
     eth_reg = w3.eth.contract(address=Web3.to_checksum_address(s.ensv2_eth_registry), abi=V2_REGISTRY_ABI)
     st = eth_reg.functions.getState(int.from_bytes(keccak(text=labels[-2]), "big")).call()
-    status = {0: "未登録（取得可能）", 1: "予約済み", 2: "登録済み"}.get(st[0], st[0])
+    status = {0: "Not registered (available)", 1: "Reserved", 2: "Registered"}.get(st[0], st[0])
     print(f"  {labels[-2]}.eth: {status}  owner={st[2]}  subregistry={eth_reg.functions.getSubregistry(labels[-2]).call()}")
     print(f"    https://sepolia.etherscan.io/address/{s.ensv2_eth_registry}#readContract  (getState({int.from_bytes(keccak(text=labels[-2]), 'big')}))")
     resolver, registry, label = resolve_v2(w3, name)
     if resolver is None:
-        print("  resolver: なし（名前が未発行、または親のサブレジストリ未設定）")
+        print("  resolver: none (name not issued, or the parent's subregistry is not configured)")
         return
     print(f"  registry: {registry}  label: {label}")
     print(f"  resolver: {resolver}  https://sepolia.etherscan.io/address/{resolver}#readContract")
@@ -65,7 +65,7 @@ def main() -> None:
         for m in db.query(Member).filter(Member.ens_status == "written"):
             show(w3, m.ens_name)
     except Exception as e:  # noqa: BLE001
-        print("(DB に接続できないため DB 上の名前は省略:", str(e)[:60], ")")
+        print("(Cannot connect to the DB, skipping names in the DB:", str(e)[:60], ")")
 
 
 if __name__ == "__main__":

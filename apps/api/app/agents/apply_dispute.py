@@ -19,9 +19,9 @@ def ref_labels(db: Session, case_id: str) -> dict[str, str]:
     """紛争の案件の記録の参照（TOOL-003 と同じ ID）→ 画面に出す名前"""
     out: dict[str, str] = {}
     for t in db.query(Task).filter(Task.case_id == case_id).order_by(Task.order_no):
-        out[f"deliverable:{t.id}"] = f"成果物: {t.title}"
+        out[f"deliverable:{t.id}"] = f"Deliverable: {t.title}"
         for a in db.query(Approval).filter(Approval.task_id == t.id).order_by(Approval.created_at):
-            out[f"approval:{a.id}"] = f"承認: {t.title}"
+            out[f"approval:{a.id}"] = f"Approval: {t.title}"
     return out
 
 

@@ -152,17 +152,17 @@ def validate_step(step: Ag001Step, st: _State) -> list[str]:
     """実行基盤の検証。違反項目にモデルの出力値を入れない（CG-007）。"""
     out: list[str] = []
     if step.action not in ALLOWED[st.phase]:
-        out.append(f"この時点で行えない操作です（行える操作: {', '.join(ALLOWED[st.phase])}）")
+        out.append(f"This action is not allowed at this point (allowed actions: {', '.join(ALLOWED[st.phase])})")
     p = _payload(st)
     given = {"task_plan": step.task_plan, "team_proposal": step.team_proposal, "dispute_summary": step.dispute_summary}
     for key, value in given.items():
         if p is not None and key == p[0]:
             if value is None:
-                out.append(f"{key} がありません（委譲先から返ったデータをそのまま含めてください）")
+                out.append(f"{key} is missing (include the data returned by the delegate as is)")
             elif _canon(value.model_dump()) != _canon(p[1]):
-                out.append(f"{key} が委譲先から返ったデータと一致しません（内容を変えずに含めてください）")
+                out.append(f"{key} does not match the data returned by the delegate (include it without changes)")
         elif value is not None:
-            out.append(f"{key} はこの時点では含めません")
+            out.append(f"{key} must not be included at this point")
     return out
 
 
@@ -191,7 +191,7 @@ def _ask(db: Session, run, st: _State, violations: list[str], mock: Callable[[],
     if r.failure in ("timeout", "error", "unavailable"):
         return _Ask("llm_error", violations=[f"{r.failure}: {r.detail}"], reason="unavailable" if r.failure == "unavailable" else "llm_error")
     if r.failure in ("parse", "schema"):
-        return _Ask("invalid", violations=[f"出力の形が合いません（{r.failure}）: {r.detail}"])
+        return _Ask("invalid", violations=[f"Output does not match the expected format ({r.failure}): {r.detail}"])
     found = validate_step(r.output, st)
     if found:  # 12-1: 実行基盤の検証で違反した項目も実行の記録に残す（record_llm は形の違反だけを積む）
         run.validation_failures = [*(run.validation_failures or []), *(redact(v)[:1000] for v in found)]
@@ -206,7 +206,7 @@ def run_planning(db: Session, *, case_id: str, run: AgentRun | None = None, mock
     run はランナーが取り出したジョブ行（WP-017）。無ければここで実行を始める。"""
     case = db.get(Case, case_id)
     if case is None:
-        raise ValueError(f"案件がありません: {case_id}")
+        raise ValueError(f"Case not found: {case_id}")
     run = run or trace.start_run(db, "AG-001", mode="plan", case_id=case_id, input_text=case.title)
     st = _State()
     violations: list[str] = []
@@ -285,7 +285,7 @@ def run_planning(db: Session, *, case_id: str, run: AgentRun | None = None, mock
         elif action == "finish":
             return finish("done", ok=True)
         else:  # 紛争の操作は ALLOWED で弾かれるので、ここには来ない
-            raise AssertionError(f"計画モードで扱わない操作です: {action}")
+            raise AssertionError(f"Action not handled in plan mode: {action}")
 
 
 def run_dispute(db: Session, *, dispute_id: str, run: AgentRun | None = None, mock: Callable[[], str | dict] | None = None,
@@ -294,7 +294,7 @@ def run_dispute(db: Session, *, dispute_id: str, run: AgentRun | None = None, mo
     どこで失敗しても例外にせず「論点なし」で返す（裁定は人間が行えるため、HIL-004 を止めない）。"""
     d = db.get(Dispute, dispute_id)
     if d is None:
-        raise ValueError(f"紛争がありません: {dispute_id}")
+        raise ValueError(f"Dispute not found: {dispute_id}")
     run = run or trace.start_run(db, "AG-001", mode="analyze_dispute", dispute_id=dispute_id, input_text=d.reason or "")
     st = _State(phase="dispute_start")
     violations: list[str] = []
@@ -348,4 +348,4 @@ def run_dispute(db: Session, *, dispute_id: str, run: AgentRun | None = None, mo
                 return finish("done", ok=True)
             return no_issues(st.fail_reason or "violations", st.fail_violations)  # 論点なしのまま HIL-004 へ
         else:  # 計画の操作は ALLOWED で弾かれるので、ここには来ない
-            raise AssertionError(f"紛争モードで扱わない操作です: {action}")
+            raise AssertionError(f"Action not handled in dispute mode: {action}")

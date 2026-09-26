@@ -64,13 +64,13 @@ def test_unknown_id_is_rejected():
 def test_render_fills_placeholders():
     out = prompts.render("PMT-015", "v1", violations="- 合計が予算を超えています", excess_amount="1200")
     assert "{{" not in out
-    assert "超過額 1200 を下回るまで" in out
+    assert "at least the excess of 1200" in out
 
 
 def test_render_rejects_missing_and_extra_values():
-    with pytest.raises(PromptError, match="不足"):
+    with pytest.raises(PromptError, match="missing"):
         prompts.render("PMT-015", "v1", violations="x")
-    with pytest.raises(PromptError, match="余分"):
+    with pytest.raises(PromptError, match="extra"):
         prompts.render("PMT-001", "v1", violations="x")
 
 

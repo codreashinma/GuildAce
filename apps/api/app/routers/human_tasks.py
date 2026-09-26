@@ -49,11 +49,11 @@ def accept(task_id: str, body: HumanTaskAcceptIn, user: User = Depends(current_u
     if ht is None:
         raise HTTPException(404)
     if ht.status not in ("open", "assigned"):
-        raise HTTPException(400, "このタスクは受注できません")
+        raise HTTPException(400, "This Task cannot be accepted")
     if ht.case.client_id == user.id:
-        raise HTTPException(403, "発注者は自分の案件の Human Task を受注できません")
+        raise HTTPException(403, "Clients cannot accept Human Tasks on their own Cases")
     if ht.status == "assigned" and (ht.assignee is None or ht.assignee.wallet_address != user.wallet_address):
-        raise HTTPException(403, "このタスクは別の人員に指名されています")
+        raise HTTPException(403, "This Task is assigned to another Member")
     verify_and_record(db, user, action="human-task", signal=ht.id, idkit_response=body.idkit_response)
     ht.worker_id, ht.status = user.id, "accepted"
     db.commit()
@@ -66,7 +66,7 @@ def decline(task_id: str, user: User = Depends(current_user), db: Session = Depe
     """指名された本人が辞退 → PM Agent が次の候補に再指名"""
     ht = db.get(HumanTask, task_id)
     if ht is None or ht.status != "assigned" or ht.assignee is None or ht.assignee.wallet_address != user.wallet_address:
-        raise HTTPException(400, "辞退できません")
+        raise HTTPException(400, "Cannot decline")
     ht.declined_member_ids = [*(ht.declined_member_ids or []), ht.assignee_member_id]
     db.commit()
     assign.assign(db, ht)
@@ -78,7 +78,7 @@ def decline(task_id: str, user: User = Depends(current_user), db: Session = Depe
 def cancel(task_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
     ht = db.get(HumanTask, task_id)
     if ht is None or ht.worker_id != user.id or ht.status != "accepted":
-        raise HTTPException(400, "キャンセルできません")
+        raise HTTPException(400, "Cannot cancel")
     ht.worker_id, ht.status = None, "open"
     db.commit()
     db.refresh(ht)
@@ -89,14 +89,14 @@ def cancel(task_id: str, user: User = Depends(current_user), db: Session = Depen
 def submit(task_id: str, body: HumanTaskSubmitIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
     ht = db.get(HumanTask, task_id)
     if ht is None or ht.worker_id != user.id or ht.status != "accepted":
-        raise HTTPException(400, "提出できません")
+        raise HTTPException(400, "Cannot submit")
     ht.submission, ht.status = body.submission, "submitted"
     db.commit()
     check = gemini.check_human_submission(task_title=ht.title, task_description=ht.description, submission=body.submission)
     ht.ai_check = check.comment
     ht.status = "done"
     task = ht.task
-    task.deliverable = f"{body.submission}\n\n---\nPM Agent の確認: {check.comment}"
+    task.deliverable = f"{body.submission}\n\n---\nPM Agent check: {check.comment}"
     task.status, task.completed_at = "done", datetime.now(UTC)
     db.commit()
     submit_human_task(db, ht)

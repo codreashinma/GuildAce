@@ -15,7 +15,7 @@ from .ens import _reverse_one
 
 router = APIRouter(prefix="/me", tags=["me"])
 
-ACTION_LABEL = {"request": "依頼開始", "approve": "工程の承認", "review": "レビュー投稿", "jury": "Jury 投票", "human-task": "Human Task 受注"}
+ACTION_LABEL = {"request": "Start Request", "approve": "Approve Step", "review": "Post review", "jury": "Jury vote", "human-task": "Accept Human Task"}
 
 
 class EnsNameOut(BaseModel):
@@ -88,11 +88,11 @@ def summary(user: User = Depends(current_user), db: Session = Depends(get_db)):
     # --- ENS 名（発行順）
     names: list[EnsNameOut] = []
     for m in db.query(Member).filter(Member.wallet_address == me).order_by(Member.created_at).all():
-        names.append(EnsNameOut(name=m.ens_name, kind="person", verified=m.ens_status == "written", tx_hash=m.ens_tx_hash, link="/companies", note=f"{m.company.name} の人員"))
+        names.append(EnsNameOut(name=m.ens_name, kind="person", verified=m.ens_status == "written", tx_hash=m.ens_tx_hash, link="/companies", note=f"Member of {m.company.name}"))
     for a in db.query(Agent).filter(Agent.payout_address == me, Agent.ens_name.isnot(None)).order_by(Agent.created_at).all():
-        names.append(EnsNameOut(name=a.ens_name, kind="agent-payout", verified=bool(a.ens_tx_hash and not a.ens_tx_hash.startswith("0xmock")), tx_hash=a.ens_tx_hash, link=f"/agents/{a.id}", note="受取アドレス = 自分"))
+        names.append(EnsNameOut(name=a.ens_name, kind="agent-payout", verified=bool(a.ens_tx_hash and not a.ens_tx_hash.startswith("0xmock")), tx_hash=a.ens_tx_hash, link=f"/agents/{a.id}", note="Payout address = you"))
     for c in db.query(Company).filter(Company.admin_id == user.id).order_by(Company.created_at).all():
-        names.append(EnsNameOut(name=c.ens_name, kind="company-admin", verified=c.ens_verified, tx_hash=None, link="/companies", note="会社の管理者（名前の所有者）"))
+        names.append(EnsNameOut(name=c.ens_name, kind="company-admin", verified=c.ens_verified, tx_hash=None, link="/companies", note="Company admin (name Owner)"))
     primary_raw = _reverse_one(db, me)
     primary = next((n for n in names if n.name == primary_raw["name"]), None) if primary_raw["name"] else None
 

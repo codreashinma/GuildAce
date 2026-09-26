@@ -99,7 +99,7 @@ def test_resume_all_does_not_clear_case_stop(db, cases, counted):
 def test_ensure_running_raises_before_delegation(db, cases):
     control.ensure_running(db, cases[0].id)  # 止まっていなければ何もしない
     control.stop(db, case_id=cases[0].id, reason="止める", operator="ops")
-    with pytest.raises(AgentStopped, match="停止中"):
+    with pytest.raises(AgentStopped, match="Stopped"):
         control.ensure_running(db, cases[0].id)
 
 
@@ -125,10 +125,10 @@ def test_agent_ops_script_stop_status_resume(db, cases, capsys):
     assert ops.main(["stop-case", cases[0].id, "--reason", "調査のため", "--operator", "ops"]) == 0
     assert ops.main(["status"]) == 0
     out = capsys.readouterr().out
-    assert f"停止中  case:{cases[0].id}" in out and "調査のため" in out
+    assert f"stopped  case:{cases[0].id}" in out and "調査のため" in out
     assert ops.main(["resume-case", cases[0].id, "--operator", "ops"]) == 0
     ops.main(["status"])
-    assert "停止中の範囲はありません" in capsys.readouterr().out
+    assert "No scopes are stopped" in capsys.readouterr().out
 
 
 def test_agent_ops_script_requires_reason_for_stop(db):

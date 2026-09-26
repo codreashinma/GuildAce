@@ -65,24 +65,24 @@ def validate_proposal(proposal: TeamProposal, task_seqs: list[int], candidate_na
     dup = sorted({s for s in seqs if seqs.count(s) > 1})
     unknown = [n for n, s in enumerate(seqs, 1) if s not in task_seqs]
     if missing:
-        out.append(f"担当の無いタスクがあります（連番 {', '.join(map(str, missing))}）")
+        out.append(f"Some tasks have no assignee (seq {', '.join(map(str, missing))})")
     if dup:
-        out.append(f"担当が 2 つ以上あるタスクがあります（連番 {', '.join(map(str, dup))}）")
+        out.append(f"Some tasks have more than one assignee (seq {', '.join(map(str, dup))})")
     if unknown:
-        out.append(f"タスクの一覧に無い連番を指している項目があります（{', '.join(f'{n} 件目' for n in unknown)}）")
+        out.append(f"Some items reference sequence numbers not in the task list (items {', '.join(str(n) for n in unknown)})")
     names = set(candidate_names)
     outside = [n for n, i in enumerate(proposal.items, 1) if i.assignee_ens_name not in names]
     if outside:
-        out.append(f"担当が候補の一覧にありません（{', '.join(f'{n} 件目' for n in outside)}）")
+        out.append(f"Assignee is not in the candidate list (items {', '.join(str(n) for n in outside)})")
     bad_amount = [n for n, i in enumerate(proposal.items, 1) if not _AMOUNT.match(i.amount)]
     if bad_amount:
-        out.append(f"金額が 0 以上の整数の文字列ではありません（{', '.join(f'{n} 件目' for n in bad_amount)}）")
+        out.append(f"Amount is not a string of a non-negative integer (items {', '.join(str(n) for n in bad_amount)})")
     excess = 0
     if not bad_amount:
         total = sum(int(i.amount) for i in proposal.items)
         if total > budget:  # GRD-002
             excess = total - budget
-            out.append(f"金額の合計が予算を超えています（超過額 {excess}）")
+            out.append(f"The total amount exceeds the budget (excess: {excess})")
     return out, excess
 
 
@@ -92,7 +92,7 @@ def to_saved(db: Session, proposal: TeamProposal, pm: Agent | None = None) -> li
     for i in proposal.items:
         kind = assignee_kind(db, i.assignee_ens_name, pm)
         if kind is None:
-            raise ToolError("担当の ENS 名が索引にありません")
+            raise ToolError("The assignee's ENS name is not in the index")
         items.append(SavedItem(task_seq=i.task_seq, assignee_kind=kind, assignee_user_id=None,
                                assignee_ens_name=i.assignee_ens_name, amount=i.amount).model_dump())
     return items
@@ -102,29 +102,29 @@ def latest_task_seqs(db: Session, case_id: str) -> list[int]:
     """保存済みのタスク計画（TOOL-004）の最新版の連番。無ければ ToolError。"""
     plan = trace.latest_output(db, "task_plan", case_id)
     if plan is None:
-        raise ToolError("タスク計画がまだ保存されていません")
+        raise ToolError("The task plan has not been saved yet")
     return [t["seq"] for t in plan.payload["tasks"]]
 
 
 @register("TOOL-005")
 def save_team_proposal(ctx: ToolContext, *, case_id: str, revision: int, items: list[dict]) -> dict:
     if ctx.run.case_id != case_id:
-        raise ToolError("この実行に結び付いた案件以外には保存できません")
+        raise ToolError("Can only save to the case linked to this run")
     case = ctx.db.get(Case, case_id)
     if case is None:
-        raise ToolError("案件がありません")
+        raise ToolError("Case not found")
     if revision < 1:
-        raise ToolError("版番号は 1 以上にしてください")
+        raise ToolError("The revision number must be 1 or greater")
     try:
         proposal = TeamProposal.model_validate({"items": items})  # AG-003 の出力の items をそのまま受け取る
     except ValueError as e:
-        raise ToolError(f"チーム案の形が合いません: {e}") from e
+        raise ToolError(f"The team proposal has an invalid format: {e}") from e
     pm = ctx.db.get(Agent, case.agent_id)
     budget = usable_budget(case, pm)
     names = [c.ens_name for c in search_candidates(ctx.db, case_id).candidates]
     violations, _ = validate_proposal(proposal, latest_task_seqs(ctx.db, case_id), names, budget)
     if violations:  # 9-2・GRD-002: 検証に通らない案（予算超過を含む）は保存しない
-        raise ToolError("チーム案の検証に失敗しました: " + " / ".join(violations))
+        raise ToolError("The team proposal failed validation: " + " / ".join(violations))
     saved = to_saved(ctx.db, proposal, pm)
     trace.save_output(ctx.db, "team_proposal", case_id, revision, {"items": saved}, ctx.run)
     return {"case_id": case_id, "revision": revision, "item_count": len(saved), "total": str(sum(int(i["amount"]) for i in saved))}

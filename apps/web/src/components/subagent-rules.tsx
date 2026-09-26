@@ -10,13 +10,13 @@ const RESERVED = new Set(["pm", "field", "human", "worker", "reputation", "proje
 export function subagentsValid(list: Subagent[]): string | null {
   const seen = new Set<string>();
   for (const x of list) {
-    if (!ROLE_RE.test(x.role)) return `ENS ラベル「${x.role || "（空）"}」は英小文字・数字・ハイフン（32 文字まで、先頭と末尾は英数字）にしてください`;
-    if (RESERVED.has(x.role) || x.role.startsWith("project-")) return `ENS ラベル「${x.role}」は予約語なので使えません`;
-    if (seen.has(x.role)) return `ENS ラベル「${x.role}」が重複しています`;
+    if (!ROLE_RE.test(x.role)) return `ENS label "${x.role || "(empty)"}" must use lowercase letters, digits and hyphens (up to 32 chars, starting and ending with a letter or digit)`;
+    if (RESERVED.has(x.role) || x.role.startsWith("project-")) return `ENS label "${x.role}" is reserved and cannot be used`;
+    if (seen.has(x.role)) return `ENS label "${x.role}" is duplicated`;
     seen.add(x.role);
-    if (!x.name.trim()) return `「${x.role}」の名前を入れてください`;
+    if (!x.name.trim()) return `Enter a name for "${x.role}"`;
   }
-  if (list.length > 12) return "専門エージェントは 12 件までです";
+  if (list.length > 12) return "Up to 12 specialist agents are allowed";
   return null;
 }
 
@@ -32,32 +32,32 @@ export function SubagentsEditor({ value, onChange, published = false, defaultOpe
   return (
     <div className="rounded-md border border-neutral-200">
       <button type="button" onClick={() => setOpen((o) => !o)} className="flex w-full items-center justify-between px-3 py-2 text-left text-sm">
-        <span className="font-medium">専門エージェント <span className="ml-1 text-xs font-normal text-neutral-500">{value.length} 件{err && <span className="ml-2 text-neutral-900">要修正</span>}</span></span>
-        <span className="text-xs text-neutral-500">{open ? "閉じる" : "開く"}</span>
+        <span className="font-medium">Specialist agents <span className="ml-1 text-xs font-normal text-neutral-500">{value.length}{err && <span className="ml-2 text-neutral-900">Needs fixing</span>}</span></span>
+        <span className="text-xs text-neutral-500">{open ? "Close" : "Open"}</span>
       </button>
       {open && (
         <div className="space-y-3 border-t border-neutral-200 px-3 py-3">
           <p className="text-xs text-neutral-500">
-            PM Agent が案件を分解するときの AI 担当です。「ENS ラベル」がそのまま subname の先頭になり（<span className="font-mono">&lt;ラベル&gt;.{agentEns ?? "<PM Agent のラベル>.guildace.eth"}</span>）、PM Agent の公開時に一緒に発行されます。名前と説明は record に書き、プロンプトは ENS には書かずにその役割の system prompt に足します。
-            {published && " 公開済みの Agent では、追加・名前や説明の変更は ENS にも反映されます（プラットフォーム公開はワーカーが、Creator 所有は自分のウォレットで署名）。削除は一覧から外れるだけで ENS の subname は残ります。"}
+            AI workers the PM Agent assigns to when it breaks down a Case. The &quot;ENS label&quot; becomes the start of the subname (<span className="font-mono">&lt;label&gt;.{agentEns ?? "<PM Agent label>.guildace.eth"}</span>) and is issued together with the PM Agent when it is published. The name and description are written as Records; the prompt is not written to ENS and is appended to that Role&apos;s system prompt.
+            {published && " For a published Agent, additions and name/description changes are also reflected on ENS (written by the worker for platform-published Agents; signed with your Wallet for Creator-owned ones). Deleting only removes it from the list; the ENS subname remains."}
           </p>
-          {value.length === 0 && <p className="text-xs text-neutral-700">専門エージェントがありません。すべての AI タスクは role=general として PM Agent 自身が実行します。</p>}
+          {value.length === 0 && <p className="text-xs text-neutral-700">No specialist agents. The PM Agent runs every AI Task itself as role=general.</p>}
           {value.map((x, i) => (
             <div key={i} className="space-y-2 rounded-md border border-neutral-200 p-3">
               <div className="grid items-center gap-2 sm:grid-cols-[12rem_1fr_auto]">
-                <input id={`sub-role-${i}`} className={`${inputCls} font-mono`} placeholder="例: designer" value={x.role} onChange={(e) => upd(i, "role", e.target.value.toLowerCase())} />
-                <input id={`sub-name-${i}`} className={inputCls} placeholder="例: Designer Agent" value={x.name} onChange={(e) => upd(i, "name", e.target.value)} />
-                <Button variant="ghost" onClick={() => remove(i)}>削除</Button>
+                <input id={`sub-role-${i}`} className={`${inputCls} font-mono`} placeholder="e.g. designer" value={x.role} onChange={(e) => upd(i, "role", e.target.value.toLowerCase())} />
+                <input id={`sub-name-${i}`} className={inputCls} placeholder="e.g. Designer Agent" value={x.name} onChange={(e) => upd(i, "name", e.target.value)} />
+                <Button variant="ghost" onClick={() => remove(i)}>Delete</Button>
               </div>
-              <div className="truncate font-mono text-[11px] text-neutral-500" title={`${x.role || "<ラベル>"}.${agentEns ?? "<PM Agent のラベル>.guildace.eth"}`}>ENS: {x.role || "<ラベル>"}.{agentEns ?? "<PM Agent のラベル>.guildace.eth"}</div>
-              <input id={`sub-desc-${i}`} className={inputCls} placeholder="説明（ENS の description。200 文字まで）" maxLength={200} value={x.description} onChange={(e) => upd(i, "description", e.target.value)} />
-              <textarea id={`sub-rules-${i}`} className={inputCls} rows={3} maxLength={4000} placeholder={"この役割の成果物に何を含めるか、技術スタック、形式など（system prompt に追加。ENS には書きません）"} value={x.rules} onChange={(e) => upd(i, "rules", e.target.value)} />
+              <div className="truncate font-mono text-[11px] text-neutral-500" title={`${x.role || "<label>"}.${agentEns ?? "<PM Agent label>.guildace.eth"}`}>ENS: {x.role || "<label>"}.{agentEns ?? "<PM Agent label>.guildace.eth"}</div>
+              <input id={`sub-desc-${i}`} className={inputCls} placeholder="Description (ENS description, up to 200 chars)" maxLength={200} value={x.description} onChange={(e) => upd(i, "description", e.target.value)} />
+              <textarea id={`sub-rules-${i}`} className={inputCls} rows={3} maxLength={4000} placeholder={"What this Role's Deliverable should include, tech stack, format, etc. (appended to the system prompt; not written to ENS)"} value={x.rules} onChange={(e) => upd(i, "rules", e.target.value)} />
             </div>
           ))}
           {err && <p className="text-xs text-neutral-900">{err}</p>}
           <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={add} disabled={value.length >= 12}>＋ 追加</Button>
-            <Button variant="ghost" onClick={reset}>既定の 4 つに戻す</Button>
+            <Button variant="secondary" onClick={add} disabled={value.length >= 12}>+ Add</Button>
+            <Button variant="ghost" onClick={reset}>Reset to the 4 defaults</Button>
           </div>
         </div>
       )}

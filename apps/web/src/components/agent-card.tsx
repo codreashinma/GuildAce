@@ -17,10 +17,10 @@ export function AgentCard({ agent }: { agent: Agent }) {
             <div className="truncate text-xs text-neutral-500">Creator {agent.creator.display_name ? `${agent.creator.display_name} ` : ""}<span className="font-mono">{short(agent.creator.wallet_address)}</span></div>
           </div>
         </div>
-        <p className="mt-3 line-clamp-2 text-sm text-neutral-600">{agent.description || "（説明なし）"}</p>
+        <p className="mt-3 line-clamp-2 text-sm text-neutral-600">{agent.description || "(No description)"}</p>
         <div className="mt-4 flex items-center justify-between text-sm">
           <Stars value={Number(agent.rating_avg)} count={agent.rating_count} />
-          <span className="whitespace-nowrap tabular-nums text-neutral-500">Fee {agent.fee_bps / 100}% · 実績 {agent.completed_count}</span>
+          <span className="whitespace-nowrap tabular-nums text-neutral-500">Fee {agent.fee_bps / 100}% · Completed {agent.completed_count}</span>
         </div>
       </Card>
     </Link>

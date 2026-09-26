@@ -1,5 +1,5 @@
-直前の出力は受理されませんでした。違反した項目は次のとおりです。
+Your previous output was rejected. The violated items are:
 
 {{violations}}
 
-金額の合計が予算を超えている場合は、超過額 {{excess_amount}} を下回るまで金額を下げて出し直してください。担当が候補の一覧にない場合は、一覧にあるものへ置き換えてください。直前の出力は破棄されています。
+If the total amount exceeds the budget, lower the amounts so that the total drops by at least the excess of {{excess_amount}}, and output again. If an assignee is not in the list of candidates, replace it with one from the list. Your previous output has been discarded.

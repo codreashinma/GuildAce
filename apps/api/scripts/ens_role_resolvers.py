@@ -28,21 +28,21 @@ def main() -> None:
     for role in ("reputation", "project"):
         admin = ens._account(role).address
         if admin.lower() == ops.lower():
-            print(f"{role}: 役割鍵が未設定のためスキップ"); continue
+            print(f"{role}: skipped because the role key is not configured"); continue
         salt = int.from_bytes(keccak(encode(["bytes32", "address", "uint256"], [keccak(text="OwnedResolver"), admin, 0])), "big")
         init = w3.eth.contract(abi=INIT_ABI).encode_abi("initialize", args=[admin, ens.ALL_ROLES, []])
         fn = factory.functions.deployProxy(Web3.to_checksum_address(s.ensv2_resolver_impl), salt, bytes.fromhex(init[2:]))
         addr = fn.call({"from": ops})
         if w3.eth.get_code(addr) in (b"", b"\x00"):
-            print(f"{role} resolver をデプロイ: {addr}")
+            print(f"Deployed {role} resolver: {addr}")
             print("  tx", ens._send(w3, fn))
         else:
-            print(f"{role} resolver は既にあります: {addr}")
+            print(f"{role} resolver already exists: {addr}")
         eac = w3.eth.contract(address=addr, abi=ens.EAC_ABI)
         print(f"  admin({admin}) root SET_TEXT:", eac.functions.hasRootRoles(ens.RESOLVER_ROLE_SET_TEXT, admin).call(),
               "/ ops root SET_TEXT:", eac.functions.hasRootRoles(ens.RESOLVER_ROLE_SET_TEXT, ops).call())
         out[role] = addr
-    print("\n.env に設定してください:")
+    print("\nSet these in .env:")
     if "reputation" in out: print(f"ENS_REPUTATION_RESOLVER={out['reputation']}")
     if "project" in out: print(f"ENS_PROJECT_RESOLVER={out['project']}")
 

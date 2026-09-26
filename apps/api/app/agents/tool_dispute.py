@@ -31,7 +31,7 @@ def dispute_record(db: Session, dispute_id: str) -> dict:
     """紛争の案件のタスクの記録（構造化された値だけ）と、参照できる ID の一覧。"""
     d = db.get(Dispute, dispute_id)
     if d is None:
-        raise ToolError("紛争がありません")
+        raise ToolError("Dispute not found")
     tasks = db.query(Task).filter(Task.case_id == d.case_id).order_by(Task.order_no).all()
     records, refs = [], []
     for t in tasks:
@@ -51,23 +51,23 @@ def validate_summary(summary: DisputeSummary, refs: list[str]) -> list[str]:
     結論の混入はスキーマ（extra="forbid"）で弾く。ここでは件数と参照を確かめる。"""
     out: list[str] = []
     if not summary.issues:
-        out.append("争点が 1 件もありません")
+        out.append("There are no issues")
     known = set(refs)
     no_ref = [i for i, x in enumerate(summary.issues, 1) if not x.evidence_refs]
     if no_ref:
-        out.append(f"記録への参照が無い争点があります（{', '.join(f'{i} 件目' for i in no_ref[:10])}）")
+        out.append(f"Some issues have no reference to a record (items {', '.join(str(i) for i in no_ref[:10])})")
     bad = [i for i, x in enumerate(summary.issues, 1) if any(r not in known for r in x.evidence_refs)]
     if bad:
-        out.append(f"渡された記録に無い参照を指している争点があります（{', '.join(f'{i} 件目' for i in bad[:10])}）")
+        out.append(f"Some issues reference records that were not provided (items {', '.join(str(i) for i in bad[:10])})")
     return out
 
 
 def _allowed_dispute(ctx: ToolContext, dispute_id: str) -> Dispute:
     d = ctx.db.get(Dispute, dispute_id)
     if d is None:
-        raise ToolError("紛争がありません")
+        raise ToolError("Dispute not found")
     if ctx.run.dispute_id != dispute_id and ctx.run.case_id != d.case_id:
-        raise ToolError("この実行に結び付いた紛争以外は扱えません")
+        raise ToolError("Only the dispute linked to this run can be handled")
     return d
 
 
@@ -81,13 +81,13 @@ def read_dispute_record(ctx: ToolContext, *, dispute_id: str) -> dict:
 def save_dispute_summary(ctx: ToolContext, *, dispute_id: str, revision: int, issues: list[dict]) -> dict:
     _allowed_dispute(ctx, dispute_id)
     if revision < 1:
-        raise ToolError("版番号は 1 以上にしてください")
+        raise ToolError("The revision number must be 1 or greater")
     try:
         summary = DisputeSummary.model_validate({"issues": issues})
     except ValueError as e:
-        raise ToolError(f"論点整理の形が合いません: {e}") from e
+        raise ToolError(f"The dispute summary has an invalid format: {e}") from e
     violations = validate_summary(summary, dispute_record(ctx.db, dispute_id)["refs"])
     if violations:  # 9-2: 検証に通らない出力は保存しない
-        raise ToolError("論点整理の検証に失敗しました: " + " / ".join(violations))
+        raise ToolError("The dispute summary failed validation: " + " / ".join(violations))
     trace.save_output(ctx.db, "dispute_summary", dispute_id, revision, summary.model_dump(), ctx.run)
     return {"dispute_id": dispute_id, "revision": revision, "issue_count": len(summary.issues)}

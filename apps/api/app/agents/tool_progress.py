@@ -12,9 +12,9 @@ from .tools import ToolContext, ToolError, register
 def update_task_progress(ctx: ToolContext, *, task_id: str) -> dict:
     task = ctx.db.get(Task, task_id)
     if task is None:
-        raise ToolError("タスクがありません")
+        raise ToolError("Task not found")
     if ctx.run.case_id != task.case_id:
-        raise ToolError("この実行に結び付いた案件のタスク以外は扱えません")
+        raise ToolError("Only tasks of the case linked to this run can be handled")
     before = ctx.db.get(Case, task.case_id).status
     after_chain_update(ctx.db, task.case_id)
     ctx.db.expire_all()

@@ -120,7 +120,7 @@ def test_tampered_echo_is_rejected_and_original_is_saved(db, case, monkeypatch):
     assert r.ok and tampered
     assert _outputs(db, "team_proposal")[0].payload["items"][0]["amount"] == "400000"  # 保存は手元の出力
     run = db.get(AgentRun, r.run_id)
-    assert run.iterations == 6 and any("team_proposal が委譲先から返ったデータと一致しません" in v for v in run.validation_failures)
+    assert run.iterations == 6 and any("team_proposal does not match the data returned by the delegate" in v for v in run.validation_failures)
 
 
 def test_three_invalid_steps_escalate_without_the_model(db, case, monkeypatch):
@@ -139,14 +139,14 @@ def test_hil005_when_ag002_fails(db, case):
     r = run_planning(db, case_id=case.id, mock_ag002=fixed(bad), mock_ag003=fixed(TEAM))
     assert not r.ok and r.escalated and r.reason == "violations" and r.plan_revision is None
     c = _reload(db, case)
-    assert c.status == "planning_failed" and c.error.startswith("再確認のお願い") and "工程" in c.error
+    assert c.status == "planning_failed" and c.error.startswith("Please reconfirm the request") and "Step keys" in c.error
     assert _outputs(db, "task_plan") == [] and _outputs(db, "team_proposal") == []
 
 
 def test_hil005_when_grd003_is_exceeded(db, case):
     many = {"tasks": [{"seq": i, "phase": "designer", "title": f"t{i}"} for i in range(1, 22)]}
     r = run_planning(db, case_id=case.id, mock_ag002=fixed(many), mock_ag003=fixed(TEAM))
-    assert r.escalated and any("上限" in v for v in r.violations)
+    assert r.escalated and any("limit" in v for v in r.violations)
     assert _reload(db, case).status == "planning_failed"
 
 
@@ -155,7 +155,7 @@ def test_hil005_when_grd002_fails_three_times(db, case):
     r = run_planning(db, case_id=case.id, mock_ag002=fixed(PLAN), mock_ag003=fixed(over))
     assert r.escalated and r.plan_revision == 1 and r.team_revision is None
     c = _reload(db, case)
-    assert c.status == "planning_failed" and "超過額 820000" in c.error
+    assert c.status == "planning_failed" and "excess: 820000" in c.error
     assert _outputs(db, "team_proposal") == []
 
 
@@ -195,7 +195,7 @@ def test_grd004_stops_the_case_after_the_limit(db, case):
     assert r.case_stopped and not r.ok
     assert control.state(db, case.id).stopped
     c = _reload(db, case)
-    assert c.status == "planning_failed" and "上限" in c.error
+    assert c.status == "planning_failed" and "limit" in c.error
 
 
 def test_tool008_is_idempotent_per_case_and_only_for_ag001(db, case):
@@ -203,6 +203,6 @@ def test_tool008_is_idempotent_per_case_and_only_for_ag001(db, case):
     first = tools.call_tool(db, run, "TOOL-008", case_id=case.id, reason="violations", violations=["x"])
     again = tools.call_tool(db, run, "TOOL-008", case_id=case.id, reason="violations", violations=["y"])
     assert first.value["requested"] and again.value == {"requested": False, "already_open": True, "case_stopped": False}
-    assert _reload(db, case).error == "再確認のお願い（計画の検証に通りませんでした）: x"
+    assert _reload(db, case).error == "Please reconfirm the request (The plan failed validation): x"
     for agent_id in ("AG-002", "AG-003", "AG-004"):
         assert tools.call_tool(db, trace.start_run(db, agent_id, case_id=case.id), "TOOL-008", case_id=case.id, reason="x", violations=[]).denied

@@ -49,7 +49,7 @@ def execute(db: Session, run: AgentRun) -> None:
             result = ag001_orchestrator.run_dispute(db, dispute_id=run.dispute_id, run=run)
             apply_dispute.apply(db, run, None if result.ok else result.reason)  # WP-019: 論点なしでも写す
         else:
-            trace.finish_run(db, run, "failed", error=f"未知のモード: {run.mode}")
+            trace.finish_run(db, run, "failed", error=f"Unknown mode: {run.mode}")
     except Exception as e:  # noqa: BLE001
         log.exception("agent run failed: %s", run.id)
         db.rollback()
@@ -75,11 +75,11 @@ def recover_stale(db: Session) -> int:
     for run in stale:
         if run.agent_id == "AG-001" and run.mode in MODES:
             run.status = "queued"
-            run.error = ((run.error or "") + " [前回のプロセス終了時に実行中だったため再実行]").strip()
+            run.error = ((run.error or "") + " [Re-run because it was still running when the previous process exited]").strip()
             resumed += 1
         else:
             run.status, run.finished_at = "failed", datetime.now(UTC)
-            run.error = ((run.error or "") + " [前回のプロセス終了時に中断]").strip()
+            run.error = ((run.error or "") + " [Interrupted when the previous process exited]").strip()
     if stale:
         db.commit()
         log.warning("agent runner: 実行中のまま残っていた実行 %d 件のうち %d 件を再実行します", len(stale), resumed)

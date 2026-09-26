@@ -43,7 +43,7 @@ def send(w3, acct, fn=None, *, to=None, data=None, label=""):
 
 def main() -> None:
     s = get_settings()
-    assert s.chain_enabled and s.ens_write_enabled, "chain / ENS 書き込みが有効ではありません"
+    assert s.chain_enabled and s.ens_write_enabled, "Chain / ENS writes are not enabled"
     w3 = Web3(Web3.HTTPProvider(s.sepolia_rpc_url, request_kwargs={"timeout": 60}))
     ops = Account.from_key(s.server_private_key)
     creator = Client(BASE)
@@ -68,10 +68,10 @@ def main() -> None:
     label = "codrea-cr-" + secrets.token_hex(3)
     name = f"{label}.eth"
     c = creator.get(f"/ens/register-calldata?name={name}&phase=commit")
-    print(f"1. {name} を登録（料金 {c['price']}、commit 段階 {len(c['txs'])} tx）")
+    print(f"1. Registering {name} (fee {c['price']}, commit phase {len(c['txs'])} tx)")
     for t in c["txs"]:
         send(w3, acct, to=t["to"], data=t["data"], label=t["label"][:40])
-    print(f"  {c['min_commitment_age'] + 15} 秒待機（minCommitmentAge）")
+    print(f"  Waiting {c['min_commitment_age'] + 15} s (minCommitmentAge)")
     time.sleep(c["min_commitment_age"] + 15)
     r = creator.get(f"/ens/register-calldata?name={name}&phase=register&secret={c['secret']}")
     for t in r["txs"]:
@@ -84,7 +84,7 @@ def main() -> None:
     rd = creator.get(f"/ens/readiness?name={name}")
     assert not rd["ready"] and set(rd["missing"]) == {"subregistry", "resolver"}, rd
     sc = creator.get(f"/ens/setup-calldata?name={name}")
-    print(f"2. setup-calldata: {len(sc['txs'])} txs（resolver → {sc['resolver']['address'][:10]}…, subregistry → {sc['subregistry']['address'][:10]}…）")
+    print(f"2. setup-calldata: {len(sc['txs'])} txs (resolver -> {sc['resolver']['address'][:10]}…, subregistry -> {sc['subregistry']['address'][:10]}…)")
     for t in sc["txs"]:
         send(w3, acct, to=t["to"], data=t["data"], label=t["label"][:50])
     rd = creator.get(f"/ens/readiness?name={name}")
@@ -92,8 +92,8 @@ def main() -> None:
     print("   readiness: ready =", rd["ready"])
 
     # 3. creator モードで Agent を公開（名前空間の tx に署名）
-    agent = creator.post("/agents", {"name": "Creator 所有 PM Agent", "label": "web-pm-cr-" + secrets.token_hex(2), "description": "Creator 自身の名前空間に置いた PM Agent", "category": "web",
-                                     "rules": "案件を 4〜6 タスクに分解する", "fee_bps": 200, "parent_ens_name": name}, expect=201)
+    agent = creator.post("/agents", {"name": "Creator-owned PM Agent", "label": "web-pm-cr-" + secrets.token_hex(2), "description": "A PM Agent placed in the Creator's own namespace", "category": "web",
+                                     "rules": "Break the case down into 4-6 tasks", "fee_bps": 200, "parent_ens_name": name}, expect=201)
     r = creator.post(f"/agents/{agent['id']}/publish")
     assert r["mode"] == "creator" and not r["mock"], r
     print(f"3. publish: {len(r['txs'])} txs、subregistry → {r['subregistry'][:10]}…、{r['reputation_name']}")
@@ -112,7 +112,7 @@ def main() -> None:
     print("   subagents:", list(d["ens_subagents"]))
     for role in d["ens_roles"]:
         print(f"   role {role['role'][:12]:12} account {role['account'][:10]}… verified={role.get('verified')}")
-    assert all(role.get("verified") for role in d["ens_roles"]), "役割分離が設計どおりではありません"
+    assert all(role.get("verified") for role in d["ens_roles"]), "Role separation is not as designed"
     assert len(d["ens_subagents"]) == 4 and d["ens_records"].get("codrea.agent.category") == "web"
     rs = creator.get(f"/ens/resolve?name={a['ens_name']}")
     assert rs["owner"].lower() == acct.address.lower() and rs["wildcard"]["matches"], rs
@@ -132,7 +132,7 @@ def run_case(w3, s, ops, agent, a):
         tx = {"to": client.address, "value": w3.to_wei(0.006, "ether"), "nonce": w3.eth.get_transaction_count(ops.address, "pending"), "chainId": 11155111, "gas": 21000, "maxFeePerGas": w3.eth.gas_price * 2, "maxPriorityFeePerGas": w3.to_wei(1, "gwei")}
         h = w3.eth.send_raw_transaction(ops.sign_transaction(tx).raw_transaction)
         w3.eth.wait_for_transaction_receipt(h, timeout=240)
-    case = client.post("/cases", {"agent_id": agent["id"], "title": "Creator Agent の実機案件", "description": "小さな LP", "budget_usdc": 6, "idkit_response": None}, expect=201)
+    case = client.post("/cases", {"agent_id": agent["id"], "title": "Creator Agent live case", "description": "A small landing page", "budget_usdc": 6, "idkit_response": None}, expect=201)
     case = client.wait(f"/cases/{case['id']}", "status", {"awaiting_approval"}, timeout=180)
     usdc = w3.eth.contract(address=Web3.to_checksum_address(s.usdc_address), abi=ERC20_ABI)
     escrow = w3.eth.contract(address=Web3.to_checksum_address(s.escrow_address), abi=ESCROW_ABI)
@@ -149,7 +149,7 @@ def run_case(w3, s, ops, agent, a):
             break
         time.sleep(3)
     else:
-        raise TimeoutError("project subname が発行されませんでした")
+        raise TimeoutError("The project subname was not issued")
     pr = client.get(f"/ens/resolve?name={c['project_ens_name']}")
     print("   project subname:", c["project_ens_name"], "owner", pr["owner"][:10], "title =", pr["texts"].get("codrea.project.title"))
     assert pr["owner"].lower() == ens._account("project").address.lower(), pr

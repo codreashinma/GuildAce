@@ -33,7 +33,7 @@ class LimitHit:
 
     @property
     def detail(self) -> str:
-        return f"{self.kind} の上限に達しました（{self.scope}: {self.used:g} / {self.limit:g}）"
+        return f"{self.kind} limit reached ({self.scope}: {self.used:g} / {self.limit:g})"
 
 
 def max_iterations(agent_id: str) -> int:

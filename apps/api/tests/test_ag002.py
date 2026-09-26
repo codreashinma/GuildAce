@@ -96,10 +96,10 @@ def test_agent_without_policy_uses_default_phases(db, case):
 
 
 @pytest.mark.parametrize("tasks, word", [
-    ([{"seq": 1, "phase": "design", "title": "a"}, {"seq": 3, "phase": "qa", "title": "b"}], "連番"),  # 連番の欠け
-    ([{"seq": 2, "phase": "design", "title": "a"}], "連番"),  # 1 から始まらない
-    ([{"seq": 1, "phase": "backend", "title": "a"}], "工程"),  # 存在しない工程
-    ([{"seq": i, "phase": "design", "title": "a"} for i in range(1, 22)], "上限"),  # GRD-003（20 件）超過
+    ([{"seq": 1, "phase": "design", "title": "a"}, {"seq": 3, "phase": "qa", "title": "b"}], "Sequence numbers"),  # 連番の欠け
+    ([{"seq": 2, "phase": "design", "title": "a"}], "Sequence numbers"),  # 1 から始まらない
+    ([{"seq": 1, "phase": "backend", "title": "a"}], "Step keys"),  # 存在しない工程
+    ([{"seq": i, "phase": "design", "title": "a"} for i in range(1, 22)], "limit"),  # GRD-003（20 件）超過
 ])
 def test_validate_plan_finds_violations(case, tasks, word):
     v = validate_plan(case.id, TaskPlan.model_validate(_plan(tasks)), PHASES)
@@ -121,7 +121,7 @@ def test_retry_fixes_and_passes(db, case, seen):
     r = decompose(db, case_id=case.id, mock=m)
     assert r.ok and r.attempts == 2
     retry_ctx = m.calls[1]
-    assert "直前の出力は受理されませんでした" in retry_ctx and "連番" in retry_ctx  # PMT-014 と違反項目
+    assert "Your previous output was rejected" in retry_ctx and "Sequence numbers" in retry_ctx  # PMT-014 と違反項目
     assert "前回の出力だけにある文言" not in retry_ctx  # 前回の出力を戻さない
 
 
@@ -136,7 +136,7 @@ def test_fails_after_three_attempts_and_nothing_is_saved(db, case, seen):
     bad = _plan([{"seq": 1, "phase": "backend", "title": "a"}])
     r = decompose(db, case_id=case.id, mock=Seq(bad))
     assert not r.ok and r.reason == "violations" and r.attempts == 3
-    assert any("工程" in v for v in r.violations)
+    assert any("Step keys" in v for v in r.violations)
     assert len(seen) == 3  # 4 回目は呼ばない
     assert db.query(AgentOutput).count() == 0
     run = db.get(AgentRun, r.run_id)

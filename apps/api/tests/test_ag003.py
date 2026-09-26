@@ -99,14 +99,14 @@ def test_default_mock_is_within_budget(db, case):
 
 
 @pytest.mark.parametrize("proposal, word", [
-    (_items(n2="stranger.eth"), "候補の一覧にありません"),
-    (_items(a1="1.5"), "整数"),
-    (_items(a1="-1"), "整数"),
-    (_items(a1="1,000"), "整数"),
-    ({"items": [{"task_seq": 1, "assignee_ens_name": AI, "amount": "1"}]}, "担当の無いタスク"),
-    ({"items": [*_items()["items"], {"task_seq": 2, "assignee_ens_name": AI, "amount": "1"}]}, "2 つ以上"),
-    ({"items": [*_items()["items"], {"task_seq": 9, "assignee_ens_name": AI, "amount": "1"}]}, "一覧に無い連番"),
-    (_items(a1="500000", a2="480001"), "予算を超えています"),
+    (_items(n2="stranger.eth"), "not in the candidate list"),
+    (_items(a1="1.5"), "integer"),
+    (_items(a1="-1"), "integer"),
+    (_items(a1="1,000"), "integer"),
+    ({"items": [{"task_seq": 1, "assignee_ens_name": AI, "amount": "1"}]}, "have no assignee"),
+    ({"items": [*_items()["items"], {"task_seq": 2, "assignee_ens_name": AI, "amount": "1"}]}, "more than one assignee"),
+    ({"items": [*_items()["items"], {"task_seq": 9, "assignee_ens_name": AI, "amount": "1"}]}, "not in the task list"),
+    (_items(a1="500000", a2="480001"), "exceeds the budget"),
 ])
 def test_validate_proposal(proposal, word):
     v, _ = validate_proposal(TeamProposal.model_validate(proposal), [1, 2], [AI, HUMAN], USABLE)
@@ -115,7 +115,7 @@ def test_validate_proposal(proposal, word):
 
 def test_grd002_excess_is_a_number(db):
     v, excess = validate_proposal(TeamProposal.model_validate(_items(a1="500000", a2="480001")), [1, 2], [AI, HUMAN], USABLE)
-    assert excess == 1 and "超過額 1" in v[0]
+    assert excess == 1 and "excess: 1)" in v[0]
     assert validate_proposal(TeamProposal.model_validate(_items(a1="490000", a2="490000")), [1, 2], [AI, HUMAN], USABLE) == ([], 0)
 
 
@@ -127,7 +127,7 @@ def test_over_budget_is_retried_with_excess_and_fixed(db, case, seen):
     r = form_team(db, case_id=case.id, mock=m)
     assert r.ok and r.attempts == 2
     retry = m.calls[1]
-    assert "直前の出力は受理されませんでした" in retry and "超過額 120000" in retry  # 超過額を数値で（PMT-015）
+    assert "Your previous output was rejected" in retry and "excess of 120000" in retry  # 超過額を数値で（PMT-015）
     assert "600000" not in retry  # 前回の出力（金額）を戻さない
 
 
@@ -140,7 +140,7 @@ def test_over_budget_three_times_fails_and_nothing_is_saved(db, case, seen):
 
 def test_candidate_outside_list_fails_after_retries(db, case, seen):
     r = form_team(db, case_id=case.id, mock=Seq(_items(n1="evil.eth")))
-    assert not r.ok and any("候補の一覧" in v for v in r.violations) and _team_outputs(db) == 0
+    assert not r.ok and any("candidate list" in v for v in r.violations) and _team_outputs(db) == 0
 
 
 # ---------------------------------------------------------------- 候補 0 件・計画なし・停止

@@ -96,21 +96,21 @@ def verify_case_opened(tx_hash: str, case_id_hex: str, client: str, approvers: l
     if not s.chain_enabled:
         return
     if tx_hash.startswith("0xmock"):
-        raise ValueError("モックの tx hash はこの環境（チェーン設定済み）では受け付けません。ウォレットで openCase を送信してください")
+        raise ValueError("Mock tx hashes are not accepted in this environment (chain configured). Send openCase from your Wallet")
     w = w3()
     receipt = w.eth.get_transaction_receipt(tx_hash)
     if receipt is None or receipt["status"] != 1:
-        raise ValueError("トランザクションが成功していません")
+        raise ValueError("The transaction did not succeed")
     for log in escrow(w).events.CaseOpened().process_receipt(receipt):
         a = log["args"]
         if "0x" + a["caseId"].hex() != case_id_hex.lower():
             continue
         if a["client"].lower() != client.lower():
-            raise ValueError("案件を開いたアドレスが発注者と一致しません")
+            raise ValueError("The address that opened the Case does not match the Client")
         if [x.lower() for x in a["approvers"]] != [x.lower() for x in approvers] or int(a["threshold"]) != threshold:
-            raise ValueError("承認者の設定が一致しません")
+            raise ValueError("The Approver settings do not match")
         return
-    raise ValueError("CaseOpened イベントが見つかりません")
+    raise ValueError("CaseOpened event not found")
 
 
 def read_task(case_id_hex: str, task_id_hex: str) -> dict | None:

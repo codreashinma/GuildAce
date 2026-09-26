@@ -37,8 +37,8 @@ def _between_delimiters(text: str, needle: str) -> bool:
 def test_ag002_order_and_fixed_blocks_first():
     ctx = build_ag002(requirement_text="Web サービスを作りたい", phases=PHASES, max_tasks=20, schema=Out)
     assert ctx.order == ["CTX-001", "CTX-002", "CTX-003", "CTX-004"]
-    assert "あなたはタスク分解エージェントです" in ctx.system  # PMT-002
-    assert f"区切り記号: {DELIMITER}" in ctx.system  # PMT-009
+    assert "You are the task breakdown agent" in ctx.system  # PMT-002
+    assert f"Delimiter: {DELIMITER}" in ctx.system  # PMT-009
     assert "Web サービスを作りたい" not in ctx.system and "Web サービスを作りたい" in ctx.contents
 
 
@@ -135,7 +135,7 @@ def test_ctx007_is_cut_by_count_and_counts_go_to_ctx005(small_context):
     ctx = build_ag003(budget_amount="100", human_roles=[], tasks=[{"seq": 1, "phase": "design", "title": "t"}], candidates=cands, schema=Out)
     t = [x for x in ctx.truncations if x.ctx_id == "CTX-007"][0]
     assert t.unit == "items" and t.before == 1000 and 0 < t.after < 1000
-    assert f"候補の総数: 1000 件 / 提示: {t.after} 件" in ctx.contents
+    assert f"Total candidates: 1000 / shown: {t.after}" in ctx.contents
     assert "agent-0000.guildace.eth" in ctx.contents  # 並び順の先頭（評価の高い順）が残る
 
 
@@ -160,7 +160,7 @@ def test_fixed_blocks_are_never_truncated(monkeypatch):
 def test_cg007_retry_contains_only_violations():
     ctx = build_ag002(requirement_text="依頼", phases=PHASES, max_tasks=20, schema=Out, violations=["seq: 連番が 2 から始まっています"])
     assert ctx.order[-1] == "CTX-008"
-    assert ctx.contents.rstrip().endswith("直前の出力は破棄されています。")  # PMT-014
+    assert ctx.contents.rstrip().endswith("Your previous output has been discarded.")  # PMT-014
     assert "seq: 連番が 2 から始まっています" in ctx.contents
     # 前回の出力を受け取る引数が無い
     for fn in (build_ag001, build_ag002, build_ag003, build_ag004):
@@ -178,4 +178,4 @@ def test_cg007_old_violations_are_dropped_first_when_over_cap(small_context):
 def test_ag003_retry_passes_excess_amount_as_number():
     ctx = build_ag003(budget_amount="100", human_roles=[], tasks=[{"seq": 1, "phase": "design", "title": "t"}], candidates=[],
                       schema=Out, violations=["合計 120 が予算 100 を超えています"], excess_amount="20")
-    assert "超過額 20 を下回るまで" in ctx.contents  # PMT-015
+    assert "at least the excess of 20" in ctx.contents  # PMT-015

@@ -18,7 +18,7 @@ def main() -> None:
     s = get_settings()
     print("APP_URL =", s.app_url, "/ API_URL =", s.api_url)
     if "localhost" in s.app_url or "localhost" in s.api_url:
-        print("!! .env の APP_URL / API_URL がまだ localhost です。公開 URL に変えてから実行してください")
+        print("!! APP_URL / API_URL in .env are still localhost. Change them to public URLs before running")
     db = SessionLocal()
     try:
         agents = db.query(Agent).filter(Agent.status == "published").all()
@@ -32,7 +32,7 @@ def main() -> None:
                 print(f"ok      {a.ens_name}")
                 continue
             if a.owner_mode == "creator":
-                print(f"manual  {a.ens_name}: Creator が Agent 編集画面で保存し直してください → {diff}")
+                print(f"manual  {a.ens_name}: the Creator needs to save again on the Agent edit screen -> {diff}")
                 continue
             print(f"{'plan' if DRY else 'queue'}   {a.ens_name}: {diff}")
             if not DRY:
@@ -41,7 +41,7 @@ def main() -> None:
     finally:
         db.close()
     if not DRY:
-        print("worker が 1〜2 分で書き込みます。確認: scripts/ens_check.py <name>")
+        print("The worker will write them within 1-2 minutes. Check: scripts/ens_check.py <name>")
 
 
 if __name__ == "__main__":

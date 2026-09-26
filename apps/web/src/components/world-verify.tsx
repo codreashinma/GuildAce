@@ -9,7 +9,7 @@ import { Button } from "./ui";
 export type WorldAction = "request" | "approve" | "review" | "jury" | "human-task";
 
 const ACTION_DESCRIPTION: Record<WorldAction, string> = {
-  request: "依頼の開始", approve: "成果物の承認", review: "レビューの投稿", jury: "Jury 投票", "human-task": "Human Task の受注",
+  request: "Start a request", approve: "Approve a deliverable", review: "Post a review", jury: "Jury vote", "human-task": "Accept a Human Task",
 };
 
 /**
@@ -36,7 +36,7 @@ export function WorldVerifyButton({ action, signal, label, onVerified, disabled,
     setErr(null);
     setBusy(true);
     try {
-      if (!config) throw new Error("設定を読み込み中です。少し待ってから再試行してください");
+      if (!config) throw new Error("Still loading settings. Please wait a moment and try again");
       if (config.mock.world) {
         await onVerified(null);  // World 未設定: proof なし（サーバーはウォレット単位の疑似 session を記録）
         return;
@@ -53,8 +53,8 @@ export function WorldVerifyButton({ action, signal, label, onVerified, disabled,
 
   return (
     <div className="inline-flex flex-col gap-1">
-      <Button variant={variant} onClick={start} disabled={disabled || busy || !config} title={config?.mock.world ? "World 未設定のため人間確認はモック（proof なし）" : undefined}>
-        <span aria-hidden>◎</span><span>{busy ? "処理中…" : config?.mock.world ? `${label}（World モック）` : label}</span>
+      <Button variant={variant} onClick={start} disabled={disabled || busy || !config} title={config?.mock.world ? "World is not configured, so human verification is mocked (no proof)" : undefined}>
+        <span aria-hidden>◎</span><span>{busy ? "Processing…" : config?.mock.world ? `${label} (World mock)` : label}</span>
       </Button>
       {err && <span className="max-w-xs text-xs text-neutral-900">{err}</span>}
       {config && !config.mock.world && ctx && (

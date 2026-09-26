@@ -21,8 +21,8 @@ from app.models import ChainJob  # noqa: E402
 
 DEMO_TAG = "[demo]"
 ERRORS = {
-    "ens_update": "HTTPError: 429 Client Error: Too Many Requests for url: https://ethereum-sepolia-rpc.publicnode.com (RPC のレート制限。5 回とも失敗)",
-    "fund_task": "TimeExhausted: Transaction 0x7d2c…a41e is not in the chain after 240 seconds (受信確認のタイムアウト。tx 自体は送信済み)",
+    "ens_update": "HTTPError: 429 Client Error: Too Many Requests for url: https://ethereum-sepolia-rpc.publicnode.com (RPC rate limit. All 5 attempts failed)",
+    "fund_task": "TimeExhausted: Transaction 0x7d2c…a41e is not in the chain after 240 seconds (Receipt confirmation timed out. The tx itself was sent)",
 }
 
 
@@ -34,14 +34,14 @@ def main() -> None:
     for kind, status, err, nxt in (
         ("ens_update", "failed", ERRORS["ens_update"], None),
         ("fund_task", "failed", ERRORS["fund_task"], None),
-        ("submit", "retry", "ValueError: replacement transaction underpriced (自動再送 2 回目待ち)", datetime.now(UTC) + retry_after),
+        ("submit", "retry", "ValueError: replacement transaction underpriced (Waiting for the 2nd automatic resend)", datetime.now(UTC) + retry_after),
     ):
         if db.query(ChainJob).filter(ChainJob.kind == kind, ChainJob.status == status, ChainJob.error.like(f"%{DEMO_TAG}%")).first():
-            print(f"skip: {kind} の {status} は既にあります")
+            print(f"skip: {kind} {status} already exists")
             continue
         j = db.query(ChainJob).filter(ChainJob.kind == kind, ChainJob.status == "done").order_by(ChainJob.created_at.desc()).first()
         if j is None:
-            print(f"skip: {kind} の確定ジョブが無いので作れません（先に seed.py か画面操作で作る）")
+            print(f"skip: cannot create because there is no confirmed {kind} job (create one first with seed.py or via the UI)")
             continue
         j.status = status
         j.attempts = 5 if status == "failed" else 2
@@ -54,7 +54,7 @@ def main() -> None:
         print(f"made: {kind} → {status}")
     counts = {s: n for s, n in db.query(ChainJob.status, func.count(ChainJob.id)).group_by(ChainJob.status).all()}
     print("chain_jobs:", counts)
-    print("元に戻すには /ops/jobs から再投入するか、次を実行: update chain_jobs set status='done', next_attempt_at=null, error=null where error like '%[demo]%'")
+    print("To revert, requeue from /ops/jobs or run: update chain_jobs set status='done', next_attempt_at=null, error=null where error like '%[demo]%'")
 
 
 if __name__ == "__main__":

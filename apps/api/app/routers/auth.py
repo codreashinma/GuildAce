@@ -13,7 +13,7 @@ from ..schemas import AuthVerifyIn, MeOut
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 # ウォレット接続の前に選ぶ利用者種別。表示とメニューのためのもので、権限は付けない（運用者の権限は OPS_ADDRESSES で決まる）
-USER_ROLES = {"client": "発注者", "creator": "Agent 作成者", "worker": "Human Task worker", "jury": "Jury", "ops": "運用者"}
+USER_ROLES = {"client": "Client", "creator": "Agent Creator", "worker": "Human Task worker", "jury": "Jury", "ops": "Operator"}
 
 
 @router.get("/nonce")
@@ -51,7 +51,7 @@ def me(user: User = Depends(current_user), db: Session = Depends(get_db)):
 
 # デモアカウント（キー）と、その利用者種別（USER_ROLES のキー）
 DEV_USER_ROLES = {"client": "client", "creator": "creator", "worker": "worker", "jury1": "jury", "jury2": "jury", "jury3": "jury", "ops": "ops"}
-DEV_USERS = {"client": "発注者", "creator": "Agent 作成者", "worker": "Human Task worker", "jury1": "Jury 1", "jury2": "Jury 2", "jury3": "Jury 3", "ops": "運用者"}
+DEV_USERS = {"client": "Client", "creator": "Agent Creator", "worker": "Human Task worker", "jury1": "Jury 1", "jury2": "Jury 2", "jury3": "Jury 3", "ops": "Operator"}
 
 
 class DevLoginIn(BaseModel):

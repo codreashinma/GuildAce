@@ -79,7 +79,7 @@ _IMPLS: dict[str, ToolImpl] = {}
 
 def register(tool_id: str) -> Callable[[ToolImpl], ToolImpl]:
     if tool_id not in TOOLS:
-        raise ValueError(f"未知のツール: {tool_id}")
+        raise ValueError(f"Unknown tool: {tool_id}")
 
     def deco(fn: ToolImpl) -> ToolImpl:
         _IMPLS[tool_id] = fn
@@ -104,16 +104,16 @@ def call_tool(db: Session, run: AgentRun, tool_id: str, **args: Any) -> ToolResu
     stop = control.state_for_run(db, run)
     if stop.stopped:  # GRD-007: 次のツール呼び出しの前に中断する
         log.warning("停止中のためツール呼び出しを中断しました（%s → %s、%s）", run.agent_id, tool_id, stop.scope)
-        return done(ToolResult(False, error=f"停止中です（{stop.scope}: {stop.reason}）", stopped=True))
+        return done(ToolResult(False, error=f"Stopped ({stop.scope}: {stop.reason})", stopped=True))
     tool = TOOLS.get(tool_id)
     if tool is None:
-        return done(ToolResult(False, error=f"未知のツール: {tool_id}", denied=True))
+        return done(ToolResult(False, error=f"Unknown tool: {tool_id}", denied=True))
     if not is_allowed(run.agent_id, tool_id):  # GRD-001: 実行せずに拒否
         log.warning("許可されていないツール呼び出しを拒否しました（%s → %s）", run.agent_id, tool_id)
-        return done(ToolResult(False, error=f"{run.agent_id} は {tool_id}（{tool.name}）を呼べません", denied=True))
+        return done(ToolResult(False, error=f"{run.agent_id} is not allowed to call {tool_id} ({tool.name})", denied=True))
     impl = _IMPLS.get(tool_id)
     if impl is None:
-        return done(ToolResult(False, error=f"{tool_id}（{tool.name}）は未実装です"))
+        return done(ToolResult(False, error=f"{tool_id} ({tool.name}) is not implemented"))
 
     last_error = ""
     for attempt in range(1, MAX_ATTEMPTS[tool.effect] + 1):

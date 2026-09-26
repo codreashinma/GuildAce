@@ -46,8 +46,8 @@ def claims_for(dispute: Dispute) -> list[dict]:
 def default_mock(record: dict) -> Callable[[], dict]:
     """GEMINI_API_KEY が無いときの決定的な応答: 参照できる記録があれば 1 件の争点、無ければ空。"""
     refs = record["refs"][:1]
-    issues = [{"title": "成果物が依頼の条件を満たしているか", "requester_position": "条件を満たしていないと主張",
-               "provider_position": "主張の入力なし", "evidence_refs": refs}] if refs else []
+    issues = [{"title": "Whether the deliverable meets the requirements of the request", "requester_position": "Claims the requirements are not met",
+               "provider_position": "No claim submitted", "evidence_refs": refs}] if refs else []
     return lambda: {"issues": issues}
 
 
@@ -55,7 +55,7 @@ def analyze(db: Session, *, dispute_id: str, parent_run_id: str | None = None,
             mock: Callable[[], str | dict] | None = None) -> DisputeResult:
     d = db.get(Dispute, dispute_id)
     if d is None:
-        raise ValueError(f"紛争がありません: {dispute_id}")
+        raise ValueError(f"Dispute not found: {dispute_id}")
     run = trace.start_run(db, "AG-004", mode="analyze_dispute", dispute_id=dispute_id, parent_run_id=parent_run_id, input_text=d.reason or "")
 
     def finish(result: DisputeResult, status: str) -> DisputeResult:
@@ -87,10 +87,10 @@ def analyze(db: Session, *, dispute_id: str, parent_run_id: str | None = None,
             reason: Reason = "unavailable" if r.failure == "unavailable" else "llm_error"
             return finish(DisputeResult(False, run.id, reason=reason, violations=[f"{r.failure}: {r.detail}"], attempts=attempt), "failed")
         if r.failure in ("parse", "schema"):  # CG-005: 結論などスキーマ外のキーを含む出力もここで弾く
-            violations = [f"出力の形が合いません（{r.failure}）: {r.detail}"]
+            violations = [f"Output does not match the expected format ({r.failure}): {r.detail}"]
             continue
         if not r.output.issues:  # PMT-004・012: 判断できないときは空の一覧。推測で争点を作らせず、再試行しない
-            return finish(DisputeResult(False, run.id, reason="empty", violations=["争点が 1 件もありません（主張と記録から判断できない）"],
+            return finish(DisputeResult(False, run.id, reason="empty", violations=["No issues (could not be determined from the claims and records)"],
                                         attempts=attempt), "done")
         violations = validate_summary(r.output, record["refs"])  # 9-2（決定的なコード）
         if not violations:

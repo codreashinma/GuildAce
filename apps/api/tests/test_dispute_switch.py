@@ -61,7 +61,7 @@ def test_dispute_goes_through_ag001_and_summary_json_is_written(db, client, deli
     [issue] = s["issues"]
     assert set(issue) == {"title", "requester_position", "provider_position", "evidence_refs"}  # AG-004 の出力の形のまま（結論の項目は無い）
     assert all(ref in s["ref_labels"] for ref in issue["evidence_refs"])  # 根拠の参照は画面で名前にできる
-    assert s["ref_labels"][issue["evidence_refs"][0]].startswith("成果物: ")
+    assert s["ref_labels"][issue["evidence_refs"][0]].startswith("Deliverable: ")
 
 
 def test_votes_resolve_after_summary(db, client, delivered):

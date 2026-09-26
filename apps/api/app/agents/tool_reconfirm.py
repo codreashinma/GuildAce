@@ -18,10 +18,10 @@ log = logging.getLogger(__name__)
 
 MAX_ERROR = 1000
 REASON_LABEL = {
-    "violations": "計画の検証に通りませんでした", "empty": "依頼文からタスクを判断できませんでした",
-    "no_candidates": "担当の候補が見つかりませんでした", "no_plan": "タスク計画がありません",
-    "limit": "処理の上限に達しました", "llm_error": "AI の呼び出しに失敗しました", "unavailable": "AI を利用できません",
-    "search_error": "候補の検索に失敗しました", "orchestrator": "手順の指定が受理されませんでした", "tool_error": "保存に失敗しました",
+    "violations": "The plan failed validation", "empty": "Could not determine tasks from the request",
+    "no_candidates": "No assignee candidates were found", "no_plan": "There is no task plan",
+    "limit": "Processing limit reached", "llm_error": "The AI call failed", "unavailable": "AI is unavailable",
+    "search_error": "Candidate search failed", "orchestrator": "The next-step instruction was not accepted", "tool_error": "Save failed",
 }
 
 
@@ -33,7 +33,7 @@ def requested_count(ctx: ToolContext, case_id: str) -> int:
 
 
 def summary(reason: str, violations: list[str]) -> str:
-    text = f"再確認のお願い（{REASON_LABEL.get(reason, reason)}）"
+    text = f"Please reconfirm the request ({REASON_LABEL.get(reason, reason)})"
     if violations:
         text += ": " + " / ".join(violations)
     return redact(text)[:MAX_ERROR]
@@ -42,17 +42,17 @@ def summary(reason: str, violations: list[str]) -> str:
 @register("TOOL-008")
 def request_requester_reconfirmation(ctx: ToolContext, *, case_id: str, reason: str, violations: list[str]) -> dict:
     if ctx.run.case_id != case_id:
-        raise ToolError("この実行に結び付いた案件以外には依頼できません")
+        raise ToolError("Can only send requests for the case linked to this run")
     case = ctx.db.get(Case, case_id)
     if case is None:
-        raise ToolError("案件がありません")
+        raise ToolError("Case not found")
     if case.status == "planning_failed":  # 冪等: 開いている依頼がある
         return {"requested": False, "already_open": True, "case_stopped": False}
     n = requested_count(ctx, case_id)
     hit = limits.check_reconfirm(case_id, n)  # GRD-004
     if hit is not None:
-        control.stop(ctx.db, case_id=case_id, reason=f"GRD-004: 再確認の依頼が上限（{hit.limit:g} 回）に達しました", operator="AG-001")
-        case.status, case.error = "planning_failed", redact(f"再確認の依頼が上限（{hit.limit:g} 回）に達したため、案件を止めました")[:MAX_ERROR]
+        control.stop(ctx.db, case_id=case_id, reason=f"GRD-004: Reconfirmation requests reached the limit ({hit.limit:g})", operator="AG-001")
+        case.status, case.error = "planning_failed", redact(f"The case was stopped because reconfirmation requests reached the limit ({hit.limit:g})")[:MAX_ERROR]
         ctx.db.commit()
         log.warning("GRD-004: 再確認の依頼の上限に達したため案件を止めました（case:%s）", case_id)
         return {"requested": False, "already_open": False, "case_stopped": True}

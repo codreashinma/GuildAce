@@ -15,15 +15,15 @@ import { NotificationBell } from "./notifications";
 // auth: 未ログインでは「Sign in してください」しか出ないページ。未ログインのときはメニューに出さない
 const NAV = [
   { href: "/", label: "Marketplace" },
-  { href: "/cases", label: "案件", auth: true },
+  { href: "/cases", label: "Cases", auth: true },
   { href: "/tasks", label: "Human Task" },
   { href: "/jury", label: "Jury" },
-  { href: "/companies", label: "会社と人員", auth: true },
-  { href: "/agents/mine", label: "Agent 管理", auth: true },
+  { href: "/companies", label: "Companies & Members", auth: true },
+  { href: "/agents/mine", label: "My Agents", auth: true },
   { href: "/ens", label: "ENS" },
-  { href: "/me", label: "マイページ", auth: true },
+  { href: "/me", label: "My Page", auth: true },
 ];
-const OPS_NAV = { href: "/ops/jobs", label: "運用" };
+const OPS_NAV = { href: "/ops/jobs", label: "Ops" };
 
 /** 開発用: DEV_LOGIN_ENABLED のとき ?dev_login=<role> で自動ログイン（スクリーンショット・動作確認用） */
 function DevAutoLogin() {
@@ -42,7 +42,7 @@ function DevAutoLogin() {
 
 type DevUser = { role: string; label: string; type: string };
 /** 利用者種別の一覧の先頭に出す、ウォレット不要のデモアカウント（API の種別ではない） */
-const DEMO_ROLE: UserRole = { role: "demo", label: "デモアカウント" };
+const DEMO_ROLE: UserRole = { role: "demo", label: "Demo account" };
 
 /** 未ログイン時の入口。先に利用者種別を選び、次に接続する。
  * 「ウォレットで接続」は接続 → SIWE 署名まで続けて進め、選んだ種別をアカウントに保存する。
@@ -96,14 +96,14 @@ function LoginMenu({ onError }: { onError: (msg: string | null) => void }) {
 
   return (
     <div className="relative">
-      <Button variant="inverse" onClick={() => (open ? close() : setOpen(true))} disabled={busy}>{busy ? "署名待ち…" : "ウォレット接続"}</Button>
+      <Button variant="inverse" onClick={() => (open ? close() : setOpen(true))} disabled={busy}>{busy ? "Waiting for signature…" : "Connect wallet"}</Button>
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={close} />
           <div className="absolute right-0 z-20 mt-2 w-64 rounded-md border border-neutral-900 bg-white p-2 text-neutral-900 shadow-[4px_4px_0_0_#171717]">
             {!role ? (
               <>
-                <div className="px-2 pb-1 pt-1 text-xs font-semibold text-neutral-500">1. 利用者種別を選ぶ</div>
+                <div className="px-2 pb-1 pt-1 text-xs font-semibold text-neutral-500">1. Choose account type</div>
                 {[...(devUsers && devUsers.length > 0 ? [DEMO_ROLE] : []), ...(roles ?? [])].map((r) => (
                   <button key={r.role} onClick={() => setRole(r)} className={item}>{r.label}</button>
                 ))}
@@ -111,14 +111,14 @@ function LoginMenu({ onError }: { onError: (msg: string | null) => void }) {
             ) : (
               <>
                 <div className="flex items-center justify-between px-2 pb-1 pt-1 text-xs font-semibold text-neutral-500">
-                  <span>{demo ? "2. デモアカウントを選ぶ" : `2. ${role.label}として接続`}</span>
-                  <button onClick={() => setRole(null)} className="font-normal underline">種別を変える</button>
+                  <span>{demo ? "2. Choose a demo account" : `2. Connect as ${role.label}`}</span>
+                  <button onClick={() => setRole(null)} className="font-normal underline">Change type</button>
                 </div>
                 {demo ? (devUsers ?? []).map((u) => (
                   <button key={u.role} onClick={() => { close(); void run(() => devLogin(u.role)); }} className={item}>{u.label}</button>
                 )) : (
                   <button onClick={() => withWallet(role.role)} className={`${item} font-medium`}>
-                    {isConnected ? "署名してログイン" : "ウォレットで接続"}
+                    {isConnected ? "Sign in with signature" : "Connect with wallet"}
                   </button>
                 )}
               </>
@@ -145,20 +145,20 @@ export function Header() {
           {/* 白抜き・透過のロゴ（黒いヘッダー用）。6KB の PNG なので画像最適化（/_next/image）を通さずそのまま配信する */}
           <Image src="/logo.png" alt="GuildAce" width={514} height={145} priority unoptimized className="h-auto w-[100px]" />
         </Link>
-        <nav className="hidden min-w-0 items-center gap-1 overflow-x-auto md:flex">
+        <nav className="hidden min-w-0 items-center gap-0.5 overflow-x-auto md:flex">
           {nav.map((n) => (
-            <Link key={n.href} href={n.href} className={`whitespace-nowrap border-b-2 px-2.5 py-1.5 text-sm ${path === n.href || (n.href !== "/" && path.startsWith(n.href)) ? "border-white font-medium text-white" : "border-transparent text-neutral-400 hover:text-white"}`}>
+            <Link key={n.href} href={n.href} className={`whitespace-nowrap border-b-2 px-1.5 py-1.5 text-sm ${path === n.href || (n.href !== "/" && path.startsWith(n.href)) ? "border-white font-medium text-white" : "border-transparent text-neutral-400 hover:text-white"}`}>
               {n.label}
             </Link>
           ))}
         </nav>
         <div className="ml-auto flex shrink-0 items-center gap-2">
-          {mocks.length > 0 && <span className="hidden whitespace-nowrap rounded-sm border border-dashed border-neutral-500 px-2 py-1 text-[11px] text-neutral-300 md:inline" title="未設定の外部連携はモックで動作">mock: {mocks.join(", ")}</span>}
+          {mocks.length > 0 && <span className="hidden whitespace-nowrap rounded-sm border border-dashed border-neutral-500 px-2 py-1 text-[11px] text-neutral-300 md:inline" title="External integrations that are not configured run as mocks">mock: {mocks.join(", ")}</span>}
           <DevAutoLogin />
           <NotificationBell />
           {!me && <LoginMenu onError={setErr} />}
           {me && !dev && <ConnectButton showBalance={false} chainStatus="icon" accountStatus="address" />}
-          {me && dev && <span className="whitespace-nowrap rounded-sm border border-dashed border-neutral-500 px-2 py-1 text-xs text-neutral-300" title="ウォレット不要のデモアカウント（チェーンへの署名はできない）">デモ: {me.display_name}</span>}
+          {me && dev && <span className="whitespace-nowrap rounded-sm border border-dashed border-neutral-500 px-2 py-1 text-xs text-neutral-300" title="Demo account that needs no wallet (cannot sign on-chain transactions)">Demo: {me.display_name}</span>}
           {/* ウォレットのログインは切断 = サインアウト（lib/auth）なので、Sign out はウォレットを使わないデモアカウントだけに出す */}
           {me && dev && <Button variant="outline-inverse" onClick={signOut}>Sign out</Button>}
         </div>

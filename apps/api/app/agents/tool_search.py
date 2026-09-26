@@ -99,7 +99,7 @@ def sort_key(c: Candidate) -> tuple:
 def search_candidates(db: Session, case_id: str) -> SearchResult:
     case = db.get(Case, case_id)
     if case is None:
-        raise ToolError("案件がありません")
+        raise ToolError("Case not found")
     client = db.get(User, case.client_id)
     pm = db.get(Agent, case.agent_id)
     found = sorted(_agent_candidates(db, client) + _subagent_candidates(pm) + _member_candidates(db, client), key=sort_key)
@@ -110,5 +110,5 @@ def search_candidates(db: Session, case_id: str) -> SearchResult:
 @register("TOOL-002")
 def search_agents_by_ens(ctx: ToolContext, *, case_id: str) -> dict:
     if ctx.run.case_id != case_id:
-        raise ToolError("この実行に結び付いた案件以外の候補は検索できません")
+        raise ToolError("Can only search candidates for the case linked to this run")
     return search_candidates(ctx.db, case_id).model_dump()

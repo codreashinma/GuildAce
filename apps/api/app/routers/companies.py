@@ -14,9 +14,9 @@ router = APIRouter(prefix="/companies", tags=["companies"])
 def _company(db: Session, company_id: str, user: User | None = None) -> Company:
     c = db.get(Company, company_id)
     if c is None:
-        raise HTTPException(404, "会社が見つかりません")
+        raise HTTPException(404, "Company not found")
     if user is not None and c.admin_id != user.id:
-        raise HTTPException(403, "会社の管理者のみ操作できます")
+        raise HTTPException(403, "Only the Company admin can do this")
     return c
 
 
@@ -40,7 +40,7 @@ def my_companies(user: User = Depends(current_user), db: Session = Depends(get_d
 @router.post("", response_model=CompanyOut, status_code=201)
 def create_company(body: CompanyCreateIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
     if db.query(Company).filter(Company.ens_name == body.ens_name).first():
-        raise HTTPException(409, "この ENS 名は登録済みです")
+        raise HTTPException(409, "This ENS name is already registered")
     # 所有者を ENSv2 で確認する。未登録・RPC エラーは拒否（RPC 未設定 = モックのときだけ ens_verified=False で通す）
     try:
         verified = ens.require_owner(body.ens_name, user.wallet_address)
@@ -62,7 +62,7 @@ def get_company(company_id: str, db: Session = Depends(get_db)):
 def add_member(company_id: str, body: MemberCreateIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
     c = _company(db, company_id, user)
     if any(m.label == body.label for m in c.members):
-        raise HTTPException(409, "このラベルは既に使われています")
+        raise HTTPException(409, "This label is already taken")
     m = Member(company_id=c.id, label=body.label, name=body.name, wallet_address=body.wallet_address.lower(), ens_name=f"{body.label}.{c.ens_name}",
                role=body.role, skills=body.skills, location=body.location, available=body.available)
     db.add(m)
@@ -93,7 +93,7 @@ def member_ens_calldata(company_id: str, member_id: str, user: User = Depends(cu
     if m is None or m.company_id != company_id:
         raise HTTPException(404)
     if not get_settings().sepolia_rpc_url:
-        return {"mock": True, "txs": [], "note": "RPC 未設定のため ENS 書き込みはモックです"}
+        return {"mock": True, "txs": [], "note": "RPC is not configured, so ENS writes are mocked"}
     try:
         txs = ens.member_calldata(company_name=c.ens_name, label=m.label, owner=m.wallet_address, texts=member_texts(m))
     except Exception as e:  # noqa: BLE001

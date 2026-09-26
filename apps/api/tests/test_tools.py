@@ -78,7 +78,7 @@ def test_grd001_tool_outside_allowlist_is_denied_and_recorded(db, fake_impl):
     run = trace.start_run(db, "AG-003")
     r = call_tool(db, run, "TOOL-009")
     assert r.denied and calls == []
-    assert "AG-003 は TOOL-009" in db.query(AgentToolCall).one().error
+    assert "AG-003 is not allowed to call TOOL-009" in db.query(AgentToolCall).one().error
 
 
 def test_unknown_tool_is_denied(db):
@@ -90,7 +90,7 @@ def test_allowed_but_unimplemented_tool_fails_without_denial(db, monkeypatch):
     monkeypatch.delitem(tools._IMPLS, "TOOL-005", raising=False)
     run = trace.start_run(db, "AG-001")
     r = call_tool(db, run, "TOOL-005")
-    assert not r.ok and not r.denied and "未実装" in r.error
+    assert not r.ok and not r.denied and "not implemented" in r.error
 
 
 # ---------------------------------------------------------------- 再試行（6-2）
@@ -150,7 +150,7 @@ def test_tool001_rejects_other_case(db, case):
     db.commit()
     run = trace.start_run(db, "AG-001", case_id=other.id)
     r = call_tool(db, run, "TOOL-001", case_id=case.id)
-    assert not r.ok and "以外は読めません" in r.error
+    assert not r.ok and "Only the case linked to this run can be read" in r.error
 
 
 def test_tool001_rejects_run_without_case(db, case):

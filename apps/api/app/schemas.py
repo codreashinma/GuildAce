@@ -45,7 +45,7 @@ class SubagentIn(BaseModel):
     @classmethod
     def _v_role(cls, v):
         if v in RESERVED_SUBAGENT_ROLES or v.startswith("project-"):
-            raise ValueError(f"役割 '{v}' は予約語なので使えません")
+            raise ValueError(f"Role '{v}' is reserved and cannot be used")
         return v
 
 
@@ -53,14 +53,14 @@ def _clean_subagents(v):
     if v is None:
         return None
     if not isinstance(v, list):
-        raise ValueError("subagents は [{role, name, description, rules}] の配列です")
+        raise ValueError("subagents must be an array of [{role, name, description, rules}]")
     if len(v) > 12:
-        raise ValueError("専門エージェントは 12 件までです")
+        raise ValueError("Up to 12 specialist agents are allowed")
     seen = set()
     for x in v:
         r = (x.get("role") if isinstance(x, dict) else getattr(x, "role", None)) or ""
         if r in seen:
-            raise ValueError(f"役割 '{r}' が重複しています")
+            raise ValueError(f"Role '{r}' is duplicated")
         seen.add(r)
     return v
 
@@ -74,8 +74,8 @@ class AgentCreateIn(BaseModel):
     fee_bps: int = Field(default=200, ge=0, le=5000)
     payout_address: str | None = None
     avatar: str | None = None
-    parent_ens_name: str | None = Field(default=None, pattern=r"^[a-z0-9-]+\.eth$", description="Creator が所有する .eth。空ならプラットフォームの親名")
-    subagents: list[SubagentIn] | None = Field(default=None, description="専門 AI エージェントの一覧。省略すると既定の 4 つ（designer / frontend / backend / qa）")
+    parent_ens_name: str | None = Field(default=None, pattern=r"^[a-z0-9-]+\.eth$", description="A .eth name owned by the Creator. If empty, the platform parent name is used")
+    subagents: list[SubagentIn] | None = Field(default=None, description="List of specialist AI agents. If omitted, the 4 defaults are used (designer / frontend / backend / qa)")
     policy: Policy | None = None  # GRD-006: スキーマ外のキーは捨てる。None = 既定の policy
 
     @field_validator("subagents", mode="before")
@@ -182,12 +182,12 @@ class CaseCreateIn(BaseModel):
     agent_id: str
     title: str = Field(min_length=1, max_length=200)
     description: str = ""
-    budget_usdc: int = Field(gt=0, le=10_000_000, description="USDC 単位（整数）")
+    budget_usdc: int = Field(gt=0, le=10_000_000, description="In USDC (integer)")
     deadline: str | None = None
-    approvers: list[str] = Field(default_factory=list, description="承認者アドレス（空なら発注者本人）")
+    approvers: list[str] = Field(default_factory=list, description="Approver addresses (if empty, the Client)")
     threshold: int = Field(default=1, ge=1, le=10)
     idkit_response: dict[str, Any] | None = None  # FR-002 依頼開始時の World 検証
-    world_signal: str | None = Field(default=None, max_length=120, description="World 検証の signal（案件 ID は API が採番するため、依頼開始だけクライアントが発行した ID を使う）")
+    world_signal: str | None = Field(default=None, max_length=120, description="Signal for World verification (the API assigns Case IDs, so only Request start uses an ID issued by the client)")
 
 
 

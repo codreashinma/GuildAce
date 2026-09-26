@@ -19,20 +19,20 @@ from app.db import SessionLocal  # noqa: E402
 
 
 def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description="エージェントの停止と再開（GRD-007）")
+    parser = argparse.ArgumentParser(description="Stop and resume agents (GRD-007)")
     sub = parser.add_subparsers(dest="command", required=True)
     for name, help_text, needs_case in (
-        ("stop-all", "全体を止める（OPS-001）", False),
-        ("stop-case", "案件単位で止める（OPS-002）", True),
-        ("resume-all", "全体の停止を解く（OPS-003）", False),
-        ("resume-case", "案件単位の停止を解く（OPS-003）", True),
+        ("stop-all", "Stop everything (OPS-001)", False),
+        ("stop-case", "Stop a single case (OPS-002)", True),
+        ("resume-all", "Lift the global stop (OPS-003)", False),
+        ("resume-case", "Lift the stop for a case (OPS-003)", True),
     ):
         p = sub.add_parser(name, help=help_text)
         if needs_case:
             p.add_argument("case_id")
-        p.add_argument("--reason", required=name.startswith("stop"), default="", help="停止・再開の理由（停止では必須）")
-        p.add_argument("--operator", default=getpass.getuser(), help="操作した人（既定は OS のユーザー名）")
-    sub.add_parser("status", help="いま止まっている範囲を表示する")
+        p.add_argument("--reason", required=name.startswith("stop"), default="", help="Reason for stopping/resuming (required when stopping)")
+        p.add_argument("--operator", default=getpass.getuser(), help="Operator (default: OS user name)")
+    sub.add_parser("status", help="Show the scopes that are currently stopped")
     args = parser.parse_args(argv)
 
     db = SessionLocal()
@@ -40,21 +40,21 @@ def main(argv: list[str]) -> int:
         if args.command == "status":
             rows = control.stopped_scopes(db)
             if not rows:
-                print("停止中の範囲はありません")
+                print("No scopes are stopped")
             for r in rows:
-                print(f"停止中  {r.scope}  {r.created_at:%Y-%m-%d %H:%M:%S}  {r.operator}  {r.reason}")
+                print(f"stopped  {r.scope}  {r.created_at:%Y-%m-%d %H:%M:%S}  {r.operator}  {r.reason}")
             return 0
         case_id = getattr(args, "case_id", None)
         if args.command.startswith("stop"):
             row = control.stop(db, case_id=case_id, reason=args.reason, operator=args.operator)
-            revoked = funding_guard.revoke(db, case_id=case_id, reason=f"{row.scope} の停止: {args.reason}")
-            print(f"送金操作権限を失効  {revoked} 件")
+            revoked = funding_guard.revoke(db, case_id=case_id, reason=f"{row.scope} stopped: {args.reason}")
+            print(f"Revoked transfer permissions  {revoked}")
         else:
             row = control.resume(db, case_id=case_id, reason=args.reason, operator=args.operator)
         print(f"{row.action}  {row.scope}  {row.created_at:%Y-%m-%d %H:%M:%S}  {row.operator}")
         return 0
     except ValueError as e:
-        print(f"エラー: {e}", file=sys.stderr)
+        print(f"Error: {e}", file=sys.stderr)
         return 2
     finally:
         db.close()

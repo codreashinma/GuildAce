@@ -18,11 +18,11 @@ MAX_TITLE = 80
 
 # DEC-002: policy が無い Agent の既定。工程キーは既存の role（services/gemini.py の PlannedTask.role）にそろえる
 DEFAULT_PHASES = [
-    ("designer", "デザイン"),
-    ("frontend", "フロント実装"),
-    ("backend", "バックエンド実装"),
-    ("field", "現地作業"),
-    ("qa", "テスト・デプロイ"),
+    ("designer", "Design"),
+    ("frontend", "Frontend implementation"),
+    ("backend", "Backend implementation"),
+    ("field", "On-site work"),
+    ("qa", "Test & deploy"),
 ]
 
 
@@ -43,7 +43,7 @@ class Workflow(_Strict):
         keys = [p.key for p in self.phases]
         dup = sorted({k for k in keys if keys.count(k) > 1})
         if dup:
-            raise ValueError(f"工程キーが重複しています: {', '.join(dup)}")
+            raise ValueError(f"Duplicate step keys: {', '.join(dup)}")
         return self
 
 

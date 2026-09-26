@@ -22,7 +22,7 @@ def assign(db: Session, ht: HumanTask) -> None:
     cands = candidates_for(db, ht)
     case = ht.case
     if not cands:
-        ht.status, ht.assignee_member_id, ht.assignment_reason = "open", None, "指名できる人員がいないため公開募集"
+        ht.status, ht.assignee_member_id, ht.assignment_reason = "open", None, "No Member available to assign, so this is an open call"
         db.commit()
         return
     payload = [{"ens_name": m.ens_name, "company": m.company.name, "role": m.role, "skills": m.skills, "location": m.location,
@@ -32,7 +32,7 @@ def assign(db: Session, ht: HumanTask) -> None:
     except Exception as e:  # noqa: BLE001
         log.exception("assignment failed")
         a = None
-        ht.assignment_reason = f"指名に失敗したため公開募集（{e}）"
+        ht.assignment_reason = f"Assignment failed, so this is an open call ({e})"
     if a is None:
         ht.status, ht.assignee_member_id = "open", None
         db.commit()

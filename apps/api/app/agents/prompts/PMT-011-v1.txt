@@ -1,21 +1,21 @@
-目的: 渡されたタスク一覧について、各タスクの担当と金額の案を作ってください。
+Goal: for the provided task list, propose an assignee and an amount for each task.
 
-予算額（全タスクの金額の合計がこれを超えないこと）: {{budget_amount}}
-人間の役割の指定: {{human_roles}}
+Budget (the total amount of all tasks must not exceed this): {{budget_amount}}
+Human role requirements: {{human_roles}}
 
-返してほしい形: 直前に示したスキーマに適合する JSON。
+Expected form: JSON that conforms to the schema shown above.
 
-守ること:
-- 担当は、下の候補の一覧にあるものだけから選びます。
-- 1 つのタスクに担当は 1 つだけです。
-- 全タスクの金額の合計は、上の予算額以内にします。
+Rules:
+- Choose assignees only from the list of candidates below.
+- Each task has exactly one assignee.
+- The total amount of all tasks must not exceed the budget above.
 
-判断できないとき: 推測で候補を作らず、割り当てられなかったタスクの連番を返してください。
+When you cannot decide: do not invent candidates; return the sequence numbers of the tasks you could not assign.
 
 {{delimiter}}
-【タスク一覧】
+[Task list]
 {{tasks}}
 
-【候補の一覧】
+[Candidates]
 {{candidates}}
 {{delimiter}}

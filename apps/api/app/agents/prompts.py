@@ -1,6 +1,7 @@
 """プロンプト本文（PMT-001〜PMT-016）の読み込みと差し込み。
-本文の正本は vault の agent-prompt/prompt-library.md。リポジトリの prompts/<PMT-ID>-<版>.txt はその写しで、
-scripts/check_prompts.py で一致を確かめる（DEC-005）。本文をコードの中で言い換えない。"""
+本文の正本は vault の agent-prompt/prompt-library.md（日本語）。リポジトリの prompts/ja/<PMT-ID>-<版>.txt はその写しで、
+実行時に読む prompts/<PMT-ID>-<版>.txt はその英訳（画面に出る出力を英語にするため）。scripts/check_prompts.py で
+写しと正本の一致、英訳と写しのプレースホルダの一致を確かめる（DEC-005）。本文をコードの中で言い換えない。"""
 
 import re
 from functools import lru_cache
@@ -30,10 +31,10 @@ def load(pmt_id: str, version: str | None = None) -> str:
 @lru_cache
 def _load(pmt_id: str, v: str) -> str:
     if pmt_id not in PMT_IDS:
-        raise PromptError(f"未知のプロンプト ID: {pmt_id}")
+        raise PromptError(f"Unknown prompt ID: {pmt_id}")
     path = PROMPT_DIR / f"{pmt_id}-{v}.txt"
     if not path.exists():
-        raise PromptError(f"{pmt_id} の版 {v} がありません: {path.name}")
+        raise PromptError(f"{pmt_id} has no version {v}: {path.name}")
     return path.read_text(encoding="utf-8").removesuffix("\n")
 
 
@@ -48,5 +49,5 @@ def render(pmt_id: str, version: str | None = None, **values: object) -> str:
     need = set(_PLACEHOLDER.findall(text))
     missing, extra = need - values.keys(), values.keys() - need
     if missing or extra:
-        raise PromptError(f"{pmt_id}: 差し込みの過不足（不足 {sorted(missing)} / 余分 {sorted(extra)}）")
+        raise PromptError(f"{pmt_id}: placeholder mismatch (missing {sorted(missing)} / extra {sorted(extra)})")
     return _PLACEHOLDER.sub(lambda m: str(values[m.group(1)]), text)

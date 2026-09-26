@@ -47,10 +47,10 @@ def form_team(db: Session, *, case_id: str, parent_run_id: str | None = None,
               mock: Callable[[], str | dict] | None = None) -> TeamResult:
     case = db.get(Case, case_id)
     if case is None:
-        raise ValueError(f"案件がありません: {case_id}")
+        raise ValueError(f"Case not found: {case_id}")
     plan = trace.latest_output(db, "task_plan", case_id)
     if plan is None:  # AG-002 の計画（TOOL-004 で保存）が先に要る
-        return TeamResult(False, None, reason="no_plan", violations=["タスク計画がまだ保存されていません"])
+        return TeamResult(False, None, reason="no_plan", violations=["The task plan has not been saved yet"])
     tasks = plan.payload["tasks"]
     agent = db.get(Agent, case.agent_id)
     budget = usable_budget(case, agent)
@@ -71,7 +71,7 @@ def form_team(db: Session, *, case_id: str, parent_run_id: str | None = None,
     candidates = got.value["candidates"]
     names = [c["ens_name"] for c in candidates]
     if not candidates:  # 候補が無ければ担当を作れない。モデルに推測させない（PMT-003）
-        return finish(TeamResult(False, run.id, reason="no_candidates", violations=["候補が 0 件です"]), "failed")
+        return finish(TeamResult(False, run.id, reason="no_candidates", violations=["There are no candidates"]), "failed")
     mock = mock or default_mock(tasks, names, budget)
     task_seqs = [t["seq"] for t in tasks]
     violations: list[str] = []
@@ -92,7 +92,7 @@ def form_team(db: Session, *, case_id: str, parent_run_id: str | None = None,
             reason: Reason = "unavailable" if r.failure == "unavailable" else "llm_error"
             return finish(TeamResult(False, run.id, reason=reason, violations=[f"{r.failure}: {r.detail}"], attempts=attempt), "failed")
         if r.failure in ("parse", "schema"):  # CG-005
-            violations, excess = [f"出力の形が合いません（{r.failure}）: {r.detail}"], 0
+            violations, excess = [f"Output does not match the expected format ({r.failure}): {r.detail}"], 0
             continue
         violations, excess = validate_proposal(r.output, task_seqs, names, budget)  # 9-2・GRD-002（決定的なコード）
         if not violations:

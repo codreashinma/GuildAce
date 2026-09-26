@@ -82,14 +82,14 @@ def _check_nonce(idkit_response: dict, action: str, signal: str) -> None:
     ここでは消費しない。検証と記録まで成功した時点で consume_nonce() が消す（途中失敗した proof を同じ rp_context でやり直せるようにするため）。"""
     nonce = idkit_response.get("nonce")
     if not isinstance(nonce, str) or not nonce.startswith("0x") or len(nonce) != 66:
-        raise ValueError("World ID の proof に nonce がありません")
+        raise ValueError("The World ID proof has no nonce")
     issued = _issued_nonces.get(nonce)
     if issued is None:
-        raise ValueError("World ID の rp_context が無効か使用済みです。もう一度お試しください")
+        raise ValueError("The World ID rp_context is invalid or already used. Please try again")
     if issued[0] != action or issued[1] != signal:
-        raise ValueError("World ID の proof が別の操作向けです（rp_context 不一致）")
+        raise ValueError("The World ID proof is for a different action (rp_context mismatch)")
     if issued[2] < int(time.time()):
-        raise ValueError("World ID の rp_context が期限切れです。もう一度お試しください")
+        raise ValueError("The World ID rp_context has expired. Please try again")
 
 
 def consume_nonce(idkit_response: dict | None) -> None:
@@ -107,11 +107,11 @@ def _check_signal(idkit_response: dict, signal: str) -> None:
     want = signal_hash(signal).lower()
     responses = idkit_response.get("responses")
     if not isinstance(responses, list) or not responses:
-        raise ValueError("World ID の proof に responses がありません")
+        raise ValueError("The World ID proof has no responses")
     for r in responses:
         got = r.get("signal_hash") if isinstance(r, dict) else None
         if isinstance(got, str) and got.lower() not in (want, "0x0", "0x"):
-            raise ValueError("World ID の proof が別の操作向けです（signal 不一致）")
+            raise ValueError("The World ID proof is for a different action (signal mismatch)")
 
 
 def _proof_nullifier(idkit_response: dict) -> str:
@@ -120,7 +120,7 @@ def _proof_nullifier(idkit_response: dict) -> str:
         sn = r.get("session_nullifier") if isinstance(r, dict) else None
         if isinstance(sn, list) and sn and isinstance(sn[0], str):
             return sn[0]
-    raise ValueError("World ID の proof に session_nullifier がありません")
+    raise ValueError("The World ID proof has no session_nullifier")
 
 
 def redacted(idkit_response: dict | None) -> dict | None:
@@ -141,14 +141,14 @@ def verify_session_proof(*, idkit_response: dict | None, action: str, signal: st
         sid = "mock:" + hashlib.sha256(user_wallet.lower().encode()).hexdigest()[:40]
         return VerifiedSession(session_id=sid, proof_nullifier=None, created=saved_session_id is None)
     if not idkit_response:
-        raise ValueError("World ID の proof がありません")
+        raise ValueError("World ID proof is missing")
     if idkit_response.get("protocol_version") != "4.0":
-        raise ValueError("World ID 4.0 の session proof が必要です（旧形式の proof は使えません）")
+        raise ValueError("A World ID 4.0 session proof is required (legacy proofs are not accepted)")
     session_id = idkit_response.get("session_id")
     if not isinstance(session_id, str) or not session_id.startswith("session_"):
-        raise ValueError("World ID の proof に session_id がありません。session proof として確認してください")
+        raise ValueError("The World ID proof has no session_id. Verify as a session proof")
     if saved_session_id is not None and session_id != saved_session_id:
-        raise ValueError("このアカウントに保存された World セッションと一致しません。同じ World ID で確認してください")
+        raise ValueError("This does not match the World session saved for this account. Verify with the same World ID")
     _check_nonce(idkit_response, action, signal)
     _check_signal(idkit_response, signal)
     proof_nullifier = _proof_nullifier(idkit_response)
@@ -162,12 +162,12 @@ def verify_session_proof(*, idkit_response: dict | None, action: str, signal: st
     if r.status_code >= 400 or (isinstance(body, dict) and body.get("success") is False):
         text = (r.text if body is None else str(body))[:300]
         log.warning("world verify rejected (%s): %s / request=%s", r.status_code, text, redacted(idkit_response))
-        raise ValueError(f"World ID 検証に失敗しました: {text}")
+        raise ValueError(f"World ID verification failed: {text}")
     if isinstance(body, dict):
         returned = body.get("session_id")
         if isinstance(returned, str) and returned != session_id:
-            raise ValueError("World ID 検証結果の session_id が一致しません")
+            raise ValueError("The session_id in the World ID verification result does not match")
         results = body.get("results")
         if isinstance(results, list) and results and not any(isinstance(x, dict) and x.get("success") for x in results):
-            raise ValueError(f"World ID 検証に失敗しました: {str(results)[:300]}")
+            raise ValueError(f"World ID verification failed: {str(results)[:300]}")
     return VerifiedSession(session_id=session_id, proof_nullifier=proof_nullifier, created=saved_session_id is None)

@@ -40,7 +40,7 @@ def _record(db: Session, scope: str, action: str, reason: str, operator: str) ->
 def stop(db: Session, *, case_id: str | None = None, reason: str, operator: str) -> AgentControl:
     """OPS-001（case_id なし）/ OPS-002（case_id あり）。"""
     if not reason.strip():
-        raise ValueError("停止の理由を書いてください（OPS-001 / OPS-002 の記録に残す）")
+        raise ValueError("Enter a reason for stopping (recorded for OPS-001 / OPS-002)")
     return _record(db, case_scope(case_id) if case_id else GLOBAL, "stop", reason, operator)
 
 
@@ -82,7 +82,7 @@ def ensure_running(db: Session, case_id: str | None = None) -> None:
     """委譲を始める前に呼ぶ。止まっていれば AgentStopped。"""
     s = state(db, case_id)
     if s.stopped:
-        raise AgentStopped(f"停止中です（{s.scope}: {s.reason}）")
+        raise AgentStopped(f"Stopped ({s.scope}: {s.reason})")
 
 
 def stopped_scopes(db: Session) -> list[AgentControl]:

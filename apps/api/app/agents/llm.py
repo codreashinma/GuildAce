@@ -81,11 +81,11 @@ def _validate(raw: str, schema: type[T]) -> tuple[T | None, Failure | None, str]
     try:
         data = json.loads(raw)
     except (json.JSONDecodeError, TypeError) as e:
-        return None, "parse", f"JSON として読めません（{e.msg if hasattr(e, 'msg') else type(e).__name__}）"
+        return None, "parse", f"Not valid JSON ({e.msg if hasattr(e, 'msg') else type(e).__name__})"
     try:
         return schema.model_validate(data), None, ""
     except ValidationError as e:
-        items = [f"{'.'.join(str(x) for x in err['loc']) or '(全体)'}: {err['msg']}" for err in e.errors()]
+        items = [f"{'.'.join(str(x) for x in err['loc']) or '(root)'}: {err['msg']}" for err in e.errors()]
         return None, "schema", "\n".join(items)
 
 
@@ -114,7 +114,7 @@ def call_structured(
 
     if not s.gemini_enabled:
         if mock is None:
-            return LLMResult(None, "unavailable", "GEMINI_API_KEY が無く、モックの応答も渡されていません", mocked=True)
+            return LLMResult(None, "unavailable", "GEMINI_API_KEY is not set and no mock response was provided", mocked=True)
         raw = mock()
         raw = raw if isinstance(raw, str) else json.dumps(raw, ensure_ascii=False)
         out, failure, detail = _validate(raw, schema)
@@ -144,6 +144,6 @@ def call_structured(
     out_tok = int(getattr(usage, "candidates_token_count", 0) or 0) + int(getattr(usage, "thoughts_token_count", 0) or 0)
     if elapsed > limit:
         # 時間上限を超えた応答は使わない（トークンは消費済みなので数える）
-        return LLMResult(None, "timeout", f"{elapsed:.1f} 秒（上限 {limit:.0f} 秒）", in_tok, out_tok, elapsed)
+        return LLMResult(None, "timeout", f"{elapsed:.1f} s (limit {limit:.0f} s)", in_tok, out_tok, elapsed)
     out, failure, detail = _validate(resp.text or "", schema)
     return LLMResult(out, failure, detail, in_tok, out_tok, elapsed)

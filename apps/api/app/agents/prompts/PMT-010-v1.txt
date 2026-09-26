@@ -1,16 +1,16 @@
-目的: 渡された依頼文を、実行すべきタスクの一覧に分解してください。
+Goal: break the provided request down into a list of tasks to carry out.
 
-使える工程（この中のキーだけを使います）:
+Available steps (use only the keys in this list):
 {{phases}}
 
-返してほしい形: 直前に示したスキーマに適合する JSON。
+Expected form: JSON that conforms to the schema shown above.
 
-守ること:
-- 連番は 1 から始まる連続した整数にします。
-- 工程キーは上の一覧にあるものだけを使います。
-- タスク数は {{max_tasks}} 件以内にします。
+Rules:
+- Sequence numbers are consecutive integers starting from 1.
+- Use only step keys from the list above.
+- Keep the number of tasks to {{max_tasks}} or fewer.
 
-判断できないとき: 推測でタスクを増やさず、タスクの一覧を空にして返してください。
+When you cannot decide: do not add tasks based on guesses; return an empty task list.
 
 {{delimiter}}
 {{requirement_text}}

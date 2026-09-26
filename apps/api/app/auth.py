@@ -30,13 +30,13 @@ def verify_siwe(message: str, signature: str, db: Session) -> tuple[User, str]:
     try:
         msg = SiweMessage.from_message(message)
     except Exception as e:  # noqa: BLE001
-        raise HTTPException(400, f"SIWE メッセージが不正です: {e}") from e
+        raise HTTPException(400, f"Invalid SIWE message: {e}") from e
     if msg.nonce not in _nonces or _nonces[msg.nonce] < time.time():
-        raise HTTPException(401, "nonce が無効です")
+        raise HTTPException(401, "Invalid nonce")
     try:
         msg.verify(signature)
     except Exception as e:  # noqa: BLE001
-        raise HTTPException(401, f"署名検証に失敗しました: {e}") from e
+        raise HTTPException(401, f"Signature verification failed: {e}") from e
     _nonces.pop(msg.nonce, None)
     address = msg.address.lower()
     user = db.query(User).filter(User.wallet_address == address).one_or_none()
@@ -56,15 +56,15 @@ def make_token(user: User) -> str:
 
 def current_user(authorization: str | None = Header(default=None), db: Session = Depends(get_db)) -> User:
     if not authorization or not authorization.lower().startswith("bearer "):
-        raise HTTPException(401, "ログインが必要です")
+        raise HTTPException(401, "Sign in required")
     token = authorization.split(" ", 1)[1]
     try:
         payload = jwt.decode(token, get_settings().jwt_secret, algorithms=["HS256"])
     except jwt.PyJWTError as e:
-        raise HTTPException(401, "トークンが無効です") from e
+        raise HTTPException(401, "Invalid token") from e
     user = db.get(User, payload["sub"])
     if user is None:
-        raise HTTPException(401, "ユーザーが見つかりません")
+        raise HTTPException(401, "User not found")
     return user
 
 
@@ -88,5 +88,5 @@ def is_ops(user: User) -> bool:
 
 def ops_user(user: User = Depends(current_user)) -> User:
     if not is_ops(user):
-        raise HTTPException(403, "運用者（OPS_ADDRESSES）のみ使えます")
+        raise HTTPException(403, "Only operators (OPS_ADDRESSES) can use this")
     return user

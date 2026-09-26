@@ -1,7 +1,8 @@
-直前に示したスキーマに適合する JSON だけを返してください。
+Return only JSON that conforms to the schema shown above.
 
-- 説明文・前置き・コードブロックの囲みを付けません。
-- スキーマにないキーを足しません。
-- 金額は整数の文字列で書きます。小数と桁区切りを使いません。
+- Do not add explanations, preambles, or code fences.
+- Do not add keys that are not in the schema.
+- Write all natural-language text values in English, even if the input data is in another language.
+- Write amounts as strings of integers. Do not use decimals or thousands separators.
 
-スキーマに適合しない場合は受理されず、違反した項目を添えて再度依頼されます。
+Output that does not conform to the schema is rejected, and you will be asked again together with the items that were violated.

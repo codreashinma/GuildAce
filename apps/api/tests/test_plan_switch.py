@@ -101,7 +101,7 @@ def test_request_goes_through_ag001_to_awaiting_approval(db, client, mixed):
     # 画面の表示（要約・チーム）を保つ
     assert case.plan_json["source"] == "agents"
     assert case.plan_json["team"] == [{"name": "Bot", "role": "designer", "kind": "ai"}, {"name": "花子", "role": "field", "kind": "human"}]
-    assert "2 件のタスク" in case.plan_json["summary"] and case.plan_json["task_plan_revision"] == 1
+    assert "Splits 2 tasks" in case.plan_json["summary"] and case.plan_json["task_plan_revision"] == 1
     detail = client.get(f"/cases/{case.id}").json()
     assert detail["plan_json"]["summary"] == case.plan_json["summary"] and len(detail["tasks"]) == 3
 
@@ -180,7 +180,7 @@ def test_grd002_is_checked_again_before_writing_tasks(db, mixed):
     db.commit()
     assert apply_plan.apply(db, run) is False
     db.refresh(case)
-    assert case.status == "planning_failed" and "超過額" in case.error
+    assert case.status == "planning_failed" and "excess" in case.error
     assert db.query(Task).filter_by(case_id=case.id).count() == 0
 
 
@@ -192,7 +192,7 @@ def test_mismatched_plan_and_team_are_not_applied(db, mixed):
     db.commit()
     assert apply_plan.apply(db, run) is False
     db.refresh(case)
-    assert case.status == "planning_failed" and "連番" in case.error
+    assert case.status == "planning_failed" and "sequence numbers" in case.error
 
 
 def test_outputs_of_another_run_are_not_used(db, mixed):

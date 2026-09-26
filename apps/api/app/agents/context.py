@@ -62,11 +62,11 @@ def cap(ctx_id: str) -> int:
 def check_order(order: list[str]) -> None:
     """CG-002: 固定の 3 ブロックが先頭に順に並び、信頼できないブロックはその後ろにだけ現れる。CTX-008 は最後。"""
     if tuple(order[:3]) != FIXED:
-        raise ContextError(f"CTX-001〜003 が先頭にありません: {order}")
+        raise ContextError(f"CTX-001 to 003 are not at the start: {order}")
     if any(c in FIXED for c in order[3:]):
-        raise ContextError(f"固定ブロックが可変部分に混ざっています: {order}")
+        raise ContextError(f"Fixed blocks are mixed into the variable part: {order}")
     if "CTX-008" in order and order[-1] != "CTX-008":
-        raise ContextError(f"CTX-008 が最後にありません: {order}")
+        raise ContextError(f"CTX-008 is not at the end: {order}")
 
 
 def _system(agent_id: AgentId, schema: type[BaseModel]) -> str:
@@ -74,12 +74,12 @@ def _system(agent_id: AgentId, schema: type[BaseModel]) -> str:
     schema_json = json.dumps(schema.model_json_schema(), ensure_ascii=False, sort_keys=True)
     blocks = {
         "CTX-001": prompts.render(ROLE[agent_id]),
-        "CTX-002": f"出力スキーマ:\n{schema_json}\n\n{prompts.render(OUTPUT_FORMAT[agent_id])}",
+        "CTX-002": f"Output schema:\n{schema_json}\n\n{prompts.render(OUTPUT_FORMAT[agent_id])}",
         "CTX-003": prompts.render("PMT-009", delimiter=DELIMITER),
     }
     for ctx_id, text in blocks.items():
         if estimate_tokens(text) > cap(ctx_id):  # 削らないブロック（6 章）。収まらないのは設定かプロンプトの誤り
-            raise ContextError(f"{ctx_id} が上限を超えています（{estimate_tokens(text)} > {cap(ctx_id)}）")
+            raise ContextError(f"{ctx_id} exceeds its limit ({estimate_tokens(text)} > {cap(ctx_id)})")
     return "\n\n".join(blocks.values())
 
 
@@ -165,7 +165,7 @@ def _fit(agent_id: AgentId, system: str, p: _Parts, render) -> BuiltContext:
             return ctx
         t = _shrink(p)
         if t is None:
-            raise ContextError(f"入力が予算に収まりません（{ctx.input_tokens} > {budget}）")
+            raise ContextError(f"Input does not fit in the budget ({ctx.input_tokens} > {budget})")
         p.truncations.append(t)
 
 
@@ -204,11 +204,11 @@ def build_ag003(*, budget_amount: str, human_roles: list[dict], tasks: list[dict
                violations=list(violations or []), free_text=task_lines, free_text_cap=cap("CTX-006"), human_roles=list(human_roles))
 
     def render(p: _Parts):
-        roles = _lines([", ".join(f"{k}={clean_value(v)}" for k, v in r.items()) for r in (p.human_roles or [])]) or "- 指定なし"
+        roles = _lines([", ".join(f"{k}={clean_value(v)}" for k, v in r.items()) for r in (p.human_roles or [])]) or "- None specified"
         roles_text = wrap(guard(roles, cap("CTX-004")).text)
         cands = _candidates_block(p)
         # 6 章: CTX-007 を減らしたら、候補が全部ではないことを構造化された値で CTX-005 に入れる
-        counts = f"候補の総数: {p.candidates_total} 件 / 提示: {len(p.candidates)} 件"
+        counts = f"Total candidates: {p.candidates_total} / shown: {len(p.candidates)}"
         body = prompts.render("PMT-011", budget_amount=budget_amount, human_roles=roles_text, delimiter=DELIMITER, tasks=_free_text(p), candidates=cands)
         return _join([("CTX-005", counts), ("CTX-006", body), *_retry("AG-003", p, excess_amount=excess_amount)])
 
@@ -236,7 +236,7 @@ def build_ag001(*, state: dict, texts: list[str], schema: type[BaseModel], viola
     p = _Parts(violations=list(violations or []), free_text=_lines(texts), free_text_cap=cap("CTX-006"))
 
     def render(p: _Parts):
-        state_text = "現在の手順と案件の状態:\n" + json.dumps(state, ensure_ascii=False, sort_keys=True)
+        state_text = "Current step and case status:\n" + json.dumps(state, ensure_ascii=False, sort_keys=True)
         return _join([("CTX-005", state_text), ("CTX-006", wrap(_free_text(p))), *_retry("AG-001", p)])
 
     return _fit("AG-001", system, p, render)

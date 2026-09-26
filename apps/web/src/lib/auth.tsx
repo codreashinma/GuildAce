@@ -56,7 +56,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refresh = useCallback(async () => { await qc.invalidateQueries({ queryKey: ["me"] }); }, [qc]);
 
   const signIn = useCallback(async (role?: string) => {
-    if (!address) throw new Error("先にウォレットを接続してください");
+    if (!address) throw new Error("Please connect your wallet first");
     const { nonce } = await api<{ nonce: string }>("/auth/nonce");
     const msg = new SiweMessage({
       domain: window.location.host, address, statement: "Sign in to Choice", uri: window.location.origin, version: "1",

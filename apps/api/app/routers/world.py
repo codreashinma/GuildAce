@@ -33,12 +33,12 @@ def verify_and_record(db: Session, user: User, *, action: str, signal: str, idki
         log.warning("world proof rejected: %s / action=%s signal=%s saved_session=%s / proof=%s", e, action, signal, bool(user.world_session_id), world.redacted(idkit_response))
         raise HTTPException(400, str(e)) from e
     if v.proof_nullifier is not None and db.query(WorldVerification).filter(WorldVerification.proof_nullifier == v.proof_nullifier).first() is not None:
-        raise HTTPException(400, "この World ID の proof は既に使用されています。もう一度お試しください")
+        raise HTTPException(400, "This World ID proof has already been used. Please try again")
     if v.created:
         # 初回: セッションをこのアカウントに紐づける。別のアカウントが同じセッションを持っていれば拒否する（1 World ID = 1 アカウント）
         other = db.query(User).filter(User.world_session_id == v.session_id, User.id != user.id).first()
         if other is not None:
-            raise HTTPException(409, "この World ID は既に別のアカウントに紐づいています")
+            raise HTTPException(409, "This World ID is already linked to another account")
         user.world_session_id = v.session_id
     dup = (
         db.query(WorldVerification)
@@ -46,7 +46,7 @@ def verify_and_record(db: Session, user: User, *, action: str, signal: str, idki
         .one_or_none()
     )
     if dup is not None:
-        raise HTTPException(409, "この World ID は既にこの操作を行っています")
+        raise HTTPException(409, "This World ID has already performed this action")
     db.add(WorldVerification(user_id=user.id, action=action, signal=signal, nullifier=v.session_id, proof_nullifier=v.proof_nullifier))
     db.flush()
     world.consume_nonce(idkit_response)

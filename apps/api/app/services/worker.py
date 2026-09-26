@@ -226,7 +226,7 @@ def recover_stale(db: Session) -> int:
     そのままだと二度と拾われず、Agent が publishing のまま止まる。"""
     stale = db.query(ChainJob).filter(ChainJob.status == "running").all()
     for j in stale:
-        j.status, j.next_attempt_at, j.error = "retry", None, (j.error or "") + " [前回のプロセス終了時に処理中だったため再実行]"
+        j.status, j.next_attempt_at, j.error = "retry", None, (j.error or "") + " [re-run because it was still running when the previous process exited]"
     if stale:
         db.commit()
         log.warning("chain worker: 処理中のまま残っていたジョブ %d 件を再実行します", len(stale))

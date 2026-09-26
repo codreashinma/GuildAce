@@ -12,11 +12,11 @@ export function projectSubname(c: Case): string {
 
 /** FR-006: タスク別契約（モック）。API の task から契約条件を組み立てる */
 export function contractFor(task: Task) {
-  const status = task.status === "done" ? "納品済み" : task.status === "in_progress" ? "履行中" : "締結済み";
+  const status = task.status === "done" ? "Delivered" : task.status === "in_progress" ? "In progress" : "Signed";
   return {
     id: `CT-${task.order_no + 1}`,
     status,
-    terms: [`成果物: ${task.title}`, `完成条件: ${task.description || "PM Agent が定義"}`, `報酬: ${(Number(task.estimated_cost) / 1_000_000).toLocaleString()} USDC（検収承認後に Escrow から支払い）`, "期限のみでは資金は動かない"],
+    terms: [`Deliverable: ${task.title}`, `Completion criteria: ${task.description || "Defined by the PM Agent"}`, `Reward: ${(Number(task.estimated_cost) / 1_000_000).toLocaleString("en-US")} USDC (paid from Escrow after acceptance is approved)`, "Funds never move on a deadline alone"],
   };
 }
 
@@ -25,5 +25,5 @@ export function reviewDeadline(c: Case): { days: number; label: string } {
   const start = new Date(c.created_at).getTime();
   const due = start + 7 * 24 * 3600 * 1000;
   const days = Math.max(0, Math.ceil((due - Date.now()) / (24 * 3600 * 1000)));
-  return { days, label: new Date(due).toLocaleDateString("ja-JP") };
+  return { days, label: new Date(due).toLocaleDateString("en-US") };
 }

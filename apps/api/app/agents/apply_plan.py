@@ -21,7 +21,7 @@ from .tool_team import usable_budget
 log = logging.getLogger(__name__)
 
 KIND_TO_TYPE = {"ai_agent": "ai", "human": "human"}
-FEE_TASK_TITLE = "PM 管理（タスク分解・チーム編成・進捗管理）"
+FEE_TASK_TITLE = "PM management (task breakdown, team building, progress tracking)"
 
 
 class PlanNotApplicable(Exception):
@@ -36,7 +36,7 @@ def _outputs_of_run(db: Session, run: AgentRun) -> tuple[AgentOutput, AgentOutpu
 
     plan, team = one("task_plan"), one("team_proposal")
     if plan is None or team is None:
-        raise PlanNotApplicable("この実行のタスク計画またはチーム案が保存されていません")
+        raise PlanNotApplicable("The task plan or team proposal for this run has not been saved")
     return plan, team
 
 
@@ -51,8 +51,8 @@ def _assignee_name(db: Session, kind: str, ens_name: str) -> str:
 def summarize(tasks: list[dict], team: list[dict], fee: int) -> str:
     """plan_json.summary。件数・工程キー・チームの人数・PM 管理費だけで作る（モデルの自由文を入れない）"""
     phases = list(dict.fromkeys(t["phase"] for t in tasks))
-    return (f"{len(tasks)} 件のタスクを {len(phases)} 工程（{', '.join(phases)}）に分け、{len(team)} 者のチームで進めます。"
-            f"PM 管理費 {fee / USDC:g} USDC を含みます。")
+    return (f"Splits {len(tasks)} tasks into {len(phases)} steps ({', '.join(phases)}) handled by a team of {len(team)}. "
+            f"Includes a PM fee of {fee / USDC:g} USDC.")
 
 
 def build_tasks(db: Session, case: Case, agent: Agent, plan: dict, team: dict) -> tuple[list[Task], dict]:
@@ -60,13 +60,13 @@ def build_tasks(db: Session, case: Case, agent: Agent, plan: dict, team: dict) -
     tasks, items = plan["tasks"], team["items"]
     by_seq = {i["task_seq"]: i for i in items}
     if sorted(by_seq) != sorted(t["seq"] for t in tasks) or len(by_seq) != len(items):
-        raise PlanNotApplicable("タスク計画とチーム案の連番が一致しません")
+        raise PlanNotApplicable("The sequence numbers of the task plan and team proposal do not match")
     kinds = {i["assignee_kind"] for i in items}
     if not kinds <= set(KIND_TO_TYPE):
-        raise PlanNotApplicable("担当の種類が不明です")
+        raise PlanNotApplicable("Unknown assignee type")
     total = sum(int(i["amount"]) for i in items)
     if total > usable_budget(case, agent):  # GRD-002（保存時と同じ判定を、書き込みの前にもう一度）
-        raise PlanNotApplicable(f"金額の合計が予算を超えています（超過額 {total - usable_budget(case, agent)}）")
+        raise PlanNotApplicable(f"The total amount exceeds the budget (excess: {total - usable_budget(case, agent)})")
     fee = int(case.budget) - total
 
     rows: list[Task] = []
@@ -101,7 +101,7 @@ def apply(db: Session, run: AgentRun) -> bool:
         rows, plan_json = build_tasks(db, case, db.get(Agent, case.agent_id), plan.payload, team.payload)
     except PlanNotApplicable as e:
         log.warning("計画を tasks に写せません（case:%s）: %s", case.id, e)
-        case.status, case.error = "planning_failed", f"計画を反映できませんでした: {e}"
+        case.status, case.error = "planning_failed", f"Could not apply the plan: {e}"
         db.commit()
         return False
     plan_json.update({"task_plan_revision": plan.revision, "team_proposal_revision": team.revision})

@@ -1,17 +1,17 @@
-目的: 渡された紛争について、双方の争点を整理してください。
+Goal: for the provided dispute, lay out the points at issue between the two parties.
 
-返してほしい形: 直前に示したスキーマに適合する JSON。
+Expected form: JSON that conforms to the schema shown above.
 
-守ること:
-- どちらが正しいかの結論は書きません。
-- 各争点に、下の記録のいずれかを参照として付けます。
+Rules:
+- Do not state a conclusion about which party is right.
+- Attach one of the records below as a reference to each issue.
 
-判断できないとき: 推測で争点を作らず、争点の一覧を空にして返してください。
+When you cannot decide: do not invent issues based on guesses; return an empty issue list.
 
 {{delimiter}}
-【対象タスクの記録】
+[Records of the task in question]
 {{task_record}}
 
-【双方の主張の要約】
+[Summaries of both parties' claims]
 {{claims}}
 {{delimiter}}

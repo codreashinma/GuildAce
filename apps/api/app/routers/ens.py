@@ -29,7 +29,7 @@ def _valid_name(name: str) -> str:
     n = name.strip().lower()
     labels = n.split(".")
     if len(labels) < 2 or labels[-1] != "eth" or any(not l or any(ch not in "abcdefghijklmnopqrstuvwxyz0123456789-_" for ch in l) for l in labels):
-        raise HTTPException(400, "名前は <label>.eth 形式（英小文字・数字・ハイフン）で指定してください")
+        raise HTTPException(400, "Specify the name as <label>.eth (lowercase letters, digits, hyphens)")
     return n
 
 
@@ -63,7 +63,7 @@ def resolve_name(name: str, ttl: float = 60.0) -> dict:
     except HTTPException:
         raise
     except Exception as e:  # noqa: BLE001
-        raise HTTPException(502, f"Sepolia からの読み取りに失敗しました: {type(e).__name__}") from e
+        raise HTTPException(502, f"Failed to read from Sepolia: {type(e).__name__}") from e
     _cache[name] = (time.time(), dict(out))
     return out
 
@@ -142,7 +142,7 @@ def readiness_of(name: str) -> dict:
     """名前に subname を発行できる状態か（登録済み・サブレジストリ・リゾルバの 3 点）。無いと register が revert する。"""
     r = resolve_name(name)
     if not r["configured"]:
-        return {"name": name, "configured": False, "ready": False, "registered": False, "subregistry": None, "resolver": None, "missing": [], "note": "RPC 未設定（モック）"}
+        return {"name": name, "configured": False, "ready": False, "registered": False, "subregistry": None, "resolver": None, "missing": [], "note": "RPC not configured (mock)"}
     missing = []
     if not r["registered"]:
         missing.append("registered")
@@ -151,9 +151,9 @@ def readiness_of(name: str) -> dict:
     if not r["resolver"]:
         missing.append("resolver")
     steps = {
-        "registered": f"{name} を ENSv2（Sepolia）で登録する",
-        "subregistry": "名前の所有者が UserRegistry（サブレジストリ）をデプロイし setSubregistry する",
-        "resolver": "名前の所有者が OwnedResolver をデプロイし setResolver する",
+        "registered": f"Register {name} on ENSv2 (Sepolia)",
+        "subregistry": "The name Owner deploys a UserRegistry (Subregistry) and calls setSubregistry",
+        "resolver": "The name Owner deploys an OwnedResolver and calls setResolver",
     }
     return {"name": name, "configured": True, "ready": not missing, "registered": r["registered"], "owner": r["owner"],
             "subregistry": r["subregistry"], "resolver": r["resolver"], "missing": missing, "next_steps": [steps[m] for m in missing]}
@@ -185,13 +185,13 @@ def setup_calldata(name: str = Query(min_length=5, max_length=255), user=Depends
     Creator（D1）と会社（E1）が運用者に頼らず subname を発行できる状態を自分で作る（Permissioned Resolver: データの所有者は名前の所有者）。"""
     n = _valid_name(name)
     if not get_settings().sepolia_rpc_url:
-        return {"name": n, "mock": True, "txs": [], "ready": True, "note": "RPC 未設定（モック）"}
+        return {"name": n, "mock": True, "txs": [], "ready": True, "note": "RPC not configured (mock)"}
     try:
         out = ens.setup_calldata(name=n, owner=user.wallet_address)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     except Exception as e:  # noqa: BLE001
-        raise HTTPException(502, f"Sepolia からの読み取りに失敗しました: {type(e).__name__}") from e
+        raise HTTPException(502, f"Failed to read from Sepolia: {type(e).__name__}") from e
     _cache.pop(n, None)
     ens.invalidate_walk(n)
     return {"mock": False, **out}
@@ -225,7 +225,7 @@ def reverse(address: list[str] = Query(min_length=1, max_length=50), db: Session
     out = {}
     for addr in address:
         if not Web3.is_address(addr):
-            raise HTTPException(400, f"アドレスの形式が不正です: {addr}")
+            raise HTTPException(400, f"Invalid address format: {addr}")
         out[addr.lower()] = _reverse_one(db, addr)
     return out
 
@@ -240,17 +240,17 @@ def names(db: Session = Depends(get_db)):
     for a in agents:
         mock = not a.ens_tx_hash or a.ens_tx_hash.startswith("0xmock")
         rows.append({"name": a.ens_name, "kind": "agent", "owner_mode": a.owner_mode, "tx_hash": a.ens_tx_hash, "created_at": a.created_at, "mock": mock,
-                     "link": f"/agents/{a.id}", "subregistry": a.ens_subregistry, "note": "Creator のウォレットが発行（名前空間の root = Creator）" if a.owner_mode == "creator" else None})
+                     "link": f"/agents/{a.id}", "subregistry": a.ens_subregistry, "note": "Issued by the Creator's Wallet (Namespace root = Creator)" if a.owner_mode == "creator" else None})
         if not mock and (a.owner_mode == "platform" or a.ens_subregistry):
-            rows.append({"name": ens.reputation_name_of(a.ens_name), "kind": "reputation", "owner_mode": a.owner_mode, "tx_hash": a.ens_tx_hash, "created_at": a.created_at, "mock": False, "link": f"/agents/{a.id}", "note": "Reputation 鍵が所有・更新"})
+            rows.append({"name": ens.reputation_name_of(a.ens_name), "kind": "reputation", "owner_mode": a.owner_mode, "tx_hash": a.ens_tx_hash, "created_at": a.created_at, "mock": False, "link": f"/agents/{a.id}", "note": "Owned and updated by the Reputation key"})
             for sub in (a.subagents if a.subagents is not None else ens.DEFAULT_SUBAGENTS):
                 rows.append({"name": f"{sub['role']}.{a.ens_name}", "kind": "subagent", "owner_mode": a.owner_mode, "tx_hash": a.ens_tx_hash, "created_at": a.created_at, "mock": False, "link": f"/agents/{a.id}", "note": sub.get("name")})
     for c in db.query(Case).filter(Case.project_ens_name.isnot(None)).order_by(Case.created_at).all():
         rows.append({"name": c.project_ens_name, "kind": "project", "owner_mode": "platform", "tx_hash": c.project_ens_tx_hash, "created_at": c.created_at,
-                     "mock": not c.project_ens_tx_hash or c.project_ens_tx_hash.startswith("0xmock"), "link": f"/cases/{c.id}", "note": "Project 鍵が発行・更新"})
+                     "mock": not c.project_ens_tx_hash or c.project_ens_tx_hash.startswith("0xmock"), "link": f"/cases/{c.id}", "note": "Issued and updated by the Project key"})
     for m in db.query(Member).filter(Member.ens_status == "written").order_by(Member.created_at).all():
         rows.append({"name": m.ens_name, "kind": "person", "owner_mode": "company", "tx_hash": m.ens_tx_hash, "created_at": m.created_at,
-                     "mock": not m.ens_tx_hash or m.ens_tx_hash.startswith("0xmock"), "link": "/companies", "note": "会社管理者のウォレットが発行"})
+                     "mock": not m.ens_tx_hash or m.ens_tx_hash.startswith("0xmock"), "link": "/companies", "note": "Issued by the Company admin's Wallet"})
     return {"parent": s.ens_parent_name, "count": len(rows), "names": rows}
 
 
@@ -260,13 +260,13 @@ def register_calldata(name: str = Query(min_length=5, max_length=255), phase: st
     登録後は /ens/setup-calldata でリゾルバとサブレジストリを用意すると、Agent や人員の subname を発行できる。"""
     n = _valid_name(name)
     if not get_settings().sepolia_rpc_url:
-        return {"name": n, "mock": True, "txs": [], "note": "RPC 未設定（モック）"}
+        return {"name": n, "mock": True, "txs": [], "note": "RPC not configured (mock)"}
     try:
         out = ens.register_calldata(name=n, owner=user.wallet_address, phase=phase, secret=secret)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     except Exception as e:  # noqa: BLE001
-        raise HTTPException(502, f"Sepolia からの読み取りに失敗しました: {type(e).__name__}") from e
+        raise HTTPException(502, f"Failed to read from Sepolia: {type(e).__name__}") from e
     _cache.pop(n, None)
     ens.invalidate_walk(n)
     return {"mock": False, **out}

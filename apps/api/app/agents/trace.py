@@ -36,7 +36,7 @@ def redact(text: str) -> str:
 def summarize_input(text: str) -> str:
     """12-1「入力の要約（依頼文の原文は含めない）」: 長さと先頭だけ。"""
     head = redact(text[:SUMMARY_HEAD]).replace("\n", " ")
-    return f"{len(text)} 文字: {head}{'…' if len(text) > SUMMARY_HEAD else ''}"
+    return f"{len(text)} chars: {head}{'…' if len(text) > SUMMARY_HEAD else ''}"
 
 
 # ---------------------------------------------------------------- 実行（agent_runs）
@@ -85,7 +85,7 @@ def record_llm(db: Session, run: AgentRun, result: LLMResult, truncations: list[
 
 def finish_run(db: Session, run: AgentRun, status: str, error: str | None = None) -> None:
     if status not in RUN_STATUSES or status == "running":
-        raise ValueError(f"終了の状態ではありません: {status}")
+        raise ValueError(f"Not a terminal status: {status}")
     run.status, run.finished_at = status, datetime.now(UTC)
     run.error = redact(error)[:2000] if error else None
     db.commit()
@@ -109,7 +109,7 @@ def record_tool_call(db: Session, run: AgentRun, tool_id: str, *, allowed: bool,
 def save_output(db: Session, kind: str, target_id: str, revision: int, payload: dict, run: AgentRun | None = None) -> AgentOutput:
     """(種類, 対象 ID, 版番号) で冪等に保存する。同じキーが既にあれば上書きする（agent-orchestration 6-2・10 章）。"""
     if kind not in OUTPUT_KINDS:
-        raise ValueError(f"未知の出力の種類: {kind}")
+        raise ValueError(f"Unknown output kind: {kind}")
     row = db.query(AgentOutput).filter_by(kind=kind, target_id=target_id, revision=revision).one_or_none()
     if row is None:
         row = AgentOutput(kind=kind, target_id=target_id, revision=revision, payload=payload, run_id=run.id if run else None)

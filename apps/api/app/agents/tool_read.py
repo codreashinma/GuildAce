@@ -21,10 +21,10 @@ def _allowed_case_id(ctx: ToolContext) -> str | None:
 def read_project_context(ctx: ToolContext, *, case_id: str) -> dict:
     allowed = _allowed_case_id(ctx)
     if allowed is None or case_id != allowed:
-        raise ToolError("この実行に結び付いた案件以外は読めません")
+        raise ToolError("Only the case linked to this run can be read")
     case = ctx.db.get(Case, case_id)
     if case is None:
-        raise ToolError("案件が見つかりません")
+        raise ToolError("Case not found")
     return {
         "case_id": case.id,
         "title": case.title,

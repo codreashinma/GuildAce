@@ -62,18 +62,18 @@ DRY = "--dry-run" in sys.argv
 def main() -> None:
     s = get_settings()
     if not (s.sepolia_rpc_url and s.server_private_key):
-        sys.exit("SEPOLIA_RPC_URL と SERVER_PRIVATE_KEY を .env に設定してください")
+        sys.exit("Set SEPOLIA_RPC_URL and SERVER_PRIVATE_KEY in .env")
     w3 = Web3(Web3.HTTPProvider(s.sepolia_rpc_url))
     acct = Account.from_key(s.server_private_key)
     me = acct.address
     bal = w3.eth.get_balance(me)
     print("signer:", me, "balance:", w3.from_wei(bal, "ether"), "ETH", "(dry-run)" if DRY else "")
     if not DRY and bal < w3.to_wei(0.01, "ether"):
-        sys.exit(f"Sepolia ETH が不足しています。{me} に 0.05 ETH ほど送ってください（faucet: https://cloud.google.com/application/web3/faucet/ethereum/sepolia など）")
+        sys.exit(f"Not enough Sepolia ETH. Send about 0.05 ETH to {me} (faucet: e.g. https://cloud.google.com/application/web3/faucet/ethereum/sepolia)")
 
     def send(fn) -> str:
         if DRY:
-            print("  [dry-run] 送信予定:", fn.fn_name, "→", fn.address)
+            print("  [dry-run] would send:", fn.fn_name, "→", fn.address)
             return "0x" + "00" * 32
         tx = fn.build_transaction({"from": me, "nonce": w3.eth.get_transaction_count(me), "chainId": s.chain_id})
         h = w3.eth.send_raw_transaction(acct.sign_transaction(tx).raw_transaction)
@@ -96,36 +96,36 @@ def main() -> None:
         fn = factory.functions.deployProxy(Web3.to_checksum_address(s.ensv2_resolver_impl), salt, bytes.fromhex(init[2:]))
         resolver_addr = fn.call({"from": me})
         if w3.eth.get_code(resolver_addr) in (b"", b"\x00"):
-            print("1. OwnedResolver をデプロイ:", resolver_addr)
+            print("1. Deployed OwnedResolver:", resolver_addr)
             send(fn)
         else:
-            print("1. OwnedResolver は既にあります:", resolver_addr)
+            print("1. OwnedResolver already exists:", resolver_addr)
     else:
-        print("1. OwnedResolver（.env）:", resolver_addr)
+        print("1. OwnedResolver (.env):", resolver_addr)
 
     # 2. 親名の登録
     state = eth_registry.functions.getState(int.from_bytes(keccak(text=label), "big")).call()
     status, _, owner, token_id, _ = state
     if status == 2:
-        print(f"2. {s.ens_parent_name} は登録済み（owner={owner}）")
+        print(f"2. {s.ens_parent_name} is already registered (owner={owner})")
         if owner.lower() != me.lower():
-            sys.exit("親名の所有者がサーバー署名者ではありません。別の親名を ENS_PARENT_NAME に設定してください")
+            sys.exit("The owner of the parent name is not the server signer. Set a different parent name in ENS_PARENT_NAME")
     else:
         if not registrar.functions.isAvailable(label).call():
-            sys.exit(f"{s.ens_parent_name} は取得できません（他者が予約/登録済み）")
+            sys.exit(f"{s.ens_parent_name} is not available (reserved/registered by someone else)")
         base, premium = registrar.functions.getRegisterPrice(label, DURATION, Web3.to_checksum_address(s.ensv2_payment_token)).call()
         total = base + premium
         token = w3.eth.contract(address=Web3.to_checksum_address(s.ensv2_payment_token), abi=ERC20_ABI)
-        print(f"2. {s.ens_parent_name} を登録します。料金 {total} (payment token 最小単位)")
+        print(f"2. Registering {s.ens_parent_name}. Fee: {total} (payment token smallest unit)")
         if token.functions.balanceOf(me).call() < total:
-            print("  テスト用トークンを mint")
+            print("  Minting test tokens")
             send(token.functions.mint(me, total))
         send(token.functions.approve(registrar.address, total))
         secret = bytes.fromhex(os.environ.get("ENS_COMMIT_SECRET", secrets.token_hex(32)).removeprefix("0x"))
         commitment = registrar.functions.makeCommitment(label, me, secret, ZERO, Web3.to_checksum_address(resolver_addr), DURATION, b"\x00" * 32).call()
         print("  commit")
         send(registrar.functions.commit(commitment))
-        print("  60 秒待機（minCommitmentAge）")
+        print("  Waiting 60 s (minCommitmentAge)")
         if not DRY:
             time.sleep(75)
         print("  register")
@@ -136,25 +136,25 @@ def main() -> None:
     # 3. サブレジストリ
     sub = eth_registry.functions.getSubregistry(label).call()
     if int(sub, 16) != 0:
-        print("3. サブレジストリは設定済み:", sub)
+        print("3. Subregistry already set:", sub)
     else:
         salt = int.from_bytes(keccak(encode(["bytes32", "bytes32", "uint256"], [keccak(text="UserRegistry"), namehash(s.ens_parent_name), 0])), "big")
         init = w3.eth.contract(abi=USER_REGISTRY_INIT_ABI).encode_abi("initialize", args=[me, ALL_ROLES])
         fn = factory.functions.deployProxy(Web3.to_checksum_address(s.ensv2_subregistry_impl), salt, bytes.fromhex(init[2:]))
         sub = fn.call({"from": me})
         if w3.eth.get_code(sub) in (b"", b"\x00"):
-            print("3. UserRegistry をデプロイ:", sub)
+            print("3. Deployed UserRegistry:", sub)
             send(fn)
-        print("   親名にサブレジストリを設定")
+        print("   Setting the subregistry on the parent name")
         if DRY and status != 2:
-            print("  [dry-run] 送信予定: setSubregistry（tokenId は登録後に確定）")
+            print("  [dry-run] would send: setSubregistry (tokenId is determined after registration)")
         else:
             send(eth_registry.functions.setSubregistry(token_id, sub))
 
     # 4. 役割ごとのリゾルバ（Reputation / Project）は scripts/ens_role_resolvers.py で用意する
-    print("4. 役割リゾルバ: scripts/ens_role_resolvers.py を実行し、ENS_REPUTATION_RESOLVER / ENS_PROJECT_RESOLVER を .env に設定してください")
+    print("4. Role resolvers: run scripts/ens_role_resolvers.py and set ENS_REPUTATION_RESOLVER / ENS_PROJECT_RESOLVER in .env")
 
-    print("\n.env に追記してください:")
+    print("\nAdd these to .env:")
     print(f"ENS_OWNED_RESOLVER={resolver_addr}")
     print(f"ENS_PARENT_SUBREGISTRY={sub}")
     print("ENS_WRITE_ENABLED=true")

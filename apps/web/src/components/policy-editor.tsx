@@ -5,11 +5,11 @@ import { Button, Field, inputCls, selectCls } from "@/components/ui";
 
 /** WP-009 の既定（apps/api/app/agents/policy.py の DEFAULT_PHASES と同じ。DEC-002）。作成画面の初期値にだけ使う */
 export const DEFAULT_PHASES = [
-  { key: "designer", title: "デザイン" },
-  { key: "frontend", title: "フロント実装" },
-  { key: "backend", title: "バックエンド実装" },
-  { key: "field", title: "現地作業" },
-  { key: "qa", title: "テスト・デプロイ" },
+  { key: "designer", title: "Design" },
+  { key: "frontend", title: "Frontend implementation" },
+  { key: "backend", title: "Backend implementation" },
+  { key: "field", title: "On-site work" },
+  { key: "qa", title: "Test & deploy" },
 ];
 
 export const defaultPolicy = (category: string): Policy => ({
@@ -19,7 +19,7 @@ export const defaultPolicy = (category: string): Policy => ({
 /** 編集中の値。min_count は既定値を画面で補わない（Q-007）ため、未入力を null で持つ */
 export type PolicyDraft = Omit<Policy, "human_roles"> & { human_roles: (Omit<HumanRole, "min_count"> & { min_count: number | null })[] };
 
-const ROLE_LABEL: Record<HumanRole["role"], string> = { approver: "承認者", reviewer: "レビュアー", juror: "Jury" };
+const ROLE_LABEL: Record<HumanRole["role"], string> = { approver: "Approver", reviewer: "Reviewer", juror: "Jury" };
 
 /** API の 422（pydantic の検証エラー）から policy の項目のものを取り出す。キーは "workflow.phases.1.key" の形 */
 export function policyErrors(e: unknown): Record<string, string> {
@@ -60,17 +60,17 @@ export function PolicyEditor({ value, onChange, errors = {} }: { value: PolicyDr
 
   return (
     <div className="space-y-4">
-      <Field label="工程（タスク分解の雛形）" hint="キーは英小文字・数字・ハイフン（ENS の工程 subname に使う）。1〜20 件、キーは重複不可">
+      <Field label="Steps (template for Task breakdown)" hint="Keys use lowercase letters, digits and hyphens (used for the Step's ENS subname). 1-20 Steps, keys must be unique">
         <div className="space-y-2">
           {phases.map((p, i) => (
             <div key={i}>
               <div className="flex items-center gap-2">
                 <span className="w-5 text-right text-xs text-neutral-500">{i + 1}</span>
                 <input className={`${inputCls} w-36 font-mono`} placeholder="key" value={p.key} onChange={(e) => setPhase(i, "key", e.target.value.toLowerCase())} />
-                <input className={inputCls} placeholder="表示名" value={p.title} maxLength={80} onChange={(e) => setPhase(i, "title", e.target.value)} />
-                <Button type="button" variant="ghost" className="px-2" disabled={i === 0} onClick={() => move(i, -1)} aria-label="上へ">↑</Button>
-                <Button type="button" variant="ghost" className="px-2" disabled={i === phases.length - 1} onClick={() => move(i, 1)} aria-label="下へ">↓</Button>
-                <Button type="button" variant="ghost" className="px-2" disabled={phases.length <= 1} onClick={() => setPhases(phases.filter((_, j) => j !== i))} aria-label="削除">×</Button>
+                <input className={inputCls} placeholder="Display name" value={p.title} maxLength={80} onChange={(e) => setPhase(i, "title", e.target.value)} />
+                <Button type="button" variant="ghost" className="px-2" disabled={i === 0} onClick={() => move(i, -1)} aria-label="Move up">↑</Button>
+                <Button type="button" variant="ghost" className="px-2" disabled={i === phases.length - 1} onClick={() => move(i, 1)} aria-label="Move down">↓</Button>
+                <Button type="button" variant="ghost" className="px-2" disabled={phases.length <= 1} onClick={() => setPhases(phases.filter((_, j) => j !== i))} aria-label="Delete">×</Button>
               </div>
               <Err errors={errors} path={`workflow.phases.${i}.key`} />
               <Err errors={errors} path={`workflow.phases.${i}.title`} />
@@ -78,23 +78,23 @@ export function PolicyEditor({ value, onChange, errors = {} }: { value: PolicyDr
           ))}
           <Err errors={errors} path="workflow.phases" />
           <Err errors={errors} path="workflow" />
-          <Button type="button" variant="secondary" disabled={phases.length >= 20} onClick={() => setPhases([...phases, { key: "", title: "" }])}>工程を追加</Button>
+          <Button type="button" variant="secondary" disabled={phases.length >= 20} onClick={() => setPhases([...phases, { key: "", title: "" }])}>Add Step</Button>
         </div>
       </Field>
-      <Field label="人間の使い方" hint="役割ごとに World の証明を必須にするかと最低人数を決めます。最低人数は必ず入力してください">
+      <Field label="Human usage" hint="For each Role, choose whether World proof is required and the minimum count. The minimum count is required">
         <div className="space-y-2">
-          {roles.length === 0 && <p className="text-xs text-neutral-500">指定なし</p>}
+          {roles.length === 0 && <p className="text-xs text-neutral-500">None specified</p>}
           {roles.map((r, i) => (
             <div key={i}>
               <div className="flex flex-wrap items-center gap-3">
                 <select className={selectCls} value={r.role} onChange={(e) => setRole(i, { role: e.target.value as HumanRole["role"] })}>
-                  {Object.entries(ROLE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}（{k}）</option>)}
+                  {Object.entries(ROLE_LABEL).map(([k, v]) => <option key={k} value={k}>{v} ({k})</option>)}
                 </select>
-                <label className="inline-flex items-center gap-1 text-sm"><input type="checkbox" checked={r.world_verified} onChange={(e) => setRole(i, { world_verified: e.target.checked })} />World の証明を必須にする</label>
-                <label className="inline-flex items-center gap-1 text-sm">最低人数
+                <label className="inline-flex items-center gap-1 text-sm"><input type="checkbox" checked={r.world_verified} onChange={(e) => setRole(i, { world_verified: e.target.checked })} />Require World proof</label>
+                <label className="inline-flex items-center gap-1 text-sm">Minimum count
                   <input className={`${inputCls} w-20`} type="number" min={1} value={r.min_count ?? ""} onChange={(e) => setRole(i, { min_count: e.target.value === "" ? null : Number(e.target.value) })} />
                 </label>
-                <Button type="button" variant="ghost" className="px-2" onClick={() => setRoles(roles.filter((_, j) => j !== i))} aria-label="削除">×</Button>
+                <Button type="button" variant="ghost" className="px-2" onClick={() => setRoles(roles.filter((_, j) => j !== i))} aria-label="Delete">×</Button>
               </div>
               <Err errors={errors} path={`human_roles.${i}.role`} />
               <Err errors={errors} path={`human_roles.${i}.min_count`} />
@@ -102,7 +102,7 @@ export function PolicyEditor({ value, onChange, errors = {} }: { value: PolicyDr
             </div>
           ))}
           <Err errors={errors} path="human_roles" />
-          <Button type="button" variant="secondary" onClick={() => setRoles([...roles, { role: "approver", world_verified: true, min_count: null }])}>役割を追加</Button>
+          <Button type="button" variant="secondary" onClick={() => setRoles([...roles, { role: "approver", world_verified: true, min_count: null }])}>Add Role</Button>
         </div>
       </Field>
       <Err errors={errors} path="" />

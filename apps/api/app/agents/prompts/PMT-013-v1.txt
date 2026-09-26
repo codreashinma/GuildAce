@@ -1,5 +1,5 @@
-直前の出力は受理されませんでした。違反した項目は次のとおりです。
+Your previous output was rejected. The violated items are:
 
 {{violations}}
 
-上の項目だけを直して、同じ形式で出し直してください。直前の出力は破棄されています。
+Fix only the items above and output again in the same format. Your previous output has been discarded.

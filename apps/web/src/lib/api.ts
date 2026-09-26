@@ -56,10 +56,10 @@ export type Policy = { version: 1; domain: string; workflow: { phases: { key: st
 export type Subagent = { role: string; name: string; description: string; rules: string };
 /** 既定の専門エージェント（API の DEFAULT_SUBAGENTS と同じ）。所有者が追加・削除・編集できる */
 export const DEFAULT_SUBAGENTS: Subagent[] = [
-  { role: "designer", name: "Designer Agent", description: "画面構成・ワイヤーフレーム・デザイン方針", rules: "" },
-  { role: "frontend", name: "Frontend Agent", description: "画面の実装方針とコンポーネント設計", rules: "" },
-  { role: "backend", name: "Backend Agent", description: "API 設計とデータモデル", rules: "" },
-  { role: "qa", name: "QA Agent", description: "受け入れテストの観点と結果", rules: "" },
+  { role: "designer", name: "Designer Agent", description: "Screen layout, wireframes and design direction", rules: "" },
+  { role: "frontend", name: "Frontend Agent", description: "UI implementation approach and component design", rules: "" },
+  { role: "backend", name: "Backend Agent", description: "API design and data model", rules: "" },
+  { role: "qa", name: "QA Agent", description: "Acceptance test criteria and results", rules: "" },
 ];
 export type EnsRole = { role: string; account?: string | null; where?: string; can?: string; cannot?: string; subregistry?: string | null; verified?: boolean; checks?: Record<string, boolean | null>; error?: string };
 export type TeamCandidate = { ens_name: string; kind: "ai" | "human"; name: string; role: string; skills: string; location: string; available: boolean; company: string | null; chosen: boolean; declined: boolean; records: Record<string, string> };
@@ -145,11 +145,11 @@ export const USDC = 1_000_000;
 export const usdc = (n: number | string) => (Number(n) / USDC).toLocaleString("en-US", { maximumFractionDigits: 2 });
 export const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 export const etherscanTx = (h: string) => (h.startsWith("0xmock") ? null : `https://sepolia.etherscan.io/tx/${h}`);
-export const CATEGORY_LABEL: Record<string, string> = { web: "Web開発", design: "デザイン", video: "動画制作", wedding: "Wedding", other: "その他" };
+export const CATEGORY_LABEL: Record<string, string> = { web: "Web development", design: "Design", video: "Video production", wedding: "Wedding", other: "Other" };
 export const STATUS_LABEL: Record<string, string> = {
-  "chain:none": "未預託", "chain:funded": "預託済", "chain:submitted": "提出済（承認待ち）", "chain:paid": "支払済", "chain:disputed": "保留（紛争）", "chain:resolved": "裁定済",
-  draft: "下書き", planning: "計画中", planning_failed: "計画失敗", awaiting_approval: "承認待ち", funded: "入金済み", in_progress: "進行中",
-  delivered: "納品済み（検収待ち）", completed: "完了", disputed: "紛争中", resolved: "仲裁で解決",
-  publishing: "ENS に公開中", published: "公開中", publish_failed: "公開失敗",
-  assigned: "指名中", open: "募集中", accepted: "受注済み", submitted: "提出済み", done: "完了", todo: "未着手",
+  "chain:none": "Not deposited", "chain:funded": "Deposited", "chain:submitted": "Submitted (awaiting approval)", "chain:paid": "Paid", "chain:disputed": "On hold (dispute)", "chain:resolved": "Ruled",
+  draft: "Draft", planning: "Planning", planning_failed: "Planning failed", awaiting_approval: "Awaiting approval", funded: "Funded", in_progress: "In progress",
+  delivered: "Delivered (awaiting acceptance)", completed: "Completed", disputed: "In dispute", resolved: "Resolved by arbitration",
+  publishing: "Publishing to ENS", published: "Published", publish_failed: "Publish failed",
+  assigned: "Assigned", open: "Open", accepted: "Accepted", submitted: "Submitted", done: "Done", todo: "To do",
 };

@@ -17,8 +17,8 @@ from .ens import _reverse_one
 router = APIRouter(prefix="/cases", tags=["cases"])
 
 KIND_LABEL = {
-    "openCase": "案件を開く（承認者と必要承認数を固定）", "fund_task": "工程の預託", "submit": "成果物の提出", "approve": "承認（World 確認 + EIP-712）",
-    "pay": "自動支払い（必要承認数に到達）", "dispute": "差し戻し（保留）", "resolve": "Jury 裁定による解放", "ens_publish": "Agent を ENS に公開", "ens_project": "案件の project subname を発行",
+    "openCase": "Open Case (fix Approvers and required approvals)", "fund_task": "Step deposit", "submit": "Submit Deliverable", "approve": "Approval (World verification + EIP-712)",
+    "pay": "Automatic Payment (required approvals reached)", "dispute": "Send back (on hold)", "resolve": "Release by Jury ruling", "ens_publish": "Publish Agent to ENS", "ens_project": "Issue Case project subname",
 }
 
 
@@ -137,7 +137,7 @@ def case_audit(case_id: str, db: Session = Depends(get_db)):
     for d in db.query(Dispute).filter(Dispute.case_id == case.id).order_by(Dispute.created_at).all():
         for v in db.query(JuryVote).filter(JuryVote.dispute_id == d.id).all():
             actor(v.voter.wallet_address, "jury")
-        events.append(AuditEvent(seq=0, kind="jury", label=f"Jury 裁定（{len(d.votes)} 票 / 必要 {d.required_votes}）", actor=None, actor_role="jury", tx_hash=None, mock=False,
+        events.append(AuditEvent(seq=0, kind="jury", label=f"Jury ruling ({len(d.votes)} votes / {d.required_votes} required)", actor=None, actor_role="jury", tx_hash=None, mock=False,
                                  status=d.status, at=d.updated_at, detail={"dispute_id": d.id, "outcome": d.outcome, "voters": [v.voter.wallet_address.lower() for v in d.votes]}))
 
     # 並び: Agent の公開 → openCase（tx の時刻は DB に無いが、worker ジョブはすべて openCase 後に投入される）→ 時刻順

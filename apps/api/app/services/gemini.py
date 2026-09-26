@@ -21,8 +21,8 @@ class PlannedTask(BaseModel):
     title: str
     description: str
     type: Literal["ai", "human"]
-    role: str = Field(description="type=ai なら専門エージェントの role のいずれか、type=human なら field")
-    estimated_cost: int = Field(description="USDC 単位（整数）")
+    role: str = Field(description="If type=ai, one of the specialist agent roles; if type=human, field")
+    estimated_cost: int = Field(description="In USDC (integer)")
 
 
 class TeamMember(BaseModel):
@@ -38,11 +38,11 @@ class Plan(BaseModel):
 
 
 class DisputeSummary(BaseModel):
-    issues: list[str] = Field(description="争点")
+    issues: list[str] = Field(description="Points of dispute")
     client_position: str
     agent_position: str
     facts_to_check: list[str]
-    ai_note: str = Field(description="AI の参考所見。判断ではない")
+    ai_note: str = Field(description="AI's reference notes. Not a ruling")
 
 
 class TaskCheck(BaseModel):
@@ -93,10 +93,10 @@ def _generate_text(system: str, prompt: str) -> str:
 
 
 _MOCK_TASK_TEXT = {
-    "designer": ("画面デザイン", "主要画面のワイヤーフレームとデザイン方針"),
-    "frontend": ("フロントエンド実装", "Next.js での画面実装方針とコンポーネント設計"),
-    "backend": ("バックエンド実装", "API 設計とデータモデル"),
-    "qa": ("受け入れテスト", "完成条件に対するテスト観点と結果"),
+    "designer": ("Screen design", "Wireframes and design direction for the main screens"),
+    "frontend": ("Frontend implementation", "Screen implementation approach in Next.js and component design"),
+    "backend": ("Backend implementation", "API design and data model"),
+    "qa": ("Acceptance testing", "Test criteria and results against the completion criteria"),
 }
 
 
@@ -112,14 +112,14 @@ def _mock_plan(title: str, budget_usdc: int, fee_bps: int, subagents: list[dict]
     tasks, team = [], []
     for i, sub in enumerate(subs):
         cost = rest // n if i < n - 1 else rest - (rest // n) * (n - 1)
-        t_title, t_desc = _MOCK_TASK_TEXT.get(sub["role"], (f"{sub.get('name') or sub['role']} の作業", sub.get("description") or f"{sub['role']} としての成果物"))
+        t_title, t_desc = _MOCK_TASK_TEXT.get(sub["role"], (f"{sub.get('name') or sub['role']} work", sub.get("description") or f"Deliverable as {sub['role']}"))
         tasks.append(PlannedTask(title=t_title, description=t_desc, type="ai", role=sub["role"], estimated_cost=cost))
         team.append(TeamMember(name=sub.get("name") or f"{sub['role']} Agent", role=sub["role"], kind="ai"))
     # Human Task は QA の前（既定の並び）に入れる
     pos = max(len(tasks) - 1, 0)
-    tasks.insert(pos, PlannedTask(title="現地の写真撮影", description="サービスで使う実店舗の外観写真を 3 枚撮影して URL を提出", type="human", role="field", estimated_cost=field))
+    tasks.insert(pos, PlannedTask(title="On-site photography", description="Take 3 exterior photos of the physical store used by the service and submit the URLs", type="human", role="field", estimated_cost=field))
     team.insert(pos, TeamMember(name="Human Task Worker", role="field", kind="human"))
-    return Plan(summary=f"「{title}」を {'→'.join(t.title for t in tasks)} の {len(tasks)} タスクに分解しました。", tasks=tasks, team=team)
+    return Plan(summary=f"Broke down \"{title}\" into {len(tasks)} Tasks: {' → '.join(t.title for t in tasks)}.", tasks=tasks, team=team)
 
 
 def plan_case(*, agent_name: str, agent_rules: str, fee_bps: int, title: str, description: str, budget_usdc: int, deadline: str | None,
@@ -133,20 +133,20 @@ def plan_case(*, agent_name: str, agent_rules: str, fee_bps: int, title: str, de
 
     usable = budget_usdc * (10_000 - fee_bps) // 10_000
     system = (
-        f"あなたは PM Agent「{agent_name}」です。以下は作成者が定めた進め方・ルールです。\n{agent_rules}\n\n"
-        "あなたの役割は案件をタスクに分解し、AI 専門エージェントと人間のチームを編成することです。"
-        "資金の支払い判断はしません。"
-        + ("\n\nチームで使える AI 専門エージェント（type=ai のタスクの role はこの中から選ぶ。team[] の name はこの名前を使う）:\n"
-           + "\n".join(f"- role={x['role']}: {x.get('name') or x['role']}" + (f" — {x['description']}" if x.get("description") else "") + (f"（方針: {x['rules'][:200]}）" if x.get("rules") else "") for x in subs)
-           if subs else "\n\n（AI 専門エージェントは定義されていません。type=ai のタスクは role=general としてください）")
-        + "\n人間に任せるタスクは type=human, role=field です。"
+        f"You are the PM Agent \"{agent_name}\". Below are the working methods and rules set by the creator.\n{agent_rules}\n\n"
+        "Your role is to break the Case down into Tasks and build a team of specialist AI agents and humans. "
+        "You do not make any decisions about paying out funds."
+        + ("\n\nSpecialist AI agents available to the team (choose the role of type=ai Tasks from these; use these names for team[].name):\n"
+           + "\n".join(f"- role={x['role']}: {x.get('name') or x['role']}" + (f" — {x['description']}" if x.get("description") else "") + (f" (policy: {x['rules'][:200]})" if x.get("rules") else "") for x in subs)
+           if subs else "\n\n(No specialist AI agents are defined. Use role=general for type=ai Tasks.)")
+        + "\nTasks for humans use type=human, role=field."
     )
     prompt = (
-        f"案件: {title}\n説明: {description}\n納期: {deadline or '未指定'}\n"
-        f"タスクに割り当てられる予算合計: {usable} USDC（あなたの手数料 {fee_bps / 100}% を除いた額）\n\n"
-        "3〜6 個のタスクに分解してください。AI には向かない仕事（現地の写真撮影、実物確認、人間としての感想など）が"
-        "1 つ以上あれば type=human にしてください。estimated_cost の合計は予算合計以下にしてください。"
-        "日本語で書いてください。"
+        f"Case: {title}\nDescription: {description}\nDeadline: {deadline or 'Not specified'}\n"
+        f"Total budget available for Tasks: {usable} USDC (excluding your fee of {fee_bps / 100}%)\n\n"
+        "Break it down into 3-6 Tasks. If there is at least one job unsuited to AI (on-site photography, checking physical items, human impressions, etc.), "
+        "make it type=human. The sum of estimated_cost must not exceed the total budget. "
+        "Write in English."
     )
     for attempt in range(3):
         plan = _generate(system, prompt, Plan)
@@ -162,8 +162,8 @@ def plan_case(*, agent_name: str, agent_rules: str, fee_bps: int, title: str, de
         if total <= usable and plan.tasks:
             return plan
         log.warning("plan over budget (%s > %s), retry %s", total, usable, attempt)
-        prompt += f"\n\n前回は合計 {total} USDC で予算超過でした。合計を {usable} USDC 以下にしてください。"
-    raise ValueError("予算内の計画を生成できませんでした")
+        prompt += f"\n\nLast time the total was {total} USDC, which exceeded the budget. Keep the total at or below {usable} USDC."
+    raise ValueError("Could not generate a plan within the budget")
 
 
 # ---------------------------------------------------------------- execution
@@ -177,27 +177,27 @@ def execute_ai_task(*, agent_name: str, agent_rules: str, case_title: str, case_
         h = hashlib.sha256(f"{case_title}:{task_title}".encode()).hexdigest()[:8]
         return (
             f"# {task_title}\n\n"
-            f"担当: {role} Agent（{agent_name} チーム）\n\n"
-            f"## 概要\n{task_description}\n\n"
-            f"## 成果物\n- 案件「{case_title}」向けの {role} 成果物（モック）\n- 完成条件を満たすことを確認済み\n\n"
-            f"## メモ\n生成 ID: {h}\n"
+            f"Assignee: {role} Agent ({agent_name} team)\n\n"
+            f"## Overview\n{task_description}\n\n"
+            f"## Deliverable\n- {role} Deliverable for the Case \"{case_title}\" (mock)\n- Verified to meet the completion criteria\n\n"
+            f"## Notes\nGeneration ID: {h}\n"
         )
     system = (
-        f"あなたは PM Agent「{agent_name}」のチームに所属する {role} 専門の AI エージェント「{role_name or role}」です。\n"
-        f"PM の進め方・ルール:\n{agent_rules}\n"
-        + (f"\n{role} 専門エージェントとしての方針（PM Agent の所有者が設定）:\n{role_rules}\n" if role_rules else "")
-        + "成果物は Markdown で、具体的で発注者がそのまま検収できる粒度で書いてください。"
+        f"You are \"{role_name or role}\", a specialist AI agent for {role} on the team of the PM Agent \"{agent_name}\".\n"
+        f"PM working methods and rules:\n{agent_rules}\n"
+        + (f"\nPolicy as the {role} specialist agent (set by the PM Agent owner):\n{role_rules}\n" if role_rules else "")
+        + "Write the Deliverable in Markdown, concretely and in enough detail for the Client to review and accept it as-is. Write in English."
     )
-    prompt = f"案件: {case_title}\n案件説明: {case_description}\n\n担当タスク: {task_title}\n{task_description}\n\n成果物を作成してください。日本語で。"
+    prompt = f"Case: {case_title}\nCase description: {case_description}\n\nAssigned Task: {task_title}\n{task_description}\n\nCreate the Deliverable. Write in English."
     return _generate_text(system, prompt)
 
 
 def check_human_submission(*, task_title: str, task_description: str, submission: str) -> TaskCheck:
     s = get_settings()
     if not s.gemini_enabled:
-        return TaskCheck(meets_requirements=True, comment="提出内容はタスクの完成条件を満たしています（モック確認）。")
-    system = "あなたは PM Agent です。人間が提出した成果物がタスクの完成条件を満たすかを確認し、コメントします。"
-    prompt = f"タスク: {task_title}\n完成条件/説明: {task_description}\n\n提出内容:\n{submission}"
+        return TaskCheck(meets_requirements=True, comment="The submission meets the Task's completion criteria (mock check).")
+    system = "You are a PM Agent. Check whether the Deliverable submitted by a human meets the Task's completion criteria, and comment on it. Write in English."
+    prompt = f"Task: {task_title}\nCompletion criteria / description: {task_description}\n\nSubmission:\n{submission}"
     r = _generate(system, prompt, TaskCheck)
     assert isinstance(r, TaskCheck)
     return r
@@ -210,17 +210,17 @@ def summarize_dispute(*, case_title: str, case_description: str, plan_summary: s
     s = get_settings()
     if not s.gemini_enabled:
         return DisputeSummary(
-            issues=["成果物が発注条件を満たしているか", "不足があるとすればどの範囲か"],
+            issues=["Whether the Deliverables meet the order requirements", "If anything is missing, what scope it covers"],
             client_position=reason,
-            agent_position="計画に沿ってすべてのタスクの成果物を提出済み。",
-            facts_to_check=["発注時の説明と成果物の対応関係", "不足箇所の具体的な指摘"],
-            ai_note="AI は判断しません。支払い・返金は World で確認された Jury の多数決で決まります。",
+            agent_position="Deliverables for all Tasks have been submitted according to the plan.",
+            facts_to_check=["How the Deliverables correspond to the original request description", "Specific points on what is missing"],
+            ai_note="AI does not make the decision. Payment or refund is decided by a majority vote of the World-verified Jury.",
         )
-    system = "あなたは中立の仲介 AI です。発注者と PM Agent の主張を整理し、争点と確認すべき事実を提示します。支払いや返金の判断はしません。"
+    system = "You are a neutral mediator AI. Organize the positions of the Client and the PM Agent, and present the points of dispute and the facts to verify. You do not decide on payment or refund. Write in English."
     body = "\n\n".join(f"### {t}\n{d[:3000]}" for t, d in deliverables)
     prompt = (
-        f"案件: {case_title}\n説明: {case_description}\n計画: {plan_summary}\n\n"
-        f"提出済み成果物:\n{body}\n\n発注者の差し戻し理由:\n{reason}\n\n日本語で論点を整理してください。"
+        f"Case: {case_title}\nDescription: {case_description}\nPlan: {plan_summary}\n\n"
+        f"Submitted Deliverables:\n{body}\n\nClient's reason for sending back:\n{reason}\n\nOrganize the points of dispute in English."
     )
     r = _generate(system, prompt, DisputeSummary)
     assert isinstance(r, DisputeSummary)
@@ -231,8 +231,8 @@ def summarize_dispute(*, case_title: str, case_description: str, plan_summary: s
 
 
 class Assignment(BaseModel):
-    ens_name: str = Field(description="選んだ人員の ENS 名。候補の中から選ぶ")
-    reason: str = Field(description="選んだ理由（日本語・1〜2 文）")
+    ens_name: str = Field(description="ENS name of the chosen Member. Choose from the candidates")
+    reason: str = Field(description="Reason for the choice (in English, 1-2 sentences)")
 
 
 def assign_human_task(*, agent_name: str, agent_rules: str, task_title: str, task_description: str, candidates: list[dict]) -> Assignment | None:
@@ -248,15 +248,15 @@ def assign_human_task(*, agent_name: str, agent_rules: str, task_title: str, tas
             return (hit, float(c.get("rating", 0)))
         best = max(candidates, key=score)
         hit, _ = score(best)
-        why = f"スキル「{best.get('skills')}」が{'タスク内容に合致し、' if hit else ''}拠点 {best.get('location') or '未設定'}・稼働可能のため（モック判定）"
+        why = f"Chosen for skills \"{best.get('skills')}\"{' (match the Task)' if hit else ''}, location {best.get('location') or 'Not configured'}, and availability (mock decision)"
         return Assignment(ens_name=best["ens_name"], reason=why)
     system = (
-        f"あなたは PM Agent「{agent_name}」です。進め方・ルール:\n{agent_rules}\n"
-        "人間にしかできないタスクを、ENS に登録された会社の人員の中から 1 名に指名します。"
-        "スキル・拠点・役割・評価を根拠に選び、必ず候補の ENS 名をそのまま返してください。"
+        f"You are the PM Agent \"{agent_name}\". Working methods and rules:\n{agent_rules}\n"
+        "Assign a Task that only a human can do to one Member of a Company registered on ENS. "
+        "Choose based on skills, location, role, and rating, and always return the candidate's ENS name exactly as given."
     )
-    lines = "\n".join(f"- {c['ens_name']} | 会社: {c['company']} | 役割: {c['role']} | スキル: {c['skills']} | 拠点: {c['location']} | 評価: {c['rating']} ({c['completed']} 件)" for c in candidates)
-    prompt = f"タスク: {task_title}\n{task_description}\n\n候補:\n{lines}\n\n1 名を指名し、理由を日本語で書いてください。"
+    lines = "\n".join(f"- {c['ens_name']} | Company: {c['company']} | Role: {c['role']} | Skills: {c['skills']} | Location: {c['location']} | Rating: {c['rating']} ({c['completed']} completed)" for c in candidates)
+    prompt = f"Task: {task_title}\n{task_description}\n\nCandidates:\n{lines}\n\nAssign one person and write the reason in English."
     r = _generate(system, prompt, Assignment)
     assert isinstance(r, Assignment)
     if r.ens_name not in {c["ens_name"] for c in candidates}:

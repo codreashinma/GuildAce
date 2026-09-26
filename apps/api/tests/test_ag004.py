@@ -134,12 +134,12 @@ def test_default_mock_passes_validation(db, dispute):
 
 def test_unknown_ref_is_a_violation(db, dispute):
     v = validate_summary(DisputeSummary.model_validate({"issues": [_issue(["deliverable:存在しない"])]}), _refs(db, dispute))
-    assert any("記録に無い参照" in x for x in v) and all("存在しない" not in x for x in v)
+    assert any("records that were not provided" in x for x in v) and all("存在しない" not in x for x in v)
 
 
 def test_issue_without_ref_is_a_violation(db, dispute):
     v = validate_summary(DisputeSummary.model_validate({"issues": [_issue([])]}), _refs(db, dispute))
-    assert any("参照が無い" in x for x in v)
+    assert any("no reference to a record" in x for x in v)
 
 
 def test_conclusion_key_is_rejected_by_schema(db, dispute, seen):
@@ -163,7 +163,7 @@ def test_retry_with_bad_ref_then_fixed(db, dispute, seen):
     m = Seq({"issues": [_issue(["approval:でっちあげ"])]}, {"issues": [_issue(refs[:1])]})
     r = analyze(db, dispute_id=dispute.id, mock=m)
     assert r.ok and r.attempts == 2
-    assert "直前の出力は受理されませんでした" in m.calls[1] and "でっちあげ" not in m.calls[1]
+    assert "Your previous output was rejected" in m.calls[1] and "でっちあげ" not in m.calls[1]
 
 
 def test_retry_limit_returns_no_issues_without_exception(db, dispute, seen):

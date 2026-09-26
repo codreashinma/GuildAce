@@ -18,8 +18,8 @@ from ..services import chain, worker
 router = APIRouter(prefix="/ops", tags=["ops"])
 
 KIND_LABEL = {
-    "fund_task": "工程の預託（fundTask）", "submit": "成果物の提出（submit）", "approve": "承認の中継（approve）", "dispute": "差し戻し（dispute）",
-    "resolve": "裁定の反映（resolve）", "ens_publish": "Agent の ENS 公開", "ens_update": "ENS レコード更新", "ens_project": "案件 subname の発行", "ens_subagents": "専門エージェントの ENS 反映",
+    "fund_task": "Step deposit (fundTask)", "submit": "Submit Deliverable (submit)", "approve": "Relay Approval (approve)", "dispute": "Send back (dispute)",
+    "resolve": "Apply ruling (resolve)", "ens_publish": "Publish Agent to ENS", "ens_update": "Update ENS records", "ens_project": "Issue Case subname", "ens_subagents": "Sync specialist agents to ENS",
 }
 # 再投入できるのは failed だけ。retry はワーカーが自動で拾うので、ここから触るとワーカーと競合する
 RETRYABLE = {"failed"}
@@ -121,7 +121,7 @@ def _already_on_chain(j: ChainJob) -> str | None:
     if j.kind == "submit" and cur == "submitted" and on.get("deliverable_hash", "").lower() != (p.get("deliverable_hash") or "").lower():
         return None  # 別の成果物が提出済み → 再提出は正当
     if _TASK_ORDER.get(cur, 0) >= _TASK_ORDER[target]:
-        return f"オンチェーンの工程は既に {cur} です（tx は送信済みで、受信確認だけが失敗した可能性）。再送せず、案件詳細の「再同期」で投影を取り直してください"
+        return f"The on-chain Step is already {cur} (the tx was likely sent and only the receipt check failed). Do not resend; use \"Resync\" on the Case details page to refresh the projection"
     return None
 
 
@@ -132,19 +132,19 @@ def retry_job(job_id: str, _: User = Depends(ops_user), db: Session = Depends(ge
     既に反映済みなら 409 で断る。状態の更新は failed のときだけ通る UPDATE で行い、ワーカーとの競合を防ぐ。ens_publish は Agent を publishing に戻す。"""
     j = db.get(ChainJob, job_id)
     if j is None:
-        raise HTTPException(404, "ジョブがありません")
+        raise HTTPException(404, "Job not found")
     if j.status not in RETRYABLE:
-        raise HTTPException(409, f"再投入できるのは failed のジョブだけです（現在 {j.status}。retry はワーカーが自動で再送します）")
+        raise HTTPException(409, f"Only failed Jobs can be requeued (currently {j.status}; the worker resends retry Jobs automatically)")
     reason = _already_on_chain(j)
     if reason:
         raise HTTPException(409, reason)
-    note = f" [運用者が再投入 {datetime.now(UTC).isoformat(timespec='seconds')}]"
+    note = f" [requeued by operator {datetime.now(UTC).isoformat(timespec='seconds')}]"
     err = ((j.error or "")[:1800] + note) if j.error else note.strip()
     n = (db.query(ChainJob).filter(ChainJob.id == j.id, ChainJob.status == "failed")
          .update({"status": "retry", "attempts": 0, "next_attempt_at": None, "finished_at": None, "error": err}, synchronize_session=False))
     if n != 1:
         db.rollback()
-        raise HTTPException(409, "ジョブの状態が変わりました。再読み込みしてください")
+        raise HTTPException(409, "The Job status has changed. Please reload")
     if j.kind == "ens_publish":
         a = db.get(Agent, (j.payload or {}).get("agent_id", ""))
         if a is not None and a.status == "publish_failed":

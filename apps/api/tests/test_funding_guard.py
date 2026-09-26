@@ -139,7 +139,7 @@ def test_grd009_24h_limit(db, approved, monkeypatch):
     assert funding_guard.check(db, t1.id, 1).ok  # 100 ≤ 150
     _fund_job(db, t0, 100 * USDC)  # 直近 24 時間に 100 を投入済み
     d = funding_guard.check(db, t1.id, 1)
-    assert not d.ok and _reasons(d) == ["GRD-009"] and "24 時間" in d.reasons[0]  # 100 + 100 > 150
+    assert not d.ok and _reasons(d) == ["GRD-009"] and "24 hours" in d.reasons[0]  # 100 + 100 > 150
 
 
 def test_grd009_24h_window_excludes_older_jobs(db, approved, monkeypatch):
@@ -222,18 +222,18 @@ def test_ops001_stop_all_revokes_every_grant_and_resume_does_not_restore(db, app
     funding_guard.issue(db, other.id)
     ops = _agent_ops()
     assert ops.main(["stop-all", "--reason", "原因不明の送金", "--operator", "ops"]) == 0
-    assert "送金操作権限を失効  2 件" in capsys.readouterr().out
+    assert "Revoked transfer permissions  2" in capsys.readouterr().out
     assert ops.main(["resume-all", "--operator", "ops"]) == 0
     for c in (approved, other):
         d = funding_guard.check(db, _task(c).id, 1)
         assert _reasons(d) == ["GRD-010"]  # 再開しても権限は戻らない
-    assert all(g.revoke_reason.startswith("global の停止") for g in db.query(FundingGrant))
+    assert all(g.revoke_reason.startswith("global stopped") for g in db.query(FundingGrant))
 
 
 def test_ops002_stop_case_revokes_only_that_case(db, approved, capsys):
     other = _case(db)
     funding_guard.issue(db, other.id)
     assert _agent_ops().main(["stop-case", approved.id, "--reason", "この案件だけ", "--operator", "ops"]) == 0
-    assert "送金操作権限を失効  1 件" in capsys.readouterr().out
+    assert "Revoked transfer permissions  1" in capsys.readouterr().out
     assert funding_guard.active_grant(db, approved.id) is None
     assert funding_guard.check(db, _task(other).id, 1).ok

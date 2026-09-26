@@ -1,7 +1,8 @@
-直前に示したスキーマに適合する JSON だけを返してください。
+Return only JSON that conforms to the schema shown above.
 
-- 説明文・前置き・コードブロックの囲みを付けません。
-- スキーマにないキーを足しません。
-- 各争点に、記録への参照を 1 つ以上付けます。
+- Do not add explanations, preambles, or code fences.
+- Do not add keys that are not in the schema.
+- Write all natural-language text values in English, even if the input data is in another language.
+- Attach at least one reference to a record to each issue.
 
-スキーマに適合しない場合は受理されず、違反した項目を添えて再度依頼されます。
+Output that does not conform to the schema is rejected, and you will be asked again together with the items that were violated.

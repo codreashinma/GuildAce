@@ -49,7 +49,7 @@ def decompose(db: Session, *, case_id: str, parent_run_id: str | None = None,
               mock: Callable[[], str | dict] | None = None) -> DecomposeResult:
     case = db.get(Case, case_id)
     if case is None:
-        raise ValueError(f"案件がありません: {case_id}")
+        raise ValueError(f"Case not found: {case_id}")
     phases = phases_for_case(case, db.get(Agent, case.agent_id))
     text = requirement_text(case)
     run = trace.start_run(db, "AG-002", mode="decompose", case_id=case_id, parent_run_id=parent_run_id, input_text=text)
@@ -76,10 +76,10 @@ def decompose(db: Session, *, case_id: str, parent_run_id: str | None = None,
             reason: Reason = "unavailable" if r.failure == "unavailable" else "llm_error"
             return finish(DecomposeResult(False, run.id, reason=reason, violations=[f"{r.failure}: {r.detail}"], attempts=attempt), "failed")
         if r.failure in ("parse", "schema"):  # CG-005: スキーマに合わない出力は受け取らない
-            violations = [f"出力の形が合いません（{r.failure}）: {r.detail}"]
+            violations = [f"Output does not match the expected format ({r.failure}): {r.detail}"]
             continue
         if not r.output.tasks:  # PMT-002・010: 判断できないときは空の一覧を返す約束。推測で増やさせず、再試行しない
-            return finish(DecomposeResult(False, run.id, reason="empty", violations=["タスクが 1 件もありません（依頼文から判断できない）"],
+            return finish(DecomposeResult(False, run.id, reason="empty", violations=["No tasks (could not be determined from the request)"],
                                           attempts=attempt), "failed")
         violations = validate_plan(case_id, r.output, phases)  # 9-2（決定的なコード）
         if not violations:

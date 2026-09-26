@@ -34,35 +34,35 @@ def validate_plan(case_id: str, plan: TaskPlan, phases: list[dict]) -> list[str]
     out: list[str] = []
     n = len(plan.tasks)
     if n < 1:
-        out.append("タスクが 1 件もありません")
+        out.append("There are no tasks")
     hit = limits.check_task_count(case_id, n)  # GRD-003
     if hit is not None:
-        out.append(f"タスク数が上限を超えています（{n} 件、上限 {hit.limit:g} 件）")
+        out.append(f"Too many tasks ({n}, limit {hit.limit:g})")
     seqs = [t.seq for t in plan.tasks]
     if seqs != list(range(1, n + 1)):
-        out.append(f"連番が 1 から {n} までの連続になっていません（{n} 件中 {sum(1 for i, s in enumerate(seqs, 1) if s != i)} 件が位置と一致しません）")
+        out.append(f"Sequence numbers are not consecutive from 1 to {n} ({sum(1 for i, s in enumerate(seqs, 1) if s != i)} of {n} do not match their position)")
     keys = {p["key"] for p in phases}
     bad = [i for i, t in enumerate(plan.tasks, 1) if t.phase not in keys]
     if bad:
-        out.append(f"工程の一覧に無い工程キーが使われています（{', '.join(f'{i} 件目' for i in bad[:10])}）")
+        out.append(f"Step keys not in the step list are used (items {', '.join(str(i) for i in bad[:10])})")
     return out
 
 
 @register("TOOL-004")
 def save_task_plan(ctx: ToolContext, *, case_id: str, revision: int, tasks: list[dict]) -> dict:
     if ctx.run.case_id != case_id:
-        raise ToolError("この実行に結び付いた案件以外には保存できません")
+        raise ToolError("Can only save to the case linked to this run")
     case = ctx.db.get(Case, case_id)
     if case is None:
-        raise ToolError("案件がありません")
+        raise ToolError("Case not found")
     if revision < 1:
-        raise ToolError("版番号は 1 以上にしてください")
+        raise ToolError("The revision number must be 1 or greater")
     try:
         plan = TaskPlan.model_validate({"tasks": tasks})
     except ValueError as e:
-        raise ToolError(f"タスク計画の形が合いません: {e}") from e
+        raise ToolError(f"The task plan has an invalid format: {e}") from e
     violations = validate_plan(case_id, plan, phases_for_case(case, ctx.db.get(Agent, case.agent_id)))
     if violations:  # 9-2: 検証に通らない出力は保存しない
-        raise ToolError("タスク計画の検証に失敗しました: " + " / ".join(violations))
+        raise ToolError("The task plan failed validation: " + " / ".join(violations))
     trace.save_output(ctx.db, "task_plan", case_id, revision, plan.model_dump(), ctx.run)
     return {"case_id": case_id, "revision": revision, "task_count": len(plan.tasks)}

@@ -1,5 +1,5 @@
-直前の出力は受理されませんでした。違反した項目は次のとおりです。
+Your previous output was rejected. The violated items are:
 
 {{violations}}
 
-結論を含めていた場合は取り除き、記録への参照がない争点には参照を付けて、同じ形式で出し直してください。直前の出力は破棄されています。
+If you included a conclusion, remove it; add a reference to a record to any issue that lacks one; and output again in the same format. Your previous output has been discarded.

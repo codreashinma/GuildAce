@@ -122,11 +122,22 @@ def verify_proof(*, idkit_response: dict | None, action: str, signal: str, user_
         raise ValueError("action が一致しません")
     check_binding(idkit_response=idkit_response, action=action, signal=signal)
     r = httpx.post(f"{s.world_verify_url}/{s.world_rp_id}", json=idkit_response, timeout=30)
-    if r.status_code >= 400:
-        raise ValueError(f"World ID 検証に失敗しました: {r.text[:300]}")
-    body = r.json()
-    if body.get("success") is False or body.get("verified") is False:
-        raise ValueError(f"World ID 検証に失敗しました: {body}")
+    body = None
+    try:
+        body = r.json()
+    except ValueError:
+        body = None
+    if r.status_code >= 400 or (isinstance(body, dict) and (body.get("success") is False or body.get("verified") is False)):
+        text = (r.text if body is None else str(body))[:300]
+        low = text.lower()
+        if "max_verifications" in low or "already_verified" in low or "already verified" in low or "max verification" in low:
+            # World 側の action の回数上限。案件ごとの二重実行はこちらの DB で防いでいるので、Portal 側は無制限にしてよい
+            raise ValueError(
+                f"World ID 検証に失敗しました: この action「{action}」の検証回数の上限に達しています。"
+                "Developer Portal の Actions で「Max verifications per user」を無制限（0）にしてください。"
+                f"（{text}）"
+            )
+        raise ValueError(f"World ID 検証に失敗しました: {text}")
     nullifier = _extract_nullifier(body) or _extract_nullifier(idkit_response)
     if not nullifier:
         raise ValueError("nullifier を取得できませんでした")

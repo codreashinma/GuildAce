@@ -43,7 +43,7 @@ export default function NewAgent() {
 
   if (!me) return <p className="text-sm text-neutral-500">ウォレットを接続して Sign in してください。</p>;
   const parent = mode === "creator" ? (ownName || "<your-name>.eth") : (config?.ens_parent_name ?? "choice.eth");
-  const ens = `${f.label || "<label>"}.${parent}`;
+  const ens = `${f.label || "<PM Agent のラベル>"}.${parent}`;
 
   return (
     <div className="mx-auto max-w-2xl">

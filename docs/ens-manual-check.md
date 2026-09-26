@@ -118,6 +118,22 @@ platform（`choice.eth`）と creator（Creator の `.eth`）で、名前空間�
 mint `0xc7e64c3c…` → approve `0xd9141279…` → commit `0x93424abd…` → 75 秒 → register `0xc5453f88…` → OwnedResolver `0x1027E983…` / UserRegistry `0x81A0e8d1…`。
 その後の Agent 公開（11 tx）と権限表 3 役割の verified も同じ実行で確認済み。
 
+## 7. ブラウザ（MetaMask）での Creator フロー確認手順
+
+スクリプトでは確認済みだが、画面のボタン経由はまだ通していない。デモで使う前に 1 回通す。所要 10 分、Sepolia ETH 0.03 程度。
+
+1. MetaMask に Sepolia ETH を持つアカウントを用意し、`http://localhost:3000` で「ウォレット接続」→「Sign in」。
+2. `/agents/new` → 公開先「自分の ENS 名の下」→ 未登録の名前（例 `<自分の名前>-test.eth`）を入力。事前確認に「✕ 未登録」と登録ボタンが出る。
+3. 登録ボタンを押す。mint → approve → commit の 3 回署名 → 画面のカウントダウン（70 秒、閉じない）→ register の署名 → リゾルバとサブレジストリの 4 回署名。終わると事前確認が 3 つとも ✓ になる。
+4. ラベル・説明・カテゴリを入れ「ENS に公開する」。11 回署名（専門 Agent のチェックを外すと 6 回）。ボタンに (n/11) の進捗が出る。
+5. 公開後の Agent 詳細で確認する: ENS レコード、reputation subname の 3 キー、専門 Agent 4 名、権限表 3 役割の「確認済」。`/ens` で名前を検索し ENSIP-10 の一致を確認。
+6. `/agents/mine` → 編集 → 説明を変えて保存。multicall に 1 回署名し、record が変わることを `/ens` で確認。
+7. 失敗したとき: 途中で署名を拒否すると `ens_error` に理由が出て `/agents/mine` に「残りの tx に署名」が出る。押せば揃っていない段階だけ再度署名する。
+
+## 8. 公開 URL に切り替えたときの record の書き直し
+
+`url` と `codrea.agent.endpoint` は `.env` の `APP_URL` / `API_URL` から作られる。公開 URL に変えたら `scripts/ens_rewrite_urls.py --dry-run` で対象を確認し、`--dry-run` なしで worker に投入する。Creator 所有の Agent は Creator が編集画面で保存し直す。
+
 ## トラブルシュート
 
 - `execution reverted` で register が落ちる: commit から 60 秒未満、または `approve` 額不足。`ens_setup.py` を再実行すれば登録済み判定でスキップされる。

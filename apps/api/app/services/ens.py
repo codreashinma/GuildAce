@@ -495,7 +495,21 @@ def records_calldata_for(*, name: str, texts: dict[str, str], addr: str | None =
 # ---------------------------------------------------------------- EAC: 役割の確認
 
 
-def agent_roles(name: str, label: str) -> list[dict]:
+_roles_cache: dict[str, tuple[float, list[dict]]] = {}
+
+
+def agent_roles(name: str, label: str, ttl: float = 60.0) -> list[dict]:
+    """agent_roles_uncached の 60 秒キャッシュ。権限表は 15〜25 回の eth_call になるため、Agent 詳細の表示ごとには読まない。"""
+    hit = _roles_cache.get(name)
+    if hit and time.time() - hit[0] < ttl:
+        return [dict(r) for r in hit[1]]
+    out = agent_roles_uncached(name, label)
+    if out and not any(r.get("role") == "error" for r in out):
+        _roles_cache[name] = (time.time(), [dict(r) for r in out])
+    return out
+
+
+def agent_roles_uncached(name: str, label: str) -> list[dict]:
     """Agent の名前まわりの EAC 役割をオンチェーンから読む（画面の権限表と検証用）。
     設計:
       Owner      … 共有リゾルバの root admin。<agent> のプロフィールと subname 発行

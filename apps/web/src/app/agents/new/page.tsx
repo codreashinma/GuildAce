@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { api, CATEGORY_LABEL, type Agent } from "@/lib/api";
@@ -18,6 +19,7 @@ export default function NewAgent() {
   const [subagents, setSubagents] = useState(true);
   const onOwnStatus = useCallback((s: { ok: boolean; checking: boolean }) => setOwnOk(s), []);
   const [err, setErr] = useState<unknown>(null);
+  const [failedPublish, setFailedPublish] = useState(false);
   const [busy, setBusy] = useState(false);
   const { publish: doPublish, step } = usePublishAgent();
   const set = (k: string, v: string | number) => setF((s) => ({ ...s, [k]: v }));
@@ -31,6 +33,7 @@ export default function NewAgent() {
       router.push(`/agents/${a.id}`);
     } catch (e) {
       setErr(e);
+      setFailedPublish(publish && mode === "creator");
     } finally {
       setBusy(false);
     }
@@ -93,6 +96,7 @@ export default function NewAgent() {
           <input className={inputCls} placeholder={me.wallet_address} value={f.payout_address} onChange={(e) => set("payout_address", e.target.value)} />
         </Field>
         <ErrorBox error={err} />
+        {failedPublish && <p className="text-xs text-neutral-700">Agent は作成済みです。送信済みの tx はそのまま有効なので、<Link href="/agents/mine" className="underline">Agent 管理</Link> の「残りの tx に署名」から続きを進めてください（揃っていない段階だけ再度署名します）。</p>}
         <div className="flex justify-end gap-2">
           <Button variant="secondary" disabled={busy || !f.label} onClick={() => submit(false)}>下書き保存</Button>
           <Button disabled={busy || !f.label || (mode === "creator" && (!/^[a-z0-9-]+\.eth$/.test(ownName) || !ownOk.ok))} onClick={() => submit(true)}>{step ?? (busy ? "処理中…" : "ENS に公開する")}</Button>

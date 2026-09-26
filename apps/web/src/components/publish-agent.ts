@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { usePublicClient, useSendTransaction } from "wagmi";
+import { useAccount, usePublicClient, useSendTransaction } from "wagmi";
 import { api, type Agent } from "@/lib/api";
 import { useEnsureSepolia } from "@/lib/chain";
 
@@ -13,6 +13,7 @@ type PublishResult = {
 /** D1: Agent の公開。platform はワーカーが発行、creator は Creator のウォレットで register / multicall に署名する */
 export function usePublishAgent() {
   const { sendTransactionAsync } = useSendTransaction();
+  const { address } = useAccount();
   const ensureSepolia = useEnsureSepolia();
   const pc = usePublicClient();
   const [step, setStep] = useState<string | null>(null);
@@ -27,7 +28,9 @@ export function usePublishAgent() {
       for (const tx of r.txs) {
         i += 1;
         setStep(`(${i}/${r.txs.length}) ${tx.label.replace(/ →.*$/, "")} に署名…`);
-        const h = await sendTransactionAsync({ to: tx.to as `0x${string}`, data: tx.data as `0x${string}` });
+        // 連続送信でウォレットの nonce 追跡が遅れて "nonce too low" になるのを防ぐため、直前の tx の確定後に RPC の pending nonce を明示する
+        const nonce = address && pc ? await pc.getTransactionCount({ address, blockTag: "pending" }) : undefined;
+        const h = await sendTransactionAsync({ to: tx.to as `0x${string}`, data: tx.data as `0x${string}`, nonce });
         setStep("トランザクション確認中…");
         await pc!.waitForTransactionReceipt({ hash: h });
         last = h;

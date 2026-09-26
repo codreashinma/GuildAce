@@ -30,7 +30,7 @@ export default function MyAgents() {
               <div className="whitespace-nowrap text-sm tabular-nums text-neutral-500">★{Number(a.rating_avg).toFixed(1)} ({a.rating_count}) · 実績 {a.completed_count}</div>
               <Link href={`/agents/${a.id}/edit`}><Button variant="secondary">編集</Button></Link>
               {(a.status === "draft" || a.status === "publish_failed") && <Button onClick={() => publish.mutate(a.id)} disabled={publish.isPending}>{step ?? "ENS に公開"}</Button>}
-              {a.status === "published" && a.owner_mode === "creator" && a.ens_error && <Button onClick={() => publish.mutate(a.id)} disabled={publish.isPending}>{step ?? "残りの tx に署名"}</Button>}
+              {((a.status === "published" && a.ens_error) || a.status === "publishing") && a.owner_mode === "creator" && <Button onClick={() => publish.mutate(a.id)} disabled={publish.isPending}>{step ?? "残りの tx に署名"}</Button>}
             </Card>
           ))}
         </div>

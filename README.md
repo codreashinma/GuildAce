@@ -100,6 +100,7 @@ Agent 作成時に公開先を選べる。
 - `GET /ens/setup-calldata?name=` … 名前の所有者が自分のウォレットで OwnedResolver と UserRegistry を用意する calldata（CREATE2 の予定アドレス付き）。運用者の鍵は使わない。
 - `GET /ens/reverse?address=` … 発行済みの名前（人員 / Agent 受取 / 会社管理者）からの逆引き。承認者・Jury・レビュー投稿者を名前で表示する。
 - `GET /ens/names` … 発行した全名前（Agent・専門 subagent・reputation・案件 project・人員）と tx。画面は `/ens`。
+- `GET /cases/{id}/audit` … 案件ごとの tx（openCase / fund / submit / approve / pay / dispute / resolve）と ENS 発行を時系列に並べ、発注者・承認者・支払先・Jury のアドレスを `/ens/reverse` と同じ規則で ENS 名にして返す（監査ビュー `/cases/[id]/audit`、認証不要。署名や nullifier は返さない）。
 - 所有確認は「未登録」「RPC エラー」を拒否し、RPC 未設定（モック）のときだけ確認なしで通す。利用者が送った ENS 書き込み tx は自己申告の hash を信用せず、レシートと text record をオンチェーンで確認してから `published` / `written` にする。
 - 役割鍵（Reputation / Project）が未設定で Owner 鍵にフォールバックしているときは `/config` の `mock.ens_roles=true` になり、ヘッダーに `mock: ens_roles` と出る。
 

@@ -25,7 +25,7 @@ API-26,案件,POST,/cases/{id}/opened,要,発注者の openCase tx を検証し�
 API-27,案件,GET,/cases/{id}/tasks/{task_id}/typed-data,要,承認用 EIP-712 typed data（caseId / taskId / deliverableHash / payee）,出力: TypedData,"C1, C2",FR-010,済,,
 API-28,案件,POST,/cases/{id}/tasks/{task_id}/approve,要,承認。World 検証（action=approve）と署名者の照合後、worker が approve を中継。必要数で自動支払い,入力: signature / idkit_response。出力: TaskOut,"C1, C2","FR-010, FR-011, FR-012",済,,
 API-29,案件,POST,/cases/{id}/resync,不要,オンチェーンの正本から投影を取り直す,出力: CaseDetailOut,"B6, G1",AQ-007,済,運用向け,
-API-30,案件,GET,/cases/{id}/audit,不要,openCase / fund / submit / approve / pay の tx 一覧と承認者の ENS 名（逆引き）,出力: tx 履歴,G2,NFR-010,未,tx hash は tasks に保持済み。逆引きが要る,低
+API-30,案件,GET,/cases/{id}/audit,不要,openCase / fund / submit / approve / pay / dispute / resolve と ENS 発行（Agent 公開・project subname）の時系列と、関わったアドレスの ENS 名（逆引き）,出力: CaseAuditOut（events[] / actors{} / counts）,G2,NFR-010,済,chain_jobs と tx hash を読むだけ。署名・nullifier は返さない。routers/case_audit.py,
 API-40,Human Task,GET,/human-tasks,不要,公開募集中の Human Task 一覧,出力: HumanTaskOut[],E3,UC-009,済,,
 API-41,Human Task,GET,/human-tasks/assigned,要,自分（の人員）に指名されたタスク,出力: HumanTaskOut[],"E3, A2",追補1 F10,済,,
 API-42,Human Task,GET,/human-tasks/mine,要,自分が受注したタスク,出力: HumanTaskOut[],E3,UC-009,済,,

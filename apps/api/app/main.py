@@ -7,7 +7,7 @@ from sqlalchemy import text
 
 from .config import get_settings
 from .db import Base, engine
-from .routers import agents, auth, cases, companies, config, disputes, ens, human_tasks, reviews, world
+from .routers import agents, auth, case_audit, cases, companies, config, disputes, ens, human_tasks, reviews, world
 
 logging.basicConfig(level=logging.INFO)
 
@@ -50,7 +50,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-for r in (auth, config, world, ens, agents, cases, companies, human_tasks, reviews, disputes):
+for r in (auth, config, world, ens, agents, cases, case_audit, companies, human_tasks, reviews, disputes):
     app.include_router(r.router)
 
 

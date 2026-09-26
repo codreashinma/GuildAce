@@ -82,6 +82,15 @@ export type Dispute = {
   summary_json: { issues?: string[]; client_position?: string; agent_position?: string; facts_to_check?: string[]; ai_note?: string; error?: string } | null;
   case: Case; votes: JuryVote[];
 };
+export type AuditActor = { address: string; name: string | null; source: string | null; verified: boolean; roles: string[] };
+export type AuditEvent = {
+  seq: number; kind: string; label: string; task_id: string | null; task_title: string | null; actor: string | null; actor_role: string;
+  tx_hash: string | null; mock: boolean; status: string; at: string | null; detail: Record<string, unknown>;
+};
+export type CaseAudit = {
+  case_id: string; title: string; status: string; escrow_case_id: string; approvers: string[]; threshold: number; project_ens_name: string | null; agent_ens_name: string | null;
+  events: AuditEvent[]; actors: Record<string, AuditActor>; counts: { events: number; onchain: number; mock: number; failed: number; named_actors: number };
+};
 export type AppConfig = {
   chain_id: number; escrow_address: string; usdc_address: string; ens_parent_name: string; ens_universal_resolver: string;
   world_app_id: string; world_rp_id: string;

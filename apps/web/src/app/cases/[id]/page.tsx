@@ -48,7 +48,7 @@ export default function CasePage({ params }: { params: Promise<{ id: string }> }
             <li key={s} className={`whitespace-nowrap rounded-sm border px-3 py-1 tabular-nums ${i < stepIdx ? "border-neutral-900 bg-white text-neutral-900" : i === stepIdx ? "border-neutral-900 bg-neutral-900 text-white" : "border-neutral-200 text-neutral-400"}`}>{i + 1}. {STATUS_LABEL[s]}</li>
           ))}
         </ol>
-        <div className="mt-3 flex flex-wrap gap-4"><TxLink hash={c.open_tx_hash} label="openCase" /></div>
+        <div className="mt-3 flex flex-wrap items-center gap-4"><TxLink hash={c.open_tx_hash} label="openCase" /><Link href={`/cases/${c.id}/audit`} className="whitespace-nowrap text-xs text-neutral-900 underline underline-offset-2 hover:text-neutral-600">監査ビュー（tx 一覧と ENS 逆引き）</Link></div>
         {c.error && <ErrorBox error={c.error} />}
       </Card>
 

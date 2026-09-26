@@ -24,5 +24,5 @@ E5,会社・人員,発注者へのレビュー,/cases/[id]（レビュー欄）,
 F1,Jury,紛争一覧,/jury,Human Jury,UC-008,審理中 / 終了・保留額・投票数,済,,
 F2,Jury,紛争詳細と投票,/jury/[id],Human Jury,UC-008,差し戻し理由・AI の論点整理・成果物・当事者除外・World 確認つき投票・結果と resolve tx,済,,
 G1,運用,チェーン連携ジョブ,/ops/jobs,運用者,ADR-006,chain_jobs の状態・失敗の再送・tx リンク,未,テーブルと再送は実装済み。画面のみ無い,低
-G2,運用,監査ビュー,/cases/[id]/audit,運用者・第三者,NFR-010,案件ごとの openCase / fund / submit / approve / pay の tx 一覧と承認者の ENS 名表示（逆引き）,未,tx hash は tasks に保持済み。逆引きは未実装,低
+G2,運用,監査ビュー,/cases/[id]/audit,運用者・第三者,NFR-010,案件の tx（openCase / fund / submit / approve / pay / dispute / resolve）と ENS 発行の時系列・関わったアドレスの ENS 名（逆引き）・失敗ジョブのエラー,済,認証不要。案件詳細の「監査ビュー」リンクから。API-30,
 G3,運用,ENS 確認,"/ens, /agents/[id], /cases/[id], /companies",全員,"FR-026, FR-027",発行した全名前（Agent・専門 subagent・reputation・案件 project・人員）と tx・種別・鍵。任意の名前の実レコードと ENSIP-10 resolve() の一致確認。案件詳細に project subname、会社画面に人員の実レコード,済,"GET /ens/names, /ens/resolve",

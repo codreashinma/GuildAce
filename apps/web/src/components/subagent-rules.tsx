@@ -10,11 +10,11 @@ const RESERVED = new Set(["pm", "field", "human", "worker", "reputation", "proje
 export function subagentsValid(list: Subagent[]): string | null {
   const seen = new Set<string>();
   for (const x of list) {
-    if (!ROLE_RE.test(x.role)) return `役割「${x.role || "（空）"}」は英小文字・数字・ハイフン（32 文字まで、先頭と末尾は英数字）にしてください`;
-    if (RESERVED.has(x.role) || x.role.startsWith("project-")) return `役割「${x.role}」は予約語なので使えません`;
-    if (seen.has(x.role)) return `役割「${x.role}」が重複しています`;
+    if (!ROLE_RE.test(x.role)) return `ENS ラベル「${x.role || "（空）"}」は英小文字・数字・ハイフン（32 文字まで、先頭と末尾は英数字）にしてください`;
+    if (RESERVED.has(x.role) || x.role.startsWith("project-")) return `ENS ラベル「${x.role}」は予約語なので使えません`;
+    if (seen.has(x.role)) return `ENS ラベル「${x.role}」が重複しています`;
     seen.add(x.role);
-    if (!x.name.trim()) return `役割「${x.role}」の名前を入れてください`;
+    if (!x.name.trim()) return `「${x.role}」の名前を入れてください`;
   }
   if (list.length > 12) return "専門エージェントは 12 件までです";
   return null;
@@ -22,7 +22,7 @@ export function subagentsValid(list: Subagent[]): string | null {
 
 /** PM Agent 配下の専門 AI エージェント一覧。所有者が追加・削除・編集する。
  *  role は ENS の subname（<role>.<agent>）になり、name / description は record に書く。rules（プロンプト）は ENS に書かず、AI 工程の system prompt に足す */
-export function SubagentsEditor({ value, onChange, published = false, defaultOpen = false }: { value: Subagent[]; onChange: (v: Subagent[]) => void; published?: boolean; defaultOpen?: boolean }) {
+export function SubagentsEditor({ value, onChange, published = false, defaultOpen = false, agentEns }: { value: Subagent[]; onChange: (v: Subagent[]) => void; published?: boolean; defaultOpen?: boolean; agentEns?: string }) {
   const [open, setOpen] = useState(defaultOpen);
   const err = subagentsValid(value);
   const upd = (i: number, k: keyof Subagent, v: string) => onChange(value.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
@@ -38,14 +38,17 @@ export function SubagentsEditor({ value, onChange, published = false, defaultOpe
       {open && (
         <div className="space-y-3 border-t border-neutral-200 px-3 py-3">
           <p className="text-xs text-neutral-500">
-            PM Agent が案件を分解するときの AI 担当です。役割（role）は ENS の subname（<span className="font-mono">&lt;role&gt;.&lt;agent&gt;</span>）になり、名前と説明は record に書きます。プロンプトは ENS には書かず、その役割の成果物を作るときの system prompt に足します。
+            PM Agent が案件を分解するときの AI 担当です。「ENS ラベル」がそのまま subname の先頭になり（<span className="font-mono">&lt;ラベル&gt;.{agentEns ?? "<agent>.choice.eth"}</span>）、PM Agent の公開時に一緒に発行されます。名前と説明は record に書き、プロンプトは ENS には書かずにその役割の system prompt に足します。
             {published && " 公開済みの Agent では、追加・名前や説明の変更は ENS にも反映されます（プラットフォーム公開はワーカーが、Creator 所有は自分のウォレットで署名）。削除は一覧から外れるだけで ENS の subname は残ります。"}
           </p>
           {value.length === 0 && <p className="text-xs text-neutral-700">専門エージェントがありません。すべての AI タスクは role=general として PM Agent 自身が実行します。</p>}
           {value.map((x, i) => (
             <div key={i} className="space-y-2 rounded-md border border-neutral-200 p-3">
-              <div className="grid gap-2 sm:grid-cols-[10rem_1fr_auto]">
-                <input id={`sub-role-${i}`} className={`${inputCls} font-mono`} placeholder="role（例: designer）" value={x.role} onChange={(e) => upd(i, "role", e.target.value.toLowerCase())} />
+              <div className="grid gap-2 sm:grid-cols-[12rem_1fr_auto]">
+                <div>
+                  <input id={`sub-role-${i}`} className={`${inputCls} font-mono`} placeholder="ENS ラベル（例: designer）" value={x.role} onChange={(e) => upd(i, "role", e.target.value.toLowerCase())} />
+                  <div className="mt-1 truncate font-mono text-[11px] text-neutral-500" title={`${x.role || "<ラベル>"}.${agentEns ?? "<agent>.choice.eth"}`}>{x.role || "<ラベル>"}.{agentEns ?? "<agent>.choice.eth"}</div>
+                </div>
                 <input id={`sub-name-${i}`} className={inputCls} placeholder="名前（例: Designer Agent）" value={x.name} onChange={(e) => upd(i, "name", e.target.value)} />
                 <Button variant="ghost" onClick={() => remove(i)}>削除</Button>
               </div>

@@ -94,7 +94,7 @@ export default function NewAgent() {
         <Field label="進め方・ルール" hint="PM Agent の system prompt になります。タスクの切り方、人間に任せる仕事、成果物の形式など">
           <textarea className={inputCls} rows={5} placeholder={"1. 案件を 4〜6 タスクに分解する\n2. 現地確認や実物レビューは Human Task にする\n3. 成果物は Markdown で書く"} value={f.rules} onChange={(e) => set("rules", e.target.value)} />
         </Field>
-        <SubagentsEditor value={subs} onChange={setSubs} />
+        <SubagentsEditor value={subs} onChange={setSubs} agentEns={ens} />
         <Field label="受取アドレス" hint="空なら自分のウォレット。ENS の addr レコードにも登録されます">
           <input className={inputCls} placeholder={me.wallet_address} value={f.payout_address} onChange={(e) => set("payout_address", e.target.value)} />
         </Field>

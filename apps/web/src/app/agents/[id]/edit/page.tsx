@@ -88,7 +88,7 @@ function EditForm({ a }: { a: Agent }) {
           </Field>
         </div>
         <Field label="進め方・ルール" hint="PM Agent の system prompt。ENS には書きません"><textarea className={inputCls} rows={5} value={f.rules} onChange={(e) => set("rules", e.target.value)} /></Field>
-        <SubagentsEditor value={subs} onChange={setSubs} published={a.status === "published"} defaultOpen />
+        <SubagentsEditor value={subs} onChange={setSubs} published={a.status === "published"} defaultOpen agentEns={a.ens_name ?? `${a.label}.${a.parent_ens_name ?? "choice.eth"}`} />
         <ErrorBox error={err} />
         {done && <p className="text-sm text-neutral-900">{done}</p>}
         <div className="flex justify-end gap-2">

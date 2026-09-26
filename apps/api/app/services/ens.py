@@ -410,10 +410,18 @@ def _ensure_subregistry(w3: Web3, parent_registry, parent_label: str, parent_nam
     acct = _account()
     factory = w3.eth.contract(address=Web3.to_checksum_address(s.ensv2_verifiable_factory), abi=[{"type": "function", "name": "deployProxy", "stateMutability": "nonpayable",
         "inputs": [{"name": "implementation", "type": "address"}, {"name": "salt", "type": "uint256"}, {"name": "data", "type": "bytes"}], "outputs": [{"type": "address"}]}])
-    salt = int.from_bytes(keccak(encode(["bytes32", "bytes32", "uint256"], [keccak(text="UserRegistry"), namehash(parent_name), 0])), "big")
     init = w3.eth.contract(abi=[{"type": "function", "name": "initialize", "stateMutability": "nonpayable", "inputs": [{"name": "rootAccount", "type": "address"}, {"name": "roleBitmap", "type": "uint256"}], "outputs": []}]).encode_abi("initialize", args=[acct.address, ALL_ROLES])
-    fn = factory.functions.deployProxy(Web3.to_checksum_address(s.ensv2_subregistry_impl), salt, bytes.fromhex(init[2:]))
-    sub = fn.call({"from": acct.address})
+    # 同じ名前で以前デプロイしたプロキシがあると（親レジストリの切り替え後の再公開など）同じ salt の deployProxy は revert する。salt の番号を進めて空きを探す
+    for nonce in range(8):
+        salt = int.from_bytes(keccak(encode(["bytes32", "bytes32", "uint256"], [keccak(text="UserRegistry"), namehash(parent_name), nonce])), "big")
+        fn = factory.functions.deployProxy(Web3.to_checksum_address(s.ensv2_subregistry_impl), salt, bytes.fromhex(init[2:]))
+        try:
+            sub = fn.call({"from": acct.address})
+            break
+        except ContractLogicError:
+            continue
+    else:
+        raise RuntimeError(f"Could not deploy a Subregistry for {parent_name} (deployProxy reverted for every salt)")
     if w3.eth.get_code(sub) in (b"", b"\x00"):
         _send(w3, fn)
     _, _, _, token_id, _ = parent_registry.functions.getState(int.from_bytes(keccak(text=parent_label), "big")).call()

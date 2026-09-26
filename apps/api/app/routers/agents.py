@@ -131,11 +131,13 @@ def publish_agent(agent_id: str, bg: BackgroundTasks, subagents: bool = True, us
         db.refresh(agent)
         return {"mode": "creator", "mock": False, "txs": ns["txs"], "ens_name": name, "subregistry": ns["subregistry"], "reputation_name": ns["reputation_name"],
                 "project_key": ns["project_key"], "reputation_key": ns["reputation_key"], "agent": AgentOut.model_validate(agent)}
+    # 公開のたびに番号を進める（固定キーだと、再公開・親名の変更後に前回の done ジョブと重なって投入されない）
+    n = db.query(func.count(ChainJob.id)).filter(ChainJob.kind == "ens_publish", ChainJob.idempotency_key.like(f"ens_publish:{agent.id}:%")).scalar()
     agent.status = "publishing"
     agent.ens_error = None
     db.commit()
     db.refresh(agent)
-    worker.enqueue(db, "ens_publish", f"ens_publish:{agent.id}:{agent.status}", {"agent_id": agent.id, "label": agent.label, "payout_address": agent.payout_address, "texts": profile_texts(agent),
+    worker.enqueue(db, "ens_publish", f"ens_publish:{agent.id}:{n}", {"agent_id": agent.id, "label": agent.label, "payout_address": agent.payout_address, "texts": profile_texts(agent),
                                                                                   "subagents": agent_subagents(agent)})
     return {"mode": "platform", "agent": AgentOut.model_validate(agent)}
 
